@@ -2,6 +2,20 @@ import customtkinter as ctk
 import tkinter as tk
 from tkcalendar import Calendar
 from datetime import datetime
+from iconipy import IconFactory
+
+def _make_icon(factory, name, size):
+    img = factory.asPil(name)
+    return ctk.CTkImage(light_image=img, dark_image=img, size=(size, size))
+
+_picker_icons = None
+
+def _get_picker_icons():
+    global _picker_icons
+    if _picker_icons is None:
+        _f = IconFactory(icon_size=36, font_color="#94A3B8")
+        _picker_icons = {"calendar": _make_icon(_f, "calendar", 16)}
+    return _picker_icons
 
 class CTkDateTimePicker(ctk.CTkFrame):
     def __init__(self, master, variable=None, **kwargs):
@@ -30,9 +44,8 @@ class CTkDateTimePicker(ctk.CTkFrame):
         # Calendar Icon overlay (right aligned)
         self.icon_label = ctk.CTkLabel(
             self.trigger_btn,
-            text="📅",
-            font=("Arial", 16),
-            text_color="#94A3B8",
+            text="",
+            image=_get_picker_icons()["calendar"],
             cursor="hand2"
         )
         self.icon_label.place(relx=1.0, rely=0.5, anchor="e", x=-10)
@@ -88,6 +101,7 @@ class CTkDateTimePicker(ctk.CTkFrame):
             cal_frame,
             selectmode='day',
             date_pattern='yyyy-mm-dd',
+            firstweekday='sunday',
             year=current_dt.year,
             month=current_dt.month,
             day=current_dt.day,

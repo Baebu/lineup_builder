@@ -62,26 +62,12 @@ Represents a single performer slot in the lineup. Each slot has:
 - Info label showing saved DJ metadata (goggles, link)
 
 #### `App` (ctk.CTk)
-The main application window. Uses a **3-region layout**:
-
-```
-+-------------------------------------------------------+
-| Header: app name · current event selector · save      |
-+---------------------------+---------------------------+
-| Left column (~40%)        | Right column (~60%)       |
-| Event Details panel       | Lineup Slots panel (top)  |
-| Open Decks panel          | DJ Roster panel (bottom)  |
-+---------------------------+---------------------------+
-| Bottom: Live preview (full width)                     |
-+-------------------------------------------------------+
-```
-
-Key responsibilities:
-- **Header** — app branding, saved-event selector dropdown, Save Event button
-- **Left column** — scrollable form: event title/vol, start time, genres, output format toggles, minimalist mode switch, open-decks settings
-- **Right column top** — lineup slot list with default-length selector and Add DJ button
-- **Right column bottom** — DJ roster with expandable cards and New DJ button
-- **Bottom preview** — full-width live text output with Copy button
+The main application window. Key responsibilities:
+- **Left panel** — tabbed interface with:
+  - *Current Event* — event config (title, vol, date/time, genres, slots, OD settings, output format)
+  - *Saved Events* — load/delete previously saved lineups
+  - *DJ Roster* — view and edit saved DJs with goggles and link metadata
+- **Right panel** — live output preview with Copy button
 
 ### Data Flow
 
@@ -127,9 +113,7 @@ On first run, if neither exists, the app falls back to reading `lineup_data.yaml
 | `update_output()` | Rebuilds the output text box from current state |
 | `copy_template()` | Copies output to clipboard with temporary button feedback |
 | `load_event_lineup()` | Loads a saved event into the current editor |
-| `refresh_dj_roster_ui()` | Rebuilds the DJ Roster panel from `self.saved_djs` |
-| `refresh_saved_events_ui()` | Updates the header event-selector dropdown values |
-| `_load_event_by_selector()` | Handles header dropdown selection → loads that event |
+| `refresh_dj_roster_ui()` | Rebuilds the DJ Roster tab from `self.saved_djs` |
 
 ---
 
@@ -143,8 +127,8 @@ On first run, if neither exists, the app falls back to reading `lineup_data.yaml
 
 ### Adding a new event-level field
 1. Add a `ctk.StringVar` in `App.__init__`.
-2. Add the widget in `setup_ui()` inside the left column's **Event Details** panel.
-3. Include the value in `save_event_lineup()` and restore it in `load_event_lineup()`.
+2. Add the widget in `setup_ui()` under the *Current Event* tab.
+3. Include the value in `save_current_event()` and restore it in `load_event_lineup()`.
 4. Read it in `update_output()`.
 
 ### Adding a new saved-event field

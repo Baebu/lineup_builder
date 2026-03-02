@@ -1,18 +1,7 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-
-# Virtual environment
-.venv/
-venv/
-env/
-
-# Runtime data files (auto-generated at runtime)
-lineup_library.yaml
-lineup_events.yaml
-
-# OS / editor
-.DS_Store
-Thumbs.db
-*.swp
+/lineup_library.yaml
+/lineup_events.yaml
+/lineup_data.yaml
+/__pycache__
+/.vscode
+/.venv
+/window_state.json
