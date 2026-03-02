@@ -10,7 +10,7 @@ iconipy_datas, iconipy_bins, iconipy_hidden = collect_all('iconipy')
 babel_datas = collect_data_files('babel')
 
 a = Analysis(
-    ['lineup_builder.py'],
+    ['main.py'],
     pathex=[],
     binaries=ctk_bins + iconipy_bins,
     datas=(

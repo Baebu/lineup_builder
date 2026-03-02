@@ -1,4 +1,4 @@
-from slot_ui import SlotUI
+from .slot_ui import SlotUI
 
 
 class SlotMixin:

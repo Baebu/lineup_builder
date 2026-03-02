@@ -2,16 +2,16 @@ import customtkinter as ctk
 import datetime
 from iconipy import IconFactory
 
-from utils import _make_icon
-from data_manager import DataMixin
-from debounce import DebounceMixin
-from ui_builder import UISetupMixin
-from dj_roster import DJRosterMixin
-from drag_drop import DragDropMixin
-from events_manager import EventsMixin
-from genre_manager import GenreMixin
-from slot_manager import SlotMixin
-from output_builder import OutputMixin
+from .utils import _make_icon
+from .data_manager import DataMixin
+from .debounce import DebounceMixin
+from .ui_builder import UISetupMixin
+from .dj_roster import DJRosterMixin
+from .drag_drop import DragDropMixin
+from .events_manager import EventsMixin
+from .genre_manager import GenreMixin
+from .slot_manager import SlotMixin
+from .output_builder import OutputMixin
 
 
 class App(

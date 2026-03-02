@@ -2,8 +2,11 @@
 /lineup_events.yaml
 /lineup_data.yaml
 /__pycache__
+**/__pycache__
+*.pyc
 /.vscode
 /.venv
 /window_state.json
 /build
 /dist/
+/.vscode/settings.json
