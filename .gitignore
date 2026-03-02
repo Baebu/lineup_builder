@@ -5,8 +5,8 @@
 **/__pycache__
 *.pyc
 /.vscode
+/.github
 /.venv
 /window_state.json
 /build
 /dist/
-/.vscode/settings.json
