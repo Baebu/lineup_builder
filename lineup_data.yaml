@@ -1,0 +1,27 @@
+djs:
+- goggles: ''
+  link: ''
+  name: New DJ
+- goggles: ''
+  link: ''
+  name: New DJ
+- goggles: ''
+  link: ''
+  name: New DJ
+events:
+- genres: []
+  include_od: true
+  master_duration: '60'
+  names_only: false
+  od_count: '4'
+  od_duration: '30'
+  slots:
+  - duration: '60'
+    genre: ''
+    name: ''
+  timestamp: 2026-03-02 20:00
+  title: MELLOW BASS MONDAYS
+  vol: '1'
+genres: []
+titles:
+- MELLOW BASS MONDAYS
