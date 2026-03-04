@@ -1,5 +1,7 @@
 import customtkinter as ctk
 import datetime
+import ctypes
+import sys
 from iconipy import IconFactory
 
 from .utils import _make_icon
@@ -45,11 +47,12 @@ class App(
         self.model = LineupModel(self.bus)
 
         self.title("Lineup Builder")
-        self.geometry("1150x850")
+        self.geometry("1280x960")
         self._restore_window_state()
 
         ctk.set_appearance_mode("dark")
-        self.configure(fg_color="#0F172A")
+        self.configure(fg_color="#000000")
+        self.after(50, self._set_titlebar_color)
 
         self.grid_columnconfigure(0, weight=1, uniform="group1")
         self.grid_columnconfigure(1, weight=1, uniform="group1")
@@ -119,3 +122,20 @@ class App(
 
         # Check for crash-recovered auto-save session
         self.after(150, self._check_auto_save)
+
+    def _set_titlebar_color(self):
+        """Set the Win32 title bar caption color to black (Windows 11+)."""
+        if sys.platform != "win32":
+            return
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            # DWMWA_CAPTION_COLOR = 35, color is COLORREF (0x00BBGGRR)
+            # Black = 0x00000000
+            DWMWA_CAPTION_COLOR = 35
+            color = ctypes.c_int(0x00000000)
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_CAPTION_COLOR,
+                ctypes.byref(color), ctypes.sizeof(color)
+            )
+        except Exception:
+            pass

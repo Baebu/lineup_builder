@@ -1,6 +1,7 @@
 import re
 import customtkinter as ctk
 from tkinter import messagebox
+from . import theme as T
 
 
 class DJRosterMixin:
@@ -20,236 +21,467 @@ class DJRosterMixin:
             ctk.CTkLabel(
                 self.dj_roster_scroll,
                 text="No DJs saved yet.\nSave a DJ from a slot or press + NEW DJ.",
-                text_color="#94A3B8", justify="center"
+                text_color=T.TEXT_SECONDARY, justify="center"
             ).pack(pady=20)
             return
         if not filtered:
             ctk.CTkLabel(
                 self.dj_roster_scroll,
                 text="No DJs match your search.",
-                text_color="#94A3B8", justify="center"
+                text_color=T.TEXT_SECONDARY, justify="center"
             ).pack(pady=20)
             return
         for idx, dj in filtered:
             self._build_dj_card(self.dj_roster_scroll, dj, idx)
 
     def _build_dj_card(self, parent, dj, idx):
-        card = ctk.CTkFrame(parent, fg_color="#0F172A", border_width=1, border_color="#334155", corner_radius=8)
-        card.pack(fill="x", pady=(0, 6))
-
-        expanded = ctk.BooleanVar(value=False)
-
-        # Hoist edit vars so header buttons can reference them
-        name_var   = ctk.StringVar(value=dj.get("name", ""))
-        stream_var = ctk.StringVar(value=dj.get("stream", ""))
-        exact_var  = ctk.BooleanVar(value=bool(dj.get("exact_link", False)))
+        card = ctk.CTkFrame(parent, **T.CARD)
+        card.pack(fill="x", padx=T.SCROLL_PAD_X, pady=(0, 6))
 
         # ── Header row ──
         header = ctk.CTkFrame(card, fg_color="transparent", cursor="hand2")
-        header.pack(fill="x", padx=10, pady=8)
+        header.pack(fill="x", padx=T.CARD_PAD_INNER, pady=8)
 
         grip_btn = ctk.CTkButton(
             header, text="", image=self.icon_grip,
-            width=24, height=32, cursor="fleur",
-            fg_color="transparent", hover_color="#334155"
+            width=24, height=T.WIDGET_H_SM, cursor="fleur",
+            fg_color="transparent", hover_color=T.BORDER
         )
         grip_btn.pack(side="left", padx=(0, 6))
 
         name_lbl = ctk.CTkLabel(
             header, text=dj.get("name", "Unnamed DJ"),
-            font=("Arial", 13, "bold"), text_color="#CBD5E1", cursor="hand2"
+            font=T.FONT_VALUE, text_color=T.TEXT_PRIMARY, cursor="hand2"
         )
         name_lbl.pack(side="left")
 
-        arrow_btn = ctk.CTkButton(
-            header, text="", image=self.icon_chevron_up,
-            width=32, height=32, fg_color="#334155", hover_color="#475569",
-            command=lambda: toggle()
+        edit_btn = ctk.CTkButton(
+            header, text="", image=self.icon_edit,
+            width=T.WIDGET_H_SM, height=T.WIDGET_H_SM, **T.BTN_SECONDARY,
+            command=lambda: self._open_dj_edit_window(dj, idx, name_lbl, edit_btn)
         )
-        arrow_btn.pack(side="right")
+        edit_btn.pack(side="right", padx=(0, 4))
 
         del_btn = ctk.CTkButton(
-            header, text="", image=self.icon_trash, width=32, height=32,
-            fg_color="#7F1D1D", hover_color="#991B1B",
+            header, text="", image=self.icon_trash, width=T.WIDGET_H_SM, height=T.WIDGET_H_SM,
+            **T.BTN_DANGER,
             command=lambda i=idx: self._delete_dj_from_roster(i)
         )
         del_btn.pack(side="right", padx=(0, 4))
 
-        # ── Body (collapsed by default) ──
-        body = ctk.CTkFrame(card, fg_color="#1E293B", corner_radius=6)
-
-        ctk.CTkLabel(body, text="NAME", font=("Arial", 10, "bold"), text_color="#94A3B8").pack(anchor="w", padx=10, pady=(10, 2))
-        ctk.CTkEntry(body, textvariable=name_var, fg_color="#0F172A", border_color="#334155", height=32).pack(fill="x", padx=10, pady=(0, 8))
-
-        ctk.CTkLabel(body, text="🎙  STREAM LINK", font=("Arial", 10, "bold"), text_color="#94A3B8").pack(anchor="w", padx=10, pady=(0, 2))
-        ctk.CTkEntry(
-            body, textvariable=stream_var,
-            placeholder_text="https://stream.vrcdn.live/live/...",
-            fg_color="#0F172A", border_color="#334155", height=32
-        ).pack(fill="x", padx=10, pady=(0, 6))
-
-        ctk.CTkCheckBox(
-            body, text="Use exact link (skip Quest/PC conversion)",
-            variable=exact_var,
-            font=("Arial", 11), text_color="#94A3B8",
-            fg_color="#818CF8", hover_color="#4F46E5",
-            border_color="#334155", checkmark_color="#FFFFFF"
-        ).pack(anchor="w", padx=10, pady=(0, 10))
-
-        # ── Fix 1: Mouse-wheel passthrough ────────────────────────────────
-        # CTkScrollableFrame only captures scroll on its canvas; child widgets
-        # (entries, checkboxes) swallow <MouseWheel> events.  Forward them all
-        # back to the roster canvas so scrolling always works.
-        _roster_canvas = self.dj_roster_scroll._parent_canvas
-
-        def _forward_scroll(e):
-            _roster_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
-
-        def _bind_wheel(widget):
-            widget.bind("<MouseWheel>", _forward_scroll, add="+")
-            for child in widget.winfo_children():
-                _bind_wheel(child)
-
-        _bind_wheel(body)
-
-        # ── Auto-save on any field change ──
-        _autosave_job = [None]
-
-        def _schedule_autosave(*_):
-            if _autosave_job[0] is not None:
-                self.after_cancel(_autosave_job[0])
-            _autosave_job[0] = self.after(
-                700, lambda: self._save_dj_card(idx, name_var, stream_var, exact_var, name_lbl)
-            )
-
-        name_var.trace_add("write", _schedule_autosave)
-        stream_var.trace_add("write", _schedule_autosave)
-        exact_var.trace_add("write", _schedule_autosave)
-
-        ANIM_STEPS = 16
-        ANIM_DELAY = 13  # ms per step (~16*13 ≈ 208ms total)
-
-        # Fix 3+4: shared mutable state so toggle always collapses from the
-        # correct full height even when interrupted mid-animation, and so we
-        # can suppress the autohide scrollbar check during animation.
-        _state = {
-            "full_h": 0,       # canonical natural height of the body
-            "animating": False, # True while expand/collapse is in progress
-        }
-
-        def _finish_anim():
-            """Called when any animation completes — re-enable scrollbar check."""
-            _state["animating"] = False
-            # Trigger one clean scrollbar visibility recalculation now that
-            # layout has settled, suppressing the per-step flicker.
-            sf = self.dj_roster_scroll
-            sf._parent_canvas.event_generate("<Configure>")
-
-        def _do_expand(target_h, step=1):
-            if not expanded.get():
-                _finish_anim()
-                return
-            if step > ANIM_STEPS:
-                body.configure(height=target_h)
-                body.pack_propagate(True)
-                _finish_anim()
-                # Fix 2: scroll the card into view after fully expanding
-                _scroll_into_view()
-                return
-            t = step / ANIM_STEPS
-            # ease-out cubic: fast open, smooth gentle landing
-            t_ease = 1 - (1 - t) ** 3
-            body.configure(height=max(1, int(target_h * t_ease)))
-            body.after(ANIM_DELAY, lambda: _do_expand(target_h, step + 1))
-
-        def _do_collapse(from_h, step=1):
-            if expanded.get():
-                _finish_anim()
-                return
-            if step > ANIM_STEPS:
-                body.pack_forget()
-                _finish_anim()
-                return
-            t = step / ANIM_STEPS
-            # ease-in-out cubic: smooth start AND end for a clean fold-away
-            t_ease = t * t * (3 - 2 * t)
-            body.configure(height=max(1, int(from_h * (1 - t_ease))))
-            body.after(ANIM_DELAY, lambda: _do_collapse(from_h, step + 1))
-
-        def _scroll_into_view():
-            """Fix 2: nudge the roster canvas so the open card is visible."""
-            canvas = self.dj_roster_scroll._parent_canvas
-            bbox = canvas.bbox("all")
-            if not bbox:
-                return
-            total_h = max(bbox[3] - bbox[1], 1)
-            canvas_h = canvas.winfo_height()
-            card_top = card.winfo_y()
-            card_bot = card_top + card.winfo_height()
-            view_bot = canvas.yview()[1] * total_h
-            if card_bot > view_bot:
-                new_top = max(0, (card_bot - canvas_h) / total_h)
-                canvas.yview_moveto(min(new_top, 1.0))
-
-        def toggle(event=None):
-            if expanded.get():
-                body.pack_propagate(False)
-                # Fix 4: always collapse from the stored full natural height,
-                # not the current animated height, to avoid a snap-shut effect
-                # when interrupted mid-expand.
-                cur_h = _state["full_h"] if _state["full_h"] > 0 else body.winfo_height()
-                arrow_btn.configure(image=self.icon_chevron_up)
-                expanded.set(False)
-                _state["animating"] = True
-                _do_collapse(cur_h)
-            else:
-                # Pack at natural size first so Tkinter can compute layout,
-                # then measure in the next event-loop tick and lock to height=1
-                # before the animation starts.  Deferring the lock means
-                # winfo_reqheight() returns the real content height, not the
-                # configured height=1 we would have set prematurely.
-                body.pack(fill="x", padx=6, pady=(0, 8))
-                arrow_btn.configure(image=self.icon_chevron_down)
-                expanded.set(True)
-                _state["animating"] = True
-
-                def _measure_and_start():
-                    nat_h = body.winfo_reqheight()
-                    if nat_h < 10:
-                        # Fix 5: if geometry still hasn't settled, fall back to
-                        # a safe constant that fits the known body content.
-                        nat_h = 160
-                    _state["full_h"] = nat_h
-                    body.pack_propagate(False)
-                    body.configure(height=1)
-                    _do_expand(nat_h)
-
-                body.after(1, _measure_and_start)
-
-        header.bind("<Button-1>", toggle)
-        name_lbl.bind("<Button-1>", toggle)
+        # No click binding needed - using hover on edit button
 
         # Drag-and-drop: grip → add to lineup
         for w in (grip_btn,):
             w.bind("<B1-Motion>",       lambda e: self._on_dj_drag(e, name_lbl.cget("text")))
             w.bind("<ButtonRelease-1>", lambda e: self._end_dj_drag(e, name_lbl.cget("text")))
 
-    def _save_dj_card(self, idx, name_var, stream_var, exact_var, name_lbl):
-        new_name = name_var.get().strip()
-        if not new_name:
+    def _open_dj_edit_window(self, dj, idx, name_label, button):
+        """Open a pop-out window positioned near the edit button."""
+        # Toggle: Close if already open
+        window_key = f"dj_edit_{idx}"
+        cur_win = getattr(self, window_key, None)
+        if cur_win and cur_win.winfo_exists():
+            cur_win.destroy()
             return
-        old_name = self.saved_djs[idx].get("name", "")
-        self.saved_djs[idx] = {
-            "name": new_name,
-            "stream": stream_var.get().strip(),
-            "exact_link": exact_var.get(),
-        }
-        self._save_library()
-        name_lbl.configure(text=new_name)
-        self.after(0, self._refresh_slot_combos)
-        for slot in self.slots:
-            if slot.name_var.get().strip() in (old_name, new_name):
-                slot.update_dj_info()
+
+        popup = ctk.CTkToplevel(self)
+        setattr(self, window_key, popup)
+        popup.title("")  # No title for cleaner look
+        popup.geometry("320x240")
+        popup.resizable(False, False)
+        popup.configure(fg_color=T.CARD_BG, border_color=T.BORDER, border_width=T.BORDER_W)
+        popup.overrideredirect(True)
+        popup.attributes("-topmost", True)
+
+        # Close on click-off (focus out)
+        def _on_focus_out(event):
+            new_focus = self.focus_get()
+            # If focus moves to something unrelated (not popup and not its children)
+            if new_focus != popup and (new_focus is None or not str(new_focus).startswith(str(popup))):
+                # If clicking the toggle button, let button command handle the close
+                if new_focus == button:
+                    return
+                popup.destroy()
+
+        popup.bind("<FocusOut>", _on_focus_out)
+
+        # Position near the button
+        self.update_idletasks()
+        button_x = button.winfo_rootx()
+        button_y = button.winfo_rooty()
+        button_width = button.winfo_width()
+        button_height = button.winfo_height()
+
+        # Position to the right of the button, aligned with top
+        popup_x = button_x + button_width + 5
+        popup_y = button_y
+
+        # If it would go off-screen to the right, position to the left
+        screen_width = self.winfo_screenwidth()
+        if popup_x + 320 > screen_width:
+            popup_x = button_x - 320 - 5
+
+        # If it would go off-screen at the bottom, position upwards (align bottom with button bottom)
+        screen_height = self.winfo_screenheight()
+        if popup_y + 240 > screen_height:
+            popup_y = button_y + button_height - 240
+
+        popup.geometry(f"320x240+{popup_x}+{popup_y}")
+
+        # Add visible border frame
+        border_frame = ctk.CTkFrame(popup, fg_color=T.CARD_BG, border_width=2, border_color=T.BORDER)
+        border_frame.pack(fill="both", expand=True)
+
+        content = ctk.CTkFrame(border_frame, fg_color="transparent")
+        content.pack(fill="both", expand=True, padx=15, pady=12)
+        content.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(content, text="NAME", font=T.FONT_SMALL_BOLD, text_color=T.TEXT_SECONDARY).grid(row=0, column=0, sticky="w", pady=(0, 2))
+        name_var = ctk.StringVar(value=dj.get("name", ""))
+        name_entry = ctk.CTkEntry(content, textvariable=name_var, height=T.WIDGET_H_XS,
+                                   fg_color=T.PANEL_BG, border_color=T.BORDER)
+        name_entry.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+
+        ctk.CTkLabel(content, text="🎙  STREAM LINK", font=T.FONT_SMALL_BOLD, text_color=T.TEXT_SECONDARY).grid(row=2, column=0, sticky="w", pady=(0, 2))
+        stream_var = ctk.StringVar(value=dj.get("stream", ""))
+        ctk.CTkEntry(
+            content, textvariable=stream_var,
+            placeholder_text="https://stream.vrcdn.live/live/...",
+            height=T.WIDGET_H_XS, fg_color=T.PANEL_BG, border_color=T.BORDER
+        ).grid(row=3, column=0, sticky="ew", pady=(0, 6))
+
+        exact_var = ctk.BooleanVar(value=bool(dj.get("exact_link", False)))
+        ctk.CTkCheckBox(
+            content, text="Use exact link (skip Quest/PC conversion)",
+            variable=exact_var,
+            font=T.FONT_SMALL, text_color=T.TEXT_SECONDARY,
+            fg_color=T.ACCENT, hover_color=T.PRIMARY,
+            border_color=T.BORDER, checkmark_color=T.WHITE
+        ).grid(row=4, column=0, sticky="w", pady=(0, 8))
+
+        btn_row = ctk.CTkFrame(content, fg_color="transparent")
+        btn_row.grid(row=5, column=0, sticky="e")
+
+        def _save():
+            name = name_var.get().strip()
+            if not name:
+                name_entry.configure(border_color=T.ERROR)
+                return
+            if name.lower() != dj.get("name", "").lower() and name.lower() in [d.get("name", "").lower() for d in self.saved_djs]:
+                name_entry.configure(border_color=T.ERROR)
+                ctk.CTkLabel(content, text="Name already exists.",
+                             font=T.FONT_SMALL, text_color=T.ERROR).grid(row=6, column=0, sticky="w")
+                return
+
+            old_name = dj.get("name", "")
+            dj["name"] = name
+            dj["stream"] = stream_var.get().strip()
+            dj["exact_link"] = exact_var.get()
+
+            self._save_library()
+            name_label.configure(text=name)
+            self.after(0, self._refresh_slot_combos)
+            for slot in self.slots:
+                if slot.name_var.get().strip() in (old_name, name):
+                    slot.update_dj_info()
+            popup.destroy()
+
+        def _cancel():
+            popup.destroy()
+
+        ctk.CTkButton(
+            btn_row, text="Cancel", width=70, height=T.WIDGET_H_XS,
+            **T.BTN_SECONDARY, font=T.FONT_SMALL_BOLD,
+            command=_cancel
+        ).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(
+            btn_row, text="Save", width=60, height=T.WIDGET_H_XS,
+            **T.BTN_SUCCESS, font=T.FONT_SMALL_BOLD,
+            command=_save
+        ).pack(side="left")
+
+        # Keyboard shortcuts
+        popup.bind("<Return>", lambda e: _save())
+        popup.bind("<Escape>", lambda e: _cancel())
+
+        # Focus the name entry
+        name_entry.focus_set()
+
+        # Bring to front
+        popup.lift()
+
+    # ── Link Import ───────────────────────────────────────────────────────
+
+    def open_dj_link_import(self):
+        """Popup: paste links → auto-detect name → create or assign to DJ."""
+        popup = ctk.CTkToplevel(self)
+        popup.title("Import DJ Links")
+        popup.geometry("540x580")
+        popup.resizable(True, True)
+        popup.configure(fg_color=T.CARD_BG)
+        popup.grab_set()
+        popup.focus_force()
+
+        self.update_idletasks()
+        x = self.winfo_x() + (self.winfo_width()  - 540) // 2
+        y = self.winfo_y() + (self.winfo_height() - 580) // 2
+        popup.geometry(f"540x580+{x}+{y}")
+
+        outer = ctk.CTkFrame(popup, fg_color="transparent")
+        outer.pack(fill="both", expand=True, padx=20, pady=16)
+        outer.grid_columnconfigure(0, weight=1)
+        outer.grid_rowconfigure(2, weight=1)
+
+        # Header
+        ctk.CTkLabel(
+            outer, text="IMPORT DJ LINKS",
+            font=T.FONT_BODY_BOLD, text_color=T.ACCENT,
+        ).grid(row=0, column=0, sticky="w", pady=(0, 2))
+        ctk.CTkLabel(
+            outer,
+            text="Paste one entry per line. Supported:\n"
+                 "  • Raw URL        https://stream.vrcdn.live/live/djname\n"
+                 "  • Name + URL     DJ Name: https://...  or  DJ Name — https://...\n"
+                 "  • Bold + URL     **DJ Name** https://...",
+            font=T.FONT_SMALL, text_color=T.TEXT_MUTED, justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(0, 6))
+
+        paste_box = ctk.CTkTextbox(
+            outer, fg_color=T.PANEL_BG, text_color=T.TEXT_PRIMARY,
+            font=("Consolas", 12), border_width=T.BORDER_W, border_color=T.BORDER,
+            wrap="word", height=130,
+        )
+        paste_box.grid(row=2, column=0, sticky="nsew", pady=(0, 8))
+
+        status_lbl = ctk.CTkLabel(
+            outer, text="", font=T.FONT_SMALL, text_color=T.TEXT_SECONDARY,
+        )
+        status_lbl.grid(row=3, column=0, sticky="w", pady=(0, 4))
+
+        # Results scroll area (populated after Parse)
+        results_scroll = ctk.CTkScrollableFrame(
+            outer, fg_color="transparent", height=200,
+        )
+        results_scroll.grid(row=4, column=0, sticky="nsew", pady=(0, 8))
+        results_scroll.grid_columnconfigure(0, weight=1)
+        outer.grid_rowconfigure(4, weight=1)
+
+        result_rows: list[dict] = []   # [{url, name_var, mode_var, assign_var}]
+
+        existing_names = [d.get("name", "") for d in self.saved_djs]
+
+        def _parse():
+            nonlocal result_rows
+            for w in results_scroll.winfo_children():
+                w.destroy()
+            result_rows.clear()
+
+            raw = paste_box.get("1.0", "end-1c").strip()
+            if not raw:
+                status_lbl.configure(text="Paste something first.", text_color=T.ERROR)
+                return
+
+            entries = self._parse_dj_links(raw)
+            if not entries:
+                status_lbl.configure(text="No URLs detected.", text_color=T.ERROR)
+                return
+
+            status_lbl.configure(
+                text=f"{len(entries)} link(s) detected.",
+                text_color=T.IMPORT_SUCCESS,
+            )
+
+            for i, (det_name, url) in enumerate(entries):
+                row_frame = ctk.CTkFrame(results_scroll, **T.CARD)
+                row_frame.pack(fill="x", padx=T.SCROLL_PAD_X, pady=(0, 6))
+                row_frame.grid_columnconfigure(1, weight=1)
+
+                # URL label (truncated)
+                short_url = url if len(url) <= 44 else url[:41] + "…"
+                ctk.CTkLabel(
+                    row_frame, text=short_url,
+                    font=("Consolas", 10), text_color=T.TEXT_MUTED,
+                ).grid(row=0, column=0, columnspan=3, sticky="w", padx=10, pady=(6, 2))
+
+                # Mode toggle: "New DJ" / "Assign to existing"
+                mode_var   = ctk.StringVar(value="new")
+                name_var   = ctk.StringVar(value=det_name)
+                assign_var = ctk.StringVar(value=existing_names[0] if existing_names else "")
+
+                name_entry = ctk.CTkEntry(
+                    row_frame, textvariable=name_var,
+                    placeholder_text="DJ name…",
+                    height=T.WIDGET_H_XS, fg_color=T.PANEL_BG, border_color=T.BORDER,
+                )
+                assign_menu = ctk.CTkOptionMenu(
+                    row_frame,
+                    variable=assign_var,
+                    values=existing_names if existing_names else ["—"],
+                    height=T.WIDGET_H_XS,
+                    **T.OPTION_MENU,
+                )
+
+                def _toggle_mode(val, ne=name_entry, am=assign_menu):
+                    if val == "new":
+                        am.grid_forget()
+                        ne.grid(row=1, column=1, sticky="ew", padx=(0, 10), pady=(2, 6))
+                    else:
+                        ne.grid_forget()
+                        am.grid(row=1, column=1, sticky="ew", padx=(0, 10), pady=(2, 6))
+
+                mode_seg = ctk.CTkSegmentedButton(
+                    row_frame,
+                    values=["New DJ", "Assign to existing"],
+                    variable=mode_var,
+                    command=lambda val, mv=mode_var, ne=name_entry, am=assign_menu: _toggle_mode(val),
+                    font=T.FONT_SMALL, height=T.WIDGET_H_XS,
+                    fg_color=T.BORDER, selected_color=T.PRIMARY,
+                    selected_hover_color=T.PRIMARY_HOVER,
+                    unselected_color=T.BORDER,
+                    unselected_hover_color=T.HOVER,
+                    text_color=T.TEXT_PRIMARY,
+                )
+                mode_seg.grid(row=1, column=0, padx=(10, 6), pady=(2, 6))
+                name_entry.grid(row=1, column=1, sticky="ew", padx=(0, 10), pady=(2, 6))
+                # assign_menu hidden until mode switched
+
+                if not existing_names:
+                    mode_seg.configure(state="disabled")
+
+                result_rows.append({
+                    "url": url,
+                    "name_var": name_var,
+                    "mode_var": mode_var,
+                    "assign_var": assign_var,
+                    "name_entry": name_entry,
+                })
+
+        def _import():
+            if not result_rows:
+                status_lbl.configure(text="Nothing to import. Press Parse first.", text_color=T.ERROR)
+                return
+
+            added = 0
+            updated = 0
+            errors = []
+
+            for row in result_rows:
+                url   = row["url"]
+                mode  = row["mode_var"].get()
+
+                if mode == "new":
+                    name = row["name_var"].get().strip()
+                    if not name:
+                        row["name_entry"].configure(border_color=T.ERROR)
+                        errors.append("One or more new DJ names are blank.")
+                        continue
+                    if name.lower() in [d.get("name", "").lower() for d in self.saved_djs]:
+                        # Treat as update instead of creating a duplicate
+                        for d in self.saved_djs:
+                            if d.get("name", "").lower() == name.lower():
+                                d["stream"] = url
+                                updated += 1
+                                break
+                    else:
+                        self.saved_djs.append({"name": name, "stream": url, "exact_link": False})
+                        added += 1
+                else:
+                    target_name = row["assign_var"].get()
+                    for d in self.saved_djs:
+                        if d.get("name", "") == target_name:
+                            d["stream"] = url
+                            updated += 1
+                            break
+
+            if errors:
+                status_lbl.configure(text=" | ".join(errors), text_color=T.ERROR)
+                return
+
+            self._save_library()
+            self.refresh_dj_roster_ui()
+            self.after(0, self._refresh_slot_combos)
+            popup.destroy()
+
+        # Button row
+        btn_row = ctk.CTkFrame(outer, fg_color="transparent")
+        btn_row.grid(row=5, column=0, sticky="e", pady=(0, 0))
+
+        ctk.CTkButton(
+            btn_row, text="Cancel", width=80, height=T.WIDGET_H_SM,
+            **T.BTN_SECONDARY, font=T.FONT_BODY_BOLD,
+            command=popup.destroy,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            btn_row, text="Parse", width=80, height=T.WIDGET_H_SM,
+            **T.BTN_SECONDARY, font=T.FONT_BODY_BOLD, text_color=T.ACCENT,
+            command=_parse,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            btn_row, text="Import", width=90, height=T.WIDGET_H_SM,
+            **T.BTN_PRIMARY, font=T.FONT_BODY_BOLD,
+            command=_import,
+        ).pack(side="left")
+
+        popup.bind("<Escape>", lambda e: popup.destroy())
+        paste_box.focus_set()
+
+    @staticmethod
+    def _parse_dj_links(text: str) -> list[tuple[str, str]]:
+        """Extract (name, url) pairs from pasted text.
+
+        Detects URLs from various formats:
+          • Raw URL per line
+          • ``Name: URL`` / ``Name — URL`` / ``Name - URL``
+          • ``**Name** URL`` or ``**Name**: URL``
+          • Discord-style ``<URL>`` suppressed-embed links
+          Derives a name candidate from the URL's last path segment when
+          no explicit name is found.
+        """
+        url_re = re.compile(
+            r'https?://[^\s<>"]+',
+            re.IGNORECASE,
+        )
+        results: list[tuple[str, str]] = []
+
+        for line in text.splitlines():
+            s = line.strip()
+            if not s:
+                continue
+
+            # Strip Discord embed-suppression < >
+            s_clean = re.sub(r'<(https?://[^>]+)>', r'\1', s)
+
+            urls_in_line = url_re.findall(s_clean)
+            if not urls_in_line:
+                continue
+            url = urls_in_line[0]
+
+            # Remove the URL (and any trailing punctuation) to get the name fragment
+            name_fragment = url_re.sub("", s_clean).strip().rstrip(":—-– ").strip()
+
+            # Strip bold / italic markdown
+            name_fragment = re.sub(r'\*\*(.+?)\*\*', r'\1', name_fragment)
+            name_fragment = re.sub(r'\*([^*]+?)\*',  r'\1', name_fragment)
+
+            # Strip leading separators that weren't removed yet
+            name_fragment = re.sub(r'^[:\-–—]+\s*', '', name_fragment).strip()
+            name_fragment = re.sub(r'\s*[:\-–—]+$', '', name_fragment).strip()
+
+            if name_fragment:
+                det_name = name_fragment
+            else:
+                # Derive from last non-empty path segment of the URL
+                path_parts = [p for p in url.rstrip('/').split('/') if p]
+                raw_slug   = path_parts[-1] if path_parts else ""
+                # Strip query string
+                raw_slug   = raw_slug.split('?')[0]
+                # Title-case underscores/hyphens → spaces
+                det_name   = raw_slug.replace('_', ' ').replace('-', ' ').title()
+
+            results.append((det_name, url))
+
+        return results
 
     def _delete_dj_from_roster(self, idx):
         if idx < len(self.saved_djs):
@@ -266,7 +498,7 @@ class DJRosterMixin:
         popup.title("New DJ")
         popup.geometry("380x240")
         popup.resizable(False, False)
-        popup.configure(fg_color="#0F172A")
+        popup.configure(fg_color=T.CARD_BG)
         popup.grab_set()
         popup.focus_force()
 
@@ -279,27 +511,27 @@ class DJRosterMixin:
         content.pack(fill="both", expand=True, padx=20, pady=16)
         content.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(content, text="NAME", font=("Arial", 10, "bold"), text_color="#94A3B8").grid(row=0, column=0, sticky="w", pady=(0, 2))
+        ctk.CTkLabel(content, text="NAME", font=T.FONT_SMALL_BOLD, text_color=T.TEXT_SECONDARY).grid(row=0, column=0, sticky="w", pady=(0, 2))
         name_var = ctk.StringVar()
-        name_entry = ctk.CTkEntry(content, textvariable=name_var, height=34,
-                                   fg_color="#1E293B", border_color="#334155")
+        name_entry = ctk.CTkEntry(content, textvariable=name_var, height=T.WIDGET_H_SM,
+                                   fg_color=T.PANEL_BG, border_color=T.BORDER)
         name_entry.grid(row=1, column=0, sticky="ew", pady=(0, 10))
 
-        ctk.CTkLabel(content, text="🎙  STREAM LINK", font=("Arial", 10, "bold"), text_color="#94A3B8").grid(row=2, column=0, sticky="w", pady=(0, 2))
+        ctk.CTkLabel(content, text="🎙  STREAM LINK", font=T.FONT_SMALL_BOLD, text_color=T.TEXT_SECONDARY).grid(row=2, column=0, sticky="w", pady=(0, 2))
         stream_var = ctk.StringVar()
         ctk.CTkEntry(
             content, textvariable=stream_var,
             placeholder_text="https://stream.vrcdn.live/live/...",
-            height=34, fg_color="#1E293B", border_color="#334155"
+            height=T.WIDGET_H_SM, fg_color=T.PANEL_BG, border_color=T.BORDER
         ).grid(row=3, column=0, sticky="ew", pady=(0, 6))
 
         exact_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(
             content, text="Use exact link (skip Quest/PC conversion)",
             variable=exact_var,
-            font=("Arial", 11), text_color="#94A3B8",
-            fg_color="#818CF8", hover_color="#4F46E5",
-            border_color="#334155", checkmark_color="#FFFFFF"
+            font=T.FONT_BODY, text_color=T.TEXT_SECONDARY,
+            fg_color=T.ACCENT, hover_color=T.PRIMARY,
+            border_color=T.BORDER, checkmark_color=T.WHITE
         ).grid(row=4, column=0, sticky="w", pady=(0, 10))
 
         btn_row = ctk.CTkFrame(content, fg_color="transparent")
@@ -308,12 +540,12 @@ class DJRosterMixin:
         def _save():
             name = name_var.get().strip()
             if not name:
-                name_entry.configure(border_color="#EF4444")
+                name_entry.configure(border_color=T.ERROR)
                 return
             if name.lower() in [d.get("name", "").lower() for d in self.saved_djs]:
-                name_entry.configure(border_color="#EF4444")
+                name_entry.configure(border_color=T.ERROR)
                 ctk.CTkLabel(content, text="Name already exists.",
-                             font=("Arial", 10), text_color="#EF4444").grid(row=6, column=0, sticky="w")
+                             font=T.FONT_SMALL, text_color=T.ERROR).grid(row=6, column=0, sticky="w")
                 return
             self.saved_djs.append({"name": name, "stream": stream_var.get().strip(), "exact_link": exact_var.get()})
             self._save_library()
@@ -322,13 +554,13 @@ class DJRosterMixin:
             popup.destroy()
 
         ctk.CTkButton(
-            btn_row, text="Cancel", width=80, height=32,
-            fg_color="#334155", hover_color="#475569", font=("Arial", 11, "bold"),
+            btn_row, text="Cancel", width=80, height=T.WIDGET_H_SM,
+            **T.BTN_SECONDARY, font=T.FONT_BODY_BOLD,
             command=popup.destroy
         ).pack(side="left", padx=(0, 8))
         ctk.CTkButton(
-            btn_row, text="", image=self.icon_save, width=34, height=32,
-            fg_color="#059669", hover_color="#047857",
+            btn_row, text="", image=self.icon_save, width=T.ICON_BTN_W, height=T.WIDGET_H_SM,
+            **T.BTN_SUCCESS,
             command=_save
         ).pack(side="left")
 

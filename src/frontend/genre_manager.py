@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from tkinter import messagebox, simpledialog
+from . import theme as T
 
 
 class GenreMixin:
@@ -58,12 +59,12 @@ class GenreMixin:
             ctk.CTkLabel(
                 self.genre_tags_frame,
                 text="Type a genre above and press Enter to add it.",
-                text_color="#475569", font=("Arial", 10),
+                text_color=T.TEXT_MUTED, font=T.FONT_SMALL,
             ).grid(row=0, column=0, padx=2, pady=2)
             return
 
         active_lower = {g.lower() for g in self.active_genres}
-        primary = getattr(self, "settings", {}).get("primary_color", "#4F46E5")
+        primary = getattr(self, "settings", {}).get("primary_color", T.PRIMARY)
         buttons = []
         for genre in self.saved_genres:
             is_active = genre.lower() in active_lower
@@ -71,12 +72,12 @@ class GenreMixin:
                 self.genre_tags_frame,
                 text=genre,
                 command=lambda g=genre, a=is_active: self._toggle_genre(g, a),
-                fg_color=primary if is_active else "#1E293B",
-                hover_color="#4338CA" if is_active else "#334155",
-                text_color="#FFFFFF" if is_active else "#94A3B8",
-                border_width=1,
-                border_color=primary if is_active else "#334155",
-                height=26, font=("Arial", 11), corner_radius=6,
+                fg_color=primary if is_active else T.PANEL_BG,
+                hover_color=T.PRIMARY_HOVER if is_active else T.BORDER,
+                text_color=T.WHITE if is_active else T.TEXT_SECONDARY,
+                border_width=T.BORDER_W,
+                border_color=primary if is_active else T.BORDER,
+                height=T.WIDGET_H_PILL, font=T.FONT_BODY, corner_radius=6,
             )
             buttons.append(btn)
 
@@ -139,20 +140,20 @@ class GenreMixin:
         win.title("Edit Genres")
         win.geometry("340x480")
         win.resizable(True, True)
-        win.configure(fg_color="#0F172A")
+        win.configure(fg_color=T.CARD_BG)
         win.grab_set()
         win.focus()
 
         # ── Header ────────────────────────────────────────────────────────
-        header = ctk.CTkFrame(win, fg_color="#1E293B", corner_radius=0)
+        header = ctk.CTkFrame(win, fg_color=T.PANEL_BG, corner_radius=0)
         header.pack(fill="x")
         ctk.CTkLabel(
             header, text="Genre Library",
-            font=("Arial", 14, "bold"), text_color="#818CF8",
+            font=("Arial", 14, "bold"), text_color=T.ACCENT,
         ).pack(side="left", padx=14, pady=10)
         ctk.CTkLabel(
             header, text="Changes apply immediately",
-            font=("Arial", 10), text_color="#475569",
+            font=T.FONT_SMALL, text_color=T.TEXT_MUTED,
         ).pack(side="left")
 
         # ── Add-new row ───────────────────────────────────────────────────
@@ -164,7 +165,7 @@ class GenreMixin:
         add_entry = ctk.CTkEntry(
             add_frame, textvariable=new_var,
             placeholder_text="New genre name…",
-            fg_color="#0F172A", border_color="#334155", height=34,
+            fg_color=T.CARD_BG, border_color=T.BORDER, height=T.WIDGET_H_SM,
         )
         add_entry.grid(row=0, column=0, sticky="ew", padx=(0, 6))
 
@@ -178,9 +179,9 @@ class GenreMixin:
 
         add_entry.bind("<Return>", _add_new)
         ctk.CTkButton(
-            add_frame, text="Add", width=56, height=34,
-            fg_color="#4F46E5", hover_color="#4338CA",
-            font=("Arial", 11, "bold"),
+            add_frame, text="Add", width=56, height=T.WIDGET_H_SM,
+            **T.BTN_PRIMARY,
+            font=T.FONT_BODY_BOLD,
             command=_add_new,
         ).grid(row=0, column=1)
 
@@ -195,14 +196,14 @@ class GenreMixin:
             if not self.saved_genres:
                 ctk.CTkLabel(
                     scroll, text="No genres saved yet.",
-                    text_color="#475569", font=("Arial", 11),
+                    text_color=T.TEXT_MUTED, font=T.FONT_BODY,
                 ).pack(pady=20)
                 return
 
             for i, genre in enumerate(self.saved_genres):
                 row = ctk.CTkFrame(
-                    scroll, fg_color="#1E293B",
-                    corner_radius=8, border_width=1, border_color="#334155",
+                    scroll, fg_color=T.PANEL_BG,
+                    corner_radius=8, border_width=T.BORDER_W, border_color=T.BORDER,
                 )
                 row.pack(fill="x", pady=(0, 5))
                 row.grid_columnconfigure(1, weight=1)
@@ -212,12 +213,12 @@ class GenreMixin:
                 btn_col.grid(row=0, column=0, padx=(8, 4), pady=8)
                 ctk.CTkButton(
                     btn_col, text="", image=self.icon_arrow_up,
-                    width=26, height=24, fg_color="#334155", hover_color="#475569",
+                    width=26, height=24, **T.BTN_SECONDARY,
                     command=lambda idx=i: _move(idx, -1),
                 ).pack(pady=(0, 2))
                 ctk.CTkButton(
                     btn_col, text="", image=self.icon_arrow_down,
-                    width=26, height=24, fg_color="#334155", hover_color="#475569",
+                    width=26, height=24, **T.BTN_SECONDARY,
                     command=lambda idx=i: _move(idx, 1),
                 ).pack()
 
@@ -225,7 +226,7 @@ class GenreMixin:
                 name_var = ctk.StringVar(value=genre)
                 entry = ctk.CTkEntry(
                     row, textvariable=name_var,
-                    fg_color="#0F172A", border_color="#334155", height=34,
+                    fg_color=T.CARD_BG, border_color=T.BORDER, height=T.WIDGET_H_SM,
                 )
                 entry.grid(row=0, column=1, sticky="ew", padx=(0, 6), pady=8)
 
@@ -250,11 +251,11 @@ class GenreMixin:
                 entry.bind("<FocusOut>", _rename)
 
                 # ── Delete button ──────────────────────────────────────
-                danger = getattr(self, "settings", {}).get("danger_color", "#7F1D1D")
+                danger = getattr(self, "settings", {}).get("danger_color", T.DANGER)
                 ctk.CTkButton(
                     row, text="", image=self.icon_trash,
                     width=30, height=30,
-                    fg_color=danger, hover_color="#991B1B",
+                    fg_color=danger, hover_color=T.DANGER_HOVER,
                     command=lambda g=genre: _delete(g),
                 ).grid(row=0, column=2, padx=(0, 8), pady=8)
 

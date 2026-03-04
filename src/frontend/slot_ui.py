@@ -1,11 +1,12 @@
 import customtkinter as ctk
+from . import theme as T
 
 
 class SlotUI(ctk.CTkFrame):
     """Represents a single performer slot row in the lineup editor."""
 
     def __init__(self, master, app_ref, name="", genre="", duration=60):
-        super().__init__(master, fg_color="#1E293B", corner_radius=10, border_width=1, border_color="#334155")
+        super().__init__(master, fg_color=T.PANEL_BG, corner_radius=T.CARD_RADIUS, border_width=T.BORDER_W, border_color=T.BORDER)
         self.app_ref = app_ref
 
         self.name_var = ctk.StringVar(value=name)
@@ -16,53 +17,55 @@ class SlotUI(ctk.CTkFrame):
         self.genre_var.trace_add("write", lambda *args: self.app_ref._schedule_update())
         self.duration_var.trace_add("write", lambda *args: self.app_ref._schedule_update())
 
-        self.grid_columnconfigure(2, weight=3)
-        self.grid_columnconfigure(3, weight=2)
-        self.grid_columnconfigure(4, weight=1)
+        self.grid_columnconfigure(2, weight=1)
+        self.configure(cursor="fleur")
+
+        # Bind drag to the card frame itself (fires when clicking background, not children)
+        self.bind("<ButtonPress-1>",   lambda e: self.app_ref._slot_drag_start(e, self))
+        self.bind("<B1-Motion>",       lambda e: self.app_ref._slot_drag_motion(e, self))
+        self.bind("<ButtonRelease-1>", lambda e: self.app_ref._slot_drag_end(e, self))
 
         # Drag handle
         self.grip = ctk.CTkButton(
             self, text="", image=self.app_ref.icon_grip,
             width=28, height=40, cursor="fleur",
-            fg_color="transparent", hover_color="#334155"
+            fg_color="transparent", hover_color=T.BORDER
         )
-        self.grip.grid(row=0, column=0, padx=(6, 0), pady=10)
+        self.grip.grid(row=0, column=0, padx=(6, 0), pady=5)
         self.grip.bind("<ButtonPress-1>",   lambda e: self.app_ref._slot_drag_start(e, self))
         self.grip.bind("<B1-Motion>",       lambda e: self.app_ref._slot_drag_motion(e, self))
         self.grip.bind("<ButtonRelease-1>", lambda e: self.app_ref._slot_drag_end(e, self))
 
         # Slot start-time label
         self.time_lbl = ctk.CTkLabel(
-            self, text="--:--", font=("Arial", 13, "bold"),
-            text_color="#818CF8", width=55, anchor="center"
+            self, text="--:--", font=T.FONT_VALUE,
+            text_color=T.ACCENT, width=55, anchor="center", cursor="fleur"
         )
-        self.time_lbl.grid(row=0, column=1, padx=(2, 0), pady=10)
+        self.time_lbl.grid(row=0, column=1, padx=(2, 0), pady=5)
+        self.time_lbl.bind("<ButtonPress-1>",   lambda e: self.app_ref._slot_drag_start(e, self))
+        self.time_lbl.bind("<B1-Motion>",       lambda e: self.app_ref._slot_drag_motion(e, self))
+        self.time_lbl.bind("<ButtonRelease-1>", lambda e: self.app_ref._slot_drag_end(e, self))
 
         self.name_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.name_frame.grid(row=0, column=2, padx=5, pady=10, sticky="ew")
+        self.name_frame.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
         self.name_frame.grid_columnconfigure(0, weight=1)
 
         self.name_entry = ctk.CTkComboBox(
             self.name_frame, variable=self.name_var, values=self.app_ref.get_dj_names(),
-            fg_color="#0F172A", border_width=1, border_color="#334155",
-            height=35, button_color="#334155", button_hover_color="#475569",
-            dropdown_fg_color="#1E293B", dropdown_text_color="#CBD5E1",
-            dropdown_hover_color="#334155",
+            **T.COMBO,
             command=lambda v: (self.app_ref.update_output(), self.update_dj_info())
         )
         self.name_entry.grid(row=0, column=0, sticky="ew")
 
         self.info_label = ctk.CTkLabel(
-            self.name_frame, text="", font=("Arial", 10), text_color="#475569", anchor="w"
+            self.name_frame, text="", font=T.FONT_SMALL, text_color=T.TEXT_MUTED, anchor="w",
+            cursor="fleur"
         )
         self.info_label.grid(row=1, column=0, sticky="ew", padx=(2, 0), pady=(0, 3))
         self.info_label.grid_remove()  # hidden until there's content
-
-        self.genre_entry = ctk.CTkEntry(
-            self, textvariable=self.genre_var, placeholder_text="Genre",
-            fg_color="#0F172A", border_width=1, border_color="#334155", height=35
-        )
-        self.genre_entry.grid(row=0, column=3, padx=5, pady=10, sticky="ew")
+        self.info_label.bind("<ButtonPress-1>",   lambda e: self.app_ref._slot_drag_start(e, self))
+        self.info_label.bind("<B1-Motion>",       lambda e: self.app_ref._slot_drag_motion(e, self))
+        self.info_label.bind("<ButtonRelease-1>", lambda e: self.app_ref._slot_drag_end(e, self))
 
         # Duration dropdown (15–120 min in 15-min steps)
         dur_values = [str(x) for x in range(15, 121, 15)]
@@ -74,22 +77,18 @@ class SlotUI(ctk.CTkFrame):
             self,
             values=dur_values,
             variable=self.duration_var,
-            width=90, height=35,
-            fg_color="#0F172A",
-            button_color="#334155", button_hover_color="#475569",
-            text_color="#CBD5E1",
-            dropdown_fg_color="#1E293B", dropdown_text_color="#CBD5E1",
-            dropdown_hover_color="#334155",
+            width=90, height=T.WIDGET_H,
+            **T.OPTION_MENU,
             command=self.on_duration_change
         )
-        self.dur_menu.grid(row=0, column=4, padx=5, pady=10, sticky="ew")
+        self.dur_menu.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
 
         self.del_btn = ctk.CTkButton(
-            self, text="", image=self.app_ref.icon_trash, width=34, height=34,
+            self, text="", image=self.app_ref.icon_trash, width=T.ICON_BTN_W, height=T.ICON_BTN_W,
             command=self.delete_slot,
-            fg_color=self.app_ref.settings.get("danger_color", "#7F1D1D"), hover_color="#991B1B"
+            fg_color=T.DANGER, hover_color=T.DANGER_HOVER
         )
-        self.del_btn.grid(row=0, column=5, padx=10, pady=10)
+        self.del_btn.grid(row=0, column=4, padx=8, pady=5)
 
     # ── Internal callbacks ────────────────────────────────────────────────
 

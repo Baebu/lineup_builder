@@ -42,6 +42,8 @@ class DragDropMixin:
             self._drop_indicator.place_forget()
         if slot_ui not in self.slots:
             return
+        if not getattr(self, "_cached_slot_bounds", None):
+            return
         target_idx = self._get_drop_index(event.y_root)
         src_idx = self.slots.index(slot_ui)
         if target_idx is not None and target_idx != src_idx:

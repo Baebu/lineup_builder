@@ -1,24 +1,31 @@
 import json
 import os
-from tkinter import colorchooser
 
 import customtkinter as ctk
+from . import theme as T
 
 SETTINGS_FILE = "settings.json"
 DEFAULT_SETTINGS = {
     # Output preview
     "output_font_size": 14,
     # Interactive colors
-    "accent_color":    "#818CF8",   # section headers / highlights
-    "primary_color":   "#4F46E5",   # main action buttons
-    "danger_color":    "#7F1D1D",   # delete / destructive buttons
-    "success_color":   "#059669",   # save / confirm buttons
+    "accent_color":    T.ACCENT,          # section headers / highlights
+    "primary_color":   T.PRIMARY,         # main action buttons
+    "danger_color":    T.DANGER,          # delete / destructive buttons
+    "success_color":   T.SUCCESS,         # save / confirm buttons
+    # Text colors
+    "text_primary":    T.TEXT_PRIMARY,    # main text / values
+    "text_secondary":  T.TEXT_SECONDARY,  # labels / muted text
+    # Interactive Hovers
+    "primary_hover_color": T.PRIMARY_HOVER,
+    "danger_hover_color":  T.DANGER_HOVER,
+    "success_hover_color": T.SUCCESS_HOVER,
     # Structural colors
-    "panel_bg":        "#1E293B",   # panels, tabviews, cards in foreground
-    "card_bg":         "#0F172A",   # deep cards, input field backgrounds
-    "border_color":    "#334155",   # all borders, secondary button backgrounds
-    "hover_color":     "#475569",   # general hover state
-    "scrollbar_color": "#475569",   # scrollbar thumb
+    "panel_bg":        T.PANEL_BG,        # panels, tabviews, cards in foreground
+    "card_bg":         T.CARD_BG,         # deep cards, input field backgrounds
+    "border_color":    T.BORDER,          # all borders, secondary button backgrounds
+    "hover_color":     T.HOVER,           # general hover state
+    "scrollbar_color": T.SCROLLBAR,       # scrollbar thumb
 }
 
 # All widget attributes that carry color values and should be walked
@@ -27,6 +34,7 @@ _COLOR_ATTRS = [
     "button_color", "button_hover_color",
     "dropdown_fg_color", "dropdown_hover_color",
     "progress_color", "scrollbar_color",
+    "text_color", "placeholder_text_color",
 ]
 
 BUILTIN_PRESETS = [
@@ -47,6 +55,12 @@ BUILTIN_PRESETS = [
             "border_color":  "#1F4D36",
             "hover_color":   "#2D6E4E",
             "scrollbar_color": "#2D6E4E",
+            # New Theme
+            "text_primary":    "#D1FAE5", # Emerald-100
+            "text_secondary":  "#6EE7B7", # Emerald-300
+            "primary_hover_color": "#047857",
+            "danger_hover_color":  "#991B1B",
+            "success_hover_color": "#064E3B",
         },
     },
     {
@@ -62,6 +76,12 @@ BUILTIN_PRESETS = [
             "border_color":  "#4C1D30",
             "hover_color":   "#6D2840",
             "scrollbar_color": "#6D2840",
+            # New Theme
+            "text_primary":    "#FFE4E6",
+            "text_secondary":  "#FDA4AF",
+            "primary_hover_color": "#BE123C",
+            "danger_hover_color":  "#991B1B",
+            "success_hover_color": "#047857",
         },
     },
     {
@@ -77,6 +97,88 @@ BUILTIN_PRESETS = [
             "border_color":  "#334155",
             "hover_color":   "#475569",
             "scrollbar_color": "#475569",
+            # New Theme
+            "text_primary":    "#CBD5E1",
+            "text_secondary":  "#94A3B8",
+            "primary_hover_color": "#334155",
+            "danger_hover_color":  "#991B1B",
+            "success_hover_color": "#475569",
+        },
+    },
+    {
+        "name": "Ocean (Blue)",
+        "settings": {
+            **DEFAULT_SETTINGS,
+            "accent_color":  "#38BDF8",  # Sky 400
+            "primary_color": "#0284C7",  # Sky 600
+            "success_color": "#059669",
+            "danger_color":  "#9F1239",  # Rose 800
+            "panel_bg":      "#0C4A6E",  # Sky 900
+            "card_bg":       "#082F49",  # Sky 950
+            "border_color":  "#0369A1",  # Sky 700
+            "hover_color":   "#075985",  # Sky 800
+            "scrollbar_color": "#075985",
+            "text_primary":    "#E0F2FE", # Sky 100
+            "text_secondary":  "#7DD3FC", # Sky 300
+            "primary_hover_color": "#0369A1",
+            "danger_hover_color":  "#881337",
+        },
+    },
+    {
+        "name": "Amber (Orange)",
+        "settings": {
+            **DEFAULT_SETTINGS,
+            "accent_color":  "#F59E0B",  # Amber 500
+            "primary_color": "#D97706",  # Amber 600
+            "success_color": "#059669",
+            "danger_color":  "#7F1D1D",
+            "panel_bg":      "#451A03",  # Amber 950 (shifted to brown)
+            "card_bg":       "#270E01",  # Deep brown
+            "border_color":  "#78350F",  # Amber 900
+            "hover_color":   "#92400E",  # Amber 800
+            "scrollbar_color": "#92400E",
+            "text_primary":    "#FEF3C7", # Amber 100
+            "text_secondary":  "#FCD34D", # Amber 300
+            "primary_hover_color": "#B45309",
+            "danger_hover_color":  "#991B1B",
+        },
+    },
+    {
+        "name": "Violet (Deep)",
+        "settings": {
+            **DEFAULT_SETTINGS,
+            "accent_color":  "#A78BFA",  # Violet 400
+            "primary_color": "#7C3AED",  # Violet 600
+            "success_color": "#059669",
+            "danger_color":  "#831843",  # Pink 900
+            "panel_bg":      "#2E1065",  # Violet 950
+            "card_bg":       "#170536",  # Deep violet
+            "border_color":  "#5B21B6",  # Violet 800
+            "hover_color":   "#6D28D9",  # Violet 700
+            "scrollbar_color": "#6D28D9",
+            "text_primary":    "#EDE9FE", # Violet 100
+            "text_secondary":  "#C4B5FD", # Violet 300
+            "primary_hover_color": "#6D28D9",
+            "danger_hover_color":  "#831843",
+        },
+    },
+    {
+        "name": "Crimson (Red)",
+        "settings": {
+            **DEFAULT_SETTINGS,
+            "accent_color":  "#F87171",  # Red 400
+            "primary_color": "#DC2626",  # Red 600
+            "success_color": "#059669",
+            "danger_color":  "#450A0A",  # Red 950
+            "panel_bg":      "#450A0A",  # Red 950
+            "card_bg":       "#280505",  # Deep red
+            "border_color":  "#7F1D1D",  # Red 900
+            "hover_color":   "#991B1B",  # Red 800
+            "scrollbar_color": "#991B1B",
+            "text_primary":    "#FEE2E2", # Red 100
+            "text_secondary":  "#FCA5A5", # Red 300
+            "primary_hover_color": "#B91C1C",
+            "danger_hover_color":  "#450A0A",
         },
     },
 ]
@@ -158,10 +260,15 @@ class SettingsMixin:
         applied = self._applied_settings
 
         # ── Recursive structural color walk ───────────────────────────────
-        for key in ("panel_bg", "card_bg", "border_color", "hover_color"):
+        full_keys = [
+            "panel_bg", "card_bg", "border_color", "hover_color",
+            "text_primary", "text_secondary"
+        ]
+        for key in full_keys:
             old = applied.get(key, DEFAULT_SETTINGS[key])
             new = self.settings[key]
             self._recolor_widgets(self, old, new)
+            applied[key] = new  # Keep track for next update!
 
         # ── Explicit registered lists ─────────────────────────────────────
         self._accent_labels   = self._clean_list(self._accent_labels)
@@ -172,8 +279,16 @@ class SettingsMixin:
 
         accent  = self.settings["accent_color"]
         primary = self.settings["primary_color"]
+        p_hover = self.settings["primary_hover_color"]
         danger  = self.settings["danger_color"]
+        d_hover = self.settings["danger_hover_color"]
         success = self.settings["success_color"]
+        s_hover = self.settings["success_hover_color"]
+
+        applied["accent_color"]  = accent
+        applied["primary_color"] = primary
+        applied["danger_color"]  = danger
+        applied["success_color"] = success
 
         for lbl in self._accent_labels:
             try:
@@ -183,19 +298,19 @@ class SettingsMixin:
 
         for btn in self._primary_buttons:
             try:
-                btn.configure(fg_color=primary)
+                btn.configure(fg_color=primary, hover_color=p_hover)
             except Exception:
                 pass
 
         for btn in self._danger_buttons:
             try:
-                btn.configure(fg_color=danger)
+                btn.configure(fg_color=danger, hover_color=d_hover)
             except Exception:
                 pass
 
         for btn in self._success_buttons:
             try:
-                btn.configure(fg_color=success)
+                btn.configure(fg_color=success, hover_color=s_hover)
             except Exception:
                 pass
 
@@ -218,9 +333,35 @@ class SettingsMixin:
             except Exception:
                 pass
 
-        # ── Output preview font ───────────────────────────────────────────
+        # ── Output preview colors & font ──────────────────────────────────
         if hasattr(self, "output_text"):
-            self.output_text.configure(font=("Consolas", self.settings["output_font_size"]))
+            self.output_text.configure(
+                font=("Consolas", self.settings["output_font_size"]),
+                fg_color=self.settings.get("card_bg", "#0F172A"),
+                text_color=self.settings.get("text_primary", "#CBD5E1"),
+                border_color=self.settings.get("border_color", "#334155"),
+            )
+        if hasattr(self, "copy_icon_btn"):
+            self.copy_icon_btn.configure(
+                fg_color=self.settings.get("border_color", "#334155"),
+                hover_color=self.settings.get("primary_color", "#4F46E5"),
+                text_color=self.settings.get("text_secondary", "#94A3B8"),
+            )
+
+        # ── Structural panels ─────────────────────────────────────────────
+        if hasattr(self, "_bot_right"):
+            self._bot_right.configure(
+                fg_color=self.settings.get("panel_bg", "#1E293B"),
+                border_color=self.settings.get("border_color", "#334155"),
+            )
+        if hasattr(self, "_preview_header"):
+            self._preview_header.configure(
+                fg_color=self.settings.get("card_bg", "#0F172A"),
+            )
+        if hasattr(self, "_od_row"):
+            self._od_row.configure(
+                fg_color=self.settings.get("card_bg", "#0F172A"),
+            )
 
         # ── Slot delete buttons (dynamically created) ─────────────────────
         for slot in getattr(self, "slots", []):
@@ -282,10 +423,75 @@ class SettingsMixin:
             self._accent_labels.append(lbl)
 
         # ── Output preview font size ──────────────────────────────────────
+        # ── Theme Selection ───────────────────────────────────────────────
+        _section("THEME SELECTION")
+
+        theme_card = ctk.CTkFrame(
+            scroll, fg_color=self.settings["panel_bg"], corner_radius=12,
+            border_width=1, border_color=self.settings["border_color"],
+        )
+        theme_card.pack(fill="x", padx=15, pady=(0, 6))
+        theme_card.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            theme_card, text="Color Theme",
+            font=("Arial", 11), text_color=self.settings.get("text_secondary", "#94A3B8"),
+        ).grid(row=0, column=0, padx=12, pady=12, sticky="w")
+
+        # 1. Get presets names
+        preset_names = [p["name"] for p in BUILTIN_PRESETS]
+
+        # 2. Determine current preset
+        current_selection = preset_names[0]
+        # Simple heuristic: check if primary_color matches a preset
+        # (A full dict compare is better but this is likely sufficient for UI state)
+        for p in BUILTIN_PRESETS:
+            if p["settings"]["primary_color"] == self.settings["primary_color"]:
+                current_selection = p["name"]
+                break
+
+        def _on_theme_change(choice):
+            # Find the preset
+            preset = next((p for p in BUILTIN_PRESETS if p["name"] == choice), None)
+            if not preset:
+                return
+            
+            # Update settings from preset (excluding font size to preserve it)
+            old_font = self.settings.get("output_font_size", 14)
+            self.settings.update(preset["settings"])
+            self.settings["output_font_size"] = old_font
+            
+            # Save & Apply
+            self.save_settings()
+            self.apply_theme()
+            
+            # Rebuild this settings tab to reflect new colors immediately
+            # (panel background, dropdown colors, etc)
+            for widget in tab.winfo_children():
+                widget.destroy()
+            self._build_settings_tab()
+
+        theme_menu = ctk.CTkOptionMenu(
+            theme_card,
+            values=preset_names,
+            command=_on_theme_change,
+            fg_color=self.settings.get("card_bg", "#0F172A"),
+            button_color=self.settings["primary_color"],
+            button_hover_color=self.settings.get("primary_hover_color", self.settings["primary_color"]),
+            text_color=self.settings.get("text_primary", "#CBD5E1"),
+            dropdown_fg_color=self.settings.get("card_bg", "#0F172A"),
+            dropdown_hover_color=self.settings.get("hover_color", "#334155"),
+            dropdown_text_color=self.settings.get("text_primary", "#CBD5E1"),
+            width=140
+        )
+        theme_menu.grid(row=0, column=2, padx=(0, 12), pady=12, sticky="e")
+        theme_menu.set(current_selection)
+
+        # ── Output Preview ────────────────────────────────────────────────
         _section("OUTPUT PREVIEW")
 
         font_card = ctk.CTkFrame(
-            scroll, fg_color=self.settings["panel_bg"], corner_radius=8,
+            scroll, fg_color=self.settings["panel_bg"], corner_radius=12,
             border_width=1, border_color=self.settings["border_color"],
         )
         font_card.pack(fill="x", padx=15, pady=(0, 6))
@@ -293,12 +499,12 @@ class SettingsMixin:
 
         ctk.CTkLabel(
             font_card, text="Font Size",
-            font=("Arial", 11), text_color="#94A3B8",
+            font=("Arial", 11), text_color=self.settings.get("text_secondary", "#94A3B8"),
         ).grid(row=0, column=0, padx=12, pady=12, sticky="w")
 
         font_size_lbl = ctk.CTkLabel(
             font_card, text=str(self.settings["output_font_size"]),
-            font=("Arial", 12, "bold"), text_color="#CBD5E1", width=28,
+            font=("Arial", 12, "bold"), text_color=self.settings.get("text_primary", "#CBD5E1"), width=28,
         )
         font_size_lbl.grid(row=0, column=2, padx=(0, 12), pady=12)
 
@@ -318,104 +524,8 @@ class SettingsMixin:
             fg_color=self.settings["border_color"],
             progress_color=self.settings["accent_color"],
             button_color=self.settings["primary_color"],
-            button_hover_color="#4338CA",
+            button_hover_color=self.settings.get("primary_hover_color", "#4338CA"),
         ).grid(row=0, column=1, padx=(0, 8), pady=12, sticky="ew")
-
-        # ── Interactive colors ────────────────────────────────────────────
-        _section("INTERACTIVE COLORS")
-
-        interactive_defs = [
-            ("Accent",   "accent_color",   "Section headers & highlights"),
-            ("Primary",  "primary_color",  "Main action buttons"),
-            ("Success",  "success_color",  "Save & confirm buttons"),
-            ("Danger",   "danger_color",   "Delete & destructive buttons"),
-        ]
-        for name, key, desc in interactive_defs:
-            self._make_color_row(scroll, name, key, desc)
-
-        # ── Structural colors ─────────────────────────────────────────────
-        _section("STRUCTURAL COLORS")
-
-        structural_defs = [
-            ("Panel BG",     "panel_bg",        "Panels, tabviews, foreground cards"),
-            ("Card BG",      "card_bg",         "Input fields & deep card backgrounds"),
-            ("Border",       "border_color",    "Borders, secondary button backgrounds"),
-            ("Hover",        "hover_color",     "Hover state on buttons & controls"),
-            ("Scrollbar",    "scrollbar_color", "Scrollbar thumb color"),
-        ]
-        for name, key, desc in structural_defs:
-            self._make_color_row(scroll, name, key, desc)
-
-        # ── Reset ─────────────────────────────────────────────────────────
-        ctk.CTkButton(
-            scroll, text="Reset to Defaults",
-            fg_color=self.settings["border_color"],
-            hover_color=self.settings["hover_color"],
-            font=("Arial", 11), text_color="#94A3B8",
-            command=self._reset_to_defaults,
-        ).pack(fill="x", padx=15, pady=(12, 15))
-
-    def _make_color_row(self, parent, label_text: str, key: str, description: str):
-        row = ctk.CTkFrame(
-            parent, fg_color=self.settings["panel_bg"], corner_radius=8,
-            border_width=1, border_color=self.settings["border_color"],
-        )
-        row.pack(fill="x", padx=15, pady=(0, 5))
-        row.grid_columnconfigure(1, weight=1)
-
-        swatch = ctk.CTkButton(
-            row, text="", width=32, height=32, corner_radius=6,
-            fg_color=self.settings[key], hover_color=self.settings[key],
-            border_width=1, border_color=self.settings["hover_color"],
-        )
-        swatch.grid(row=0, column=0, padx=(10, 8), pady=10)
-
-        info_frame = ctk.CTkFrame(row, fg_color="transparent")
-        info_frame.grid(row=0, column=1, sticky="ew")
-        ctk.CTkLabel(
-            info_frame, text=label_text,
-            font=("Arial", 11, "bold"), text_color="#CBD5E1",
-        ).pack(anchor="w")
-        ctk.CTkLabel(
-            info_frame, text=description,
-            font=("Arial", 9), text_color="#475569",
-        ).pack(anchor="w")
-
-        hex_var = ctk.StringVar(value=self.settings[key])
-        hex_entry = ctk.CTkEntry(
-            row, textvariable=hex_var,
-            width=90, height=32, fg_color=self.settings["card_bg"],
-            border_color=self.settings["border_color"],
-            font=("Consolas", 11), text_color="#CBD5E1",
-        )
-        hex_entry.grid(row=0, column=2, padx=(0, 10), pady=10)
-
-        def _apply(val, k=key, sw=swatch, hvar=hex_var):
-            val = val.strip()
-            if not val.startswith("#"):
-                val = "#" + val
-            if len(val) == 7:
-                try:
-                    int(val[1:], 16)
-                    val = val.upper()
-                    self.settings[k] = val
-                    sw.configure(fg_color=val, hover_color=val)
-                    hvar.set(val)
-                    self.apply_theme()
-                    self.save_settings()
-                except ValueError:
-                    pass
-
-        def _open_picker(k=key):
-            result = colorchooser.askcolor(
-                color=self.settings[k], title=f"Choose {label_text} Color"
-            )
-            if result and result[1]:
-                _apply(result[1])
-
-        swatch.configure(command=_open_picker)
-        hex_entry.bind("<Return>",   lambda e: _apply(hex_var.get()))
-        hex_entry.bind("<FocusOut>", lambda e: _apply(hex_var.get()))
 
     def _reset_to_defaults(self):
         # Keep applied_settings pointing at current so walker can find & replace

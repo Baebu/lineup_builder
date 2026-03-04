@@ -23,7 +23,7 @@ class SlotMixin:
         for child in self.slots_scroll.winfo_children():
             child.pack_forget()
         for slot in self.slots:
-            slot.pack(fill="x", pady=5)
+            slot.pack(fill="x", padx=6, pady=4)
 
     def move_slot(self, slot_ui, direction):
         idx = self.slots.index(slot_ui)

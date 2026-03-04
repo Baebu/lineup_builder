@@ -2,6 +2,7 @@ import copy
 import datetime
 import customtkinter as ctk
 from tkinter import messagebox
+from . import theme as T
 
 
 class EventsMixin:
@@ -88,8 +89,7 @@ class EventsMixin:
         self.add_slot()
 
         self.left_tabs.set("Event")
-        if hasattr(self, "_event_saved_panel") and self._event_saved_panel.winfo_ismapped():
-            self._toggle_event_panel()
+        self.right_tabs.set("Lineup")
         self.update_output()
 
     def load_event_lineup(self, event_data):
@@ -119,9 +119,7 @@ class EventsMixin:
             )
 
         self.left_tabs.set("Event")
-        # Ensure config panel is visible (not the saved events panel)
-        if hasattr(self, "_event_saved_panel") and self._event_saved_panel.winfo_ismapped():
-            self._toggle_event_panel()
+        self.right_tabs.set("Lineup")
         self.update_output()
         self._current_event_key = (event_data.get("title", ""), event_data.get("vol", ""))
 
@@ -184,9 +182,7 @@ class EventsMixin:
         self._current_event_key = (title, vol)
         self.saved_events.sort(key=lambda e: e.get("created_at", ""), reverse=True)
         self._save_events()
-        # Only rebuild the saved-events list when it's actually visible
-        if hasattr(self, "_event_saved_panel") and self._event_saved_panel.winfo_ismapped():
-            self.refresh_saved_events_ui()
+        self.refresh_saved_events_ui()
 
     def delete_event_lineup(self, event_data):
         full_title = (
@@ -217,16 +213,15 @@ class EventsMixin:
 
         if not self.saved_events:
             ctk.CTkLabel(
-                self.saved_events_scroll, text="No saved events yet.", text_color="#94A3B8"
+                self.saved_events_scroll, text="No saved events yet.", text_color=T.TEXT_SECONDARY
             ).pack(pady=20)
             return
 
         for ev in self.saved_events:
             frame = ctk.CTkFrame(
-                self.saved_events_scroll, fg_color="#0F172A",
-                border_width=1, border_color="#334155", corner_radius=8
+                self.saved_events_scroll, **T.CARD
             )
-            frame.pack(fill="x", pady=5)
+            frame.pack(fill="x", padx=T.SCROLL_PAD_X, pady=5)
             frame.grid_columnconfigure(0, weight=1)
 
             full_title = (
@@ -236,11 +231,11 @@ class EventsMixin:
             )
 
             info_frame = ctk.CTkFrame(frame, fg_color="transparent")
-            info_frame.grid(row=0, column=0, padx=(10, 4), pady=(8, 0), sticky="ew")
+            info_frame.grid(row=0, column=0, padx=(10, 4), pady=8, sticky="ew")
 
             ctk.CTkLabel(
-                info_frame, text=full_title, font=("Arial", 13, "bold"),
-                text_color="#CBD5E1", anchor="w"
+                info_frame, text=full_title, font=T.FONT_VALUE,
+                text_color=T.TEXT_PRIMARY, anchor="w"
             ).pack(anchor="w")
 
             slots_count = len(ev.get("slots", []))
@@ -248,31 +243,31 @@ class EventsMixin:
             saved_at = ev.get("created_at", "")[:16]
             ctk.CTkLabel(
                 info_frame, text=f"{timestamp}  •  {slots_count} slots",
-                font=("Arial", 10), text_color="#94A3B8", anchor="w"
+                font=T.FONT_SMALL, text_color=T.TEXT_SECONDARY, anchor="w"
             ).pack(anchor="w")
             if saved_at:
                 ctk.CTkLabel(
                     info_frame, text=f"saved {saved_at}",
-                    font=("Arial", 9), text_color="#475569", anchor="w"
+                    font=T.FONT_TINY, text_color=T.TEXT_MUTED, anchor="w"
                 ).pack(anchor="w")
 
             btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
             btn_frame.grid(row=0, column=1, padx=(0, 8), pady=8, sticky="e")
 
             ctk.CTkButton(
-                btn_frame, text="Load", width=54, height=28,
-                fg_color="#3730A3", hover_color="#4338CA", font=("Arial", 10, "bold"),
+                btn_frame, text="Load", width=54, height=T.WIDGET_H_XS,
+                fg_color=T.LOAD_BTN, hover_color=T.PRIMARY_HOVER, font=T.FONT_SMALL_BOLD,
                 command=lambda e=ev: self.load_event_lineup(e)
             ).pack(side="left", padx=(0, 2))
 
             ctk.CTkButton(
-                btn_frame, text="", image=self.icon_copy, width=28, height=28,
-                fg_color="#334155", hover_color="#475569",
+                btn_frame, text="", image=self.icon_copy, width=T.WIDGET_H_XS, height=T.WIDGET_H_XS,
+                **T.BTN_SECONDARY,
                 command=lambda e=ev: self.duplicate_event_lineup(e)
             ).pack(side="left", padx=(0, 2))
 
             ctk.CTkButton(
-                btn_frame, text="", image=self.icon_trash, width=28, height=28,
-                fg_color="#7F1D1D", hover_color="#991B1B",
+                btn_frame, text="", image=self.icon_trash, width=T.WIDGET_H_XS, height=T.WIDGET_H_XS,
+                **T.BTN_DANGER,
                 command=lambda e=ev: self.delete_event_lineup(e)
             ).pack(side="left")
