@@ -96,6 +96,22 @@ class DJRosterMixin:
             border_color="#334155", checkmark_color="#FFFFFF"
         ).pack(anchor="w", padx=10, pady=(0, 10))
 
+        # ── Fix 1: Mouse-wheel passthrough ────────────────────────────────
+        # CTkScrollableFrame only captures scroll on its canvas; child widgets
+        # (entries, checkboxes) swallow <MouseWheel> events.  Forward them all
+        # back to the roster canvas so scrolling always works.
+        _roster_canvas = self.dj_roster_scroll._parent_canvas
+
+        def _forward_scroll(e):
+            _roster_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+
+        def _bind_wheel(widget):
+            widget.bind("<MouseWheel>", _forward_scroll, add="+")
+            for child in widget.winfo_children():
+                _bind_wheel(child)
+
+        _bind_wheel(body)
+
         # ── Auto-save on any field change ──
         _autosave_job = [None]
 
@@ -113,12 +129,32 @@ class DJRosterMixin:
         ANIM_STEPS = 16
         ANIM_DELAY = 13  # ms per step (~16*13 ≈ 208ms total)
 
+        # Fix 3+4: shared mutable state so toggle always collapses from the
+        # correct full height even when interrupted mid-animation, and so we
+        # can suppress the autohide scrollbar check during animation.
+        _state = {
+            "full_h": 0,       # canonical natural height of the body
+            "animating": False, # True while expand/collapse is in progress
+        }
+
+        def _finish_anim():
+            """Called when any animation completes — re-enable scrollbar check."""
+            _state["animating"] = False
+            # Trigger one clean scrollbar visibility recalculation now that
+            # layout has settled, suppressing the per-step flicker.
+            sf = self.dj_roster_scroll
+            sf._parent_canvas.event_generate("<Configure>")
+
         def _do_expand(target_h, step=1):
             if not expanded.get():
+                _finish_anim()
                 return
             if step > ANIM_STEPS:
                 body.configure(height=target_h)
                 body.pack_propagate(True)
+                _finish_anim()
+                # Fix 2: scroll the card into view after fully expanding
+                _scroll_into_view()
                 return
             t = step / ANIM_STEPS
             # ease-out cubic: fast open, smooth gentle landing
@@ -128,9 +164,11 @@ class DJRosterMixin:
 
         def _do_collapse(from_h, step=1):
             if expanded.get():
+                _finish_anim()
                 return
             if step > ANIM_STEPS:
                 body.pack_forget()
+                _finish_anim()
                 return
             t = step / ANIM_STEPS
             # ease-in-out cubic: smooth start AND end for a clean fold-away
@@ -138,34 +176,60 @@ class DJRosterMixin:
             body.configure(height=max(1, int(from_h * (1 - t_ease))))
             body.after(ANIM_DELAY, lambda: _do_collapse(from_h, step + 1))
 
+        def _scroll_into_view():
+            """Fix 2: nudge the roster canvas so the open card is visible."""
+            canvas = self.dj_roster_scroll._parent_canvas
+            bbox = canvas.bbox("all")
+            if not bbox:
+                return
+            total_h = max(bbox[3] - bbox[1], 1)
+            canvas_h = canvas.winfo_height()
+            card_top = card.winfo_y()
+            card_bot = card_top + card.winfo_height()
+            view_bot = canvas.yview()[1] * total_h
+            if card_bot > view_bot:
+                new_top = max(0, (card_bot - canvas_h) / total_h)
+                canvas.yview_moveto(min(new_top, 1.0))
+
         def toggle(event=None):
             if expanded.get():
                 body.pack_propagate(False)
-                cur_h = body.winfo_height()
+                # Fix 4: use the stored full natural height to avoid collapsing
+                # from a partial height when interrupted mid-expand.
+                cur_h = _state["full_h"] if _state["full_h"] > 0 else body.winfo_height()
                 arrow_btn.configure(image=self.icon_chevron_up)
                 expanded.set(False)
+                _state["animating"] = True
                 _do_collapse(cur_h)
             else:
                 # Lock height to 1 BEFORE packing to prevent the full-height flash
                 body.pack_propagate(False)
                 body.configure(height=1)
                 body.pack(fill="x", padx=6, pady=(0, 8))
-                # winfo_reqheight reflects the widget's own layout without a screen render
+                # winfo_reqheight reads internal layout requests without a render
                 nat_h = body.winfo_reqheight()
-                if nat_h < 10:
-                    # Fallback: schedule a proper measure after idletasks settle
-                    def _start_after_measure():
-                        h = body.winfo_reqheight()
-                        if h > 10:
-                            _do_expand(h)
-                    body.after(5, _start_after_measure)
-                else:
-                    arrow_btn.configure(image=self.icon_chevron_down)
-                    expanded.set(True)
-                    body.after(1, lambda: _do_expand(nat_h))
-                    return
                 arrow_btn.configure(image=self.icon_chevron_down)
                 expanded.set(True)
+                _state["animating"] = True
+                if nat_h >= 10:
+                    _state["full_h"] = nat_h
+                    body.after(1, lambda: _do_expand(nat_h))
+                else:
+                    # Fix 5: retry measure up to 5 times; reset state on failure
+                    def _start_after_measure(attempt=0):
+                        h = body.winfo_reqheight()
+                        if h >= 10:
+                            _state["full_h"] = h
+                            _do_expand(h)
+                        elif attempt < 5:
+                            body.after(10, lambda: _start_after_measure(attempt + 1))
+                        else:
+                            # Geometry never settled — reset to collapsed cleanly
+                            body.pack_forget()
+                            arrow_btn.configure(image=self.icon_chevron_up)
+                            expanded.set(False)
+                            _finish_anim()
+                    body.after(5, _start_after_measure)
 
         header.bind("<Button-1>", toggle)
         name_lbl.bind("<Button-1>", toggle)
