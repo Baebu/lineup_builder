@@ -194,42 +194,37 @@ class DJRosterMixin:
         def toggle(event=None):
             if expanded.get():
                 body.pack_propagate(False)
-                # Fix 4: use the stored full natural height to avoid collapsing
-                # from a partial height when interrupted mid-expand.
+                # Fix 4: always collapse from the stored full natural height,
+                # not the current animated height, to avoid a snap-shut effect
+                # when interrupted mid-expand.
                 cur_h = _state["full_h"] if _state["full_h"] > 0 else body.winfo_height()
                 arrow_btn.configure(image=self.icon_chevron_up)
                 expanded.set(False)
                 _state["animating"] = True
                 _do_collapse(cur_h)
             else:
-                # Lock height to 1 BEFORE packing to prevent the full-height flash
-                body.pack_propagate(False)
-                body.configure(height=1)
+                # Pack at natural size first so Tkinter can compute layout,
+                # then measure in the next event-loop tick and lock to height=1
+                # before the animation starts.  Deferring the lock means
+                # winfo_reqheight() returns the real content height, not the
+                # configured height=1 we would have set prematurely.
                 body.pack(fill="x", padx=6, pady=(0, 8))
-                # winfo_reqheight reads internal layout requests without a render
-                nat_h = body.winfo_reqheight()
                 arrow_btn.configure(image=self.icon_chevron_down)
                 expanded.set(True)
                 _state["animating"] = True
-                if nat_h >= 10:
+
+                def _measure_and_start():
+                    nat_h = body.winfo_reqheight()
+                    if nat_h < 10:
+                        # Fix 5: if geometry still hasn't settled, fall back to
+                        # a safe constant that fits the known body content.
+                        nat_h = 160
                     _state["full_h"] = nat_h
-                    body.after(1, lambda: _do_expand(nat_h))
-                else:
-                    # Fix 5: retry measure up to 5 times; reset state on failure
-                    def _start_after_measure(attempt=0):
-                        h = body.winfo_reqheight()
-                        if h >= 10:
-                            _state["full_h"] = h
-                            _do_expand(h)
-                        elif attempt < 5:
-                            body.after(10, lambda: _start_after_measure(attempt + 1))
-                        else:
-                            # Geometry never settled — reset to collapsed cleanly
-                            body.pack_forget()
-                            arrow_btn.configure(image=self.icon_chevron_up)
-                            expanded.set(False)
-                            _finish_anim()
-                    body.after(5, _start_after_measure)
+                    body.pack_propagate(False)
+                    body.configure(height=1)
+                    _do_expand(nat_h)
+
+                body.after(1, _measure_and_start)
 
         header.bind("<Button-1>", toggle)
         name_lbl.bind("<Button-1>", toggle)
