@@ -10,6 +10,9 @@ class DebounceMixin:
     def _run_scheduled_update(self):
         self._update_job = None
         self.update_output()
+        self._schedule_auto_save()
+        if self.event_title_var.get().strip():
+            self._schedule_auto_event_save(delay=3000)
 
     def _schedule_roster_refresh(self, delay: int = 120):
         """Debounce refresh_dj_roster_ui so rapid typing only triggers one rebuild."""
@@ -30,6 +33,26 @@ class DebounceMixin:
     def _run_scheduled_save_library(self):
         self._save_lib_job = None
         self._save_library()
+
+    def _schedule_auto_save(self, delay: int = 5000):
+        """Debounce _save_auto_state so rapid edits coalesce into one write."""
+        if self._auto_save_job is not None:
+            self.after_cancel(self._auto_save_job)
+        self._auto_save_job = self.after(delay, self._run_scheduled_auto_save)
+
+    def _run_scheduled_auto_save(self):
+        self._auto_save_job = None
+        self._save_auto_state()
+
+    def _schedule_auto_event_save(self, delay: int = 1500):
+        """Debounce auto-save of the current event to lineup_events.yaml."""
+        if self._auto_event_save_job is not None:
+            self.after_cancel(self._auto_event_save_job)
+        self._auto_event_save_job = self.after(delay, self._run_scheduled_auto_event_save)
+
+    def _run_scheduled_auto_event_save(self):
+        self._auto_event_save_job = None
+        self._auto_event_save()
 
     def _refresh_slot_combos(self):
         """Update all slot name-entry dropdowns in one deferred pass."""

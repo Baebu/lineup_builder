@@ -39,6 +39,11 @@ class DJRosterMixin:
 
         expanded = ctk.BooleanVar(value=False)
 
+        # Hoist edit vars so header buttons can reference them
+        name_var   = ctk.StringVar(value=dj.get("name", ""))
+        stream_var = ctk.StringVar(value=dj.get("stream", ""))
+        exact_var  = ctk.BooleanVar(value=bool(dj.get("exact_link", False)))
+
         # ── Header row ──
         header = ctk.CTkFrame(card, fg_color="transparent", cursor="hand2")
         header.pack(fill="x", padx=10, pady=8)
@@ -63,41 +68,102 @@ class DJRosterMixin:
         )
         arrow_btn.pack(side="right")
 
+        del_btn = ctk.CTkButton(
+            header, text="", image=self.icon_trash, width=32, height=32,
+            fg_color="#7F1D1D", hover_color="#991B1B",
+            command=lambda i=idx: self._delete_dj_from_roster(i)
+        )
+        del_btn.pack(side="right", padx=(0, 4))
+
         # ── Body (collapsed by default) ──
         body = ctk.CTkFrame(card, fg_color="#1E293B", corner_radius=6)
 
         ctk.CTkLabel(body, text="NAME", font=("Arial", 10, "bold"), text_color="#94A3B8").pack(anchor="w", padx=10, pady=(10, 2))
-        name_var = ctk.StringVar(value=dj.get("name", ""))
         ctk.CTkEntry(body, textvariable=name_var, fg_color="#0F172A", border_color="#334155", height=32).pack(fill="x", padx=10, pady=(0, 8))
 
         ctk.CTkLabel(body, text="🎙  STREAM LINK", font=("Arial", 10, "bold"), text_color="#94A3B8").pack(anchor="w", padx=10, pady=(0, 2))
-        stream_var = ctk.StringVar(value=dj.get("stream", ""))
         ctk.CTkEntry(
             body, textvariable=stream_var,
             placeholder_text="https://stream.vrcdn.live/live/...",
             fg_color="#0F172A", border_color="#334155", height=32
-        ).pack(fill="x", padx=10, pady=(0, 8))
+        ).pack(fill="x", padx=10, pady=(0, 6))
 
-        btn_row = ctk.CTkFrame(body, fg_color="transparent")
-        btn_row.pack(fill="x", padx=10, pady=(0, 10))
-        ctk.CTkButton(
-            btn_row, text="", image=self.icon_save, width=34, height=34,
-            fg_color="#059669", hover_color="#047857",
-            command=lambda: self._save_dj_card(idx, name_var, stream_var, name_lbl)
-        ).pack(side="left", padx=(0, 6))
-        ctk.CTkButton(
-            btn_row, text="", image=self.icon_trash, width=34, height=34,
-            fg_color="#7F1D1D", hover_color="#991B1B",
-            command=lambda i=idx: self._delete_dj_from_roster(i)
-        ).pack(side="left")
+        ctk.CTkCheckBox(
+            body, text="Use exact link (skip Quest/PC conversion)",
+            variable=exact_var,
+            font=("Arial", 11), text_color="#94A3B8",
+            fg_color="#818CF8", hover_color="#4F46E5",
+            border_color="#334155", checkmark_color="#FFFFFF"
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+
+        # ── Auto-save on any field change ──
+        _autosave_job = [None]
+
+        def _schedule_autosave(*_):
+            if _autosave_job[0] is not None:
+                self.after_cancel(_autosave_job[0])
+            _autosave_job[0] = self.after(
+                700, lambda: self._save_dj_card(idx, name_var, stream_var, exact_var, name_lbl)
+            )
+
+        name_var.trace_add("write", _schedule_autosave)
+        stream_var.trace_add("write", _schedule_autosave)
+        exact_var.trace_add("write", _schedule_autosave)
+
+        ANIM_STEPS = 16
+        ANIM_DELAY = 13  # ms per step (~16*13 ≈ 208ms total)
+
+        def _do_expand(target_h, step=1):
+            if not expanded.get():
+                return
+            if step > ANIM_STEPS:
+                body.configure(height=target_h)
+                body.pack_propagate(True)
+                return
+            t = step / ANIM_STEPS
+            # ease-out cubic: fast open, smooth gentle landing
+            t_ease = 1 - (1 - t) ** 3
+            body.configure(height=max(1, int(target_h * t_ease)))
+            body.after(ANIM_DELAY, lambda: _do_expand(target_h, step + 1))
+
+        def _do_collapse(from_h, step=1):
+            if expanded.get():
+                return
+            if step > ANIM_STEPS:
+                body.pack_forget()
+                return
+            t = step / ANIM_STEPS
+            # ease-in-out cubic: smooth start AND end for a clean fold-away
+            t_ease = t * t * (3 - 2 * t)
+            body.configure(height=max(1, int(from_h * (1 - t_ease))))
+            body.after(ANIM_DELAY, lambda: _do_collapse(from_h, step + 1))
 
         def toggle(event=None):
             if expanded.get():
-                body.pack_forget()
+                body.pack_propagate(False)
+                cur_h = body.winfo_height()
                 arrow_btn.configure(image=self.icon_chevron_up)
                 expanded.set(False)
+                _do_collapse(cur_h)
             else:
+                # Lock height to 1 BEFORE packing to prevent the full-height flash
+                body.pack_propagate(False)
+                body.configure(height=1)
                 body.pack(fill="x", padx=6, pady=(0, 8))
+                # winfo_reqheight reflects the widget's own layout without a screen render
+                nat_h = body.winfo_reqheight()
+                if nat_h < 10:
+                    # Fallback: schedule a proper measure after idletasks settle
+                    def _start_after_measure():
+                        h = body.winfo_reqheight()
+                        if h > 10:
+                            _do_expand(h)
+                    body.after(5, _start_after_measure)
+                else:
+                    arrow_btn.configure(image=self.icon_chevron_down)
+                    expanded.set(True)
+                    body.after(1, lambda: _do_expand(nat_h))
+                    return
                 arrow_btn.configure(image=self.icon_chevron_down)
                 expanded.set(True)
 
@@ -109,14 +175,15 @@ class DJRosterMixin:
             w.bind("<B1-Motion>",       lambda e: self._on_dj_drag(e, name_lbl.cget("text")))
             w.bind("<ButtonRelease-1>", lambda e: self._end_dj_drag(e, name_lbl.cget("text")))
 
-    def _save_dj_card(self, idx, name_var, stream_var, name_lbl):
+    def _save_dj_card(self, idx, name_var, stream_var, exact_var, name_lbl):
         new_name = name_var.get().strip()
         if not new_name:
             return
         old_name = self.saved_djs[idx].get("name", "")
         self.saved_djs[idx] = {
             "name": new_name,
-            "stream": stream_var.get().strip()
+            "stream": stream_var.get().strip(),
+            "exact_link": exact_var.get(),
         }
         self._save_library()
         name_lbl.configure(text=new_name)
@@ -147,7 +214,7 @@ class DJRosterMixin:
         self.update_idletasks()
         x = self.winfo_x() + (self.winfo_width()  - 380) // 2
         y = self.winfo_y() + (self.winfo_height() - 240) // 2
-        popup.geometry(f"380x240+{x}+{y}")
+        popup.geometry(f"380x280+{x}+{y}")
 
         content = ctk.CTkFrame(popup, fg_color="transparent")
         content.pack(fill="both", expand=True, padx=20, pady=16)
@@ -165,10 +232,19 @@ class DJRosterMixin:
             content, textvariable=stream_var,
             placeholder_text="https://stream.vrcdn.live/live/...",
             height=34, fg_color="#1E293B", border_color="#334155"
-        ).grid(row=3, column=0, sticky="ew", pady=(0, 14))
+        ).grid(row=3, column=0, sticky="ew", pady=(0, 6))
+
+        exact_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            content, text="Use exact link (skip Quest/PC conversion)",
+            variable=exact_var,
+            font=("Arial", 11), text_color="#94A3B8",
+            fg_color="#818CF8", hover_color="#4F46E5",
+            border_color="#334155", checkmark_color="#FFFFFF"
+        ).grid(row=4, column=0, sticky="w", pady=(0, 10))
 
         btn_row = ctk.CTkFrame(content, fg_color="transparent")
-        btn_row.grid(row=4, column=0, sticky="e")
+        btn_row.grid(row=5, column=0, sticky="e")
 
         def _save():
             name = name_var.get().strip()
@@ -178,9 +254,9 @@ class DJRosterMixin:
             if name.lower() in [d.get("name", "").lower() for d in self.saved_djs]:
                 name_entry.configure(border_color="#EF4444")
                 ctk.CTkLabel(content, text="Name already exists.",
-                             font=("Arial", 10), text_color="#EF4444").grid(row=5, column=0, sticky="w")
+                             font=("Arial", 10), text_color="#EF4444").grid(row=6, column=0, sticky="w")
                 return
-            self.saved_djs.append({"name": name, "stream": stream_var.get().strip()})
+            self.saved_djs.append({"name": name, "stream": stream_var.get().strip(), "exact_link": exact_var.get()})
             self._save_library()
             self.refresh_dj_roster_ui()
             self.after(0, self._refresh_slot_combos)

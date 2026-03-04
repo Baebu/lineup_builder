@@ -92,6 +92,61 @@ class DataMixin:
         except Exception as e:
             print(f"Error saving {self.EVENTS_FILE}: {e}")
 
+    # ── Auto-save (crash recovery) ────────────────────────────────────────
+
+    def _save_auto_state(self):
+        """Persist the current working session to auto_save.json for crash recovery."""
+        state = {
+            "title": self.event_title_var.get(),
+            "vol": self.event_vol_var.get(),
+            "timestamp": self.event_timestamp.get(),
+            "master_duration": self.master_duration.get(),
+            "genres": list(self.active_genres),
+            "names_only": self.names_only.get(),
+            "include_od": self.include_od.get(),
+            "od_duration": self.od_duration.get(),
+            "od_count": self.od_count.get(),
+            "slots": [
+                {
+                    "name": s.name_var.get().strip(),
+                    "genre": s.genre_var.get().strip(),
+                    "duration": s.duration_var.get(),
+                }
+                for s in self.slots
+            ],
+        }
+        try:
+            with open(self.AUTO_SAVE_FILE, "w") as f:
+                json.dump(state, f)
+        except Exception as e:
+            print(f"Auto-save error: {e}")
+
+    def _check_auto_save(self):
+        """On startup, detect an unclean exit and offer to restore the session."""
+        if not os.path.exists(self.AUTO_SAVE_FILE):
+            return
+        try:
+            with open(self.AUTO_SAVE_FILE, "r") as f:
+                state = json.load(f)
+        except Exception:
+            return
+        # Clean-exit flag written by _on_close — no restore needed
+        if state.get("clean_close"):
+            return
+        # Skip if essentially empty (no title and all slots are blank)
+        title = state.get("title", "").strip()
+        slots = state.get("slots", [])
+        has_content = title or any(s.get("name") or s.get("genre") for s in slots)
+        if not has_content:
+            return
+        from tkinter import messagebox
+        if messagebox.askyesno(
+            "Restore Unsaved Session",
+            f"An unsaved lineup was found{(' \u2014 ' + title) if title else ''}.\n"
+            "Restore it?"
+        ):
+            self.load_event_lineup(state)
+
     # ── Window state ──────────────────────────────────────────────────────
 
     def _restore_window_state(self):
@@ -119,6 +174,12 @@ class DataMixin:
                 )
             with open(self.WINDOW_STATE_FILE, "w") as f:
                 json.dump({"geometry": geo, "maximized": maximized}, f)
+        except Exception:
+            pass
+        # Mark clean exit so auto-save won't prompt on next launch
+        try:
+            with open(self.AUTO_SAVE_FILE, "w") as f:
+                json.dump({"clean_close": True}, f)
         except Exception:
             pass
         self.destroy()

@@ -3,15 +3,19 @@ import datetime
 from iconipy import IconFactory
 
 from .utils import _make_icon
-from .data_manager import DataMixin
-from .debounce import DebounceMixin
 from .ui_builder import UISetupMixin
 from .dj_roster import DJRosterMixin
 from .drag_drop import DragDropMixin
 from .events_manager import EventsMixin
 from .genre_manager import GenreMixin
 from .slot_manager import SlotMixin
-from .output_builder import OutputMixin
+from .settings_manager import SettingsMixin
+from .import_parser import ImportMixin
+from src.backend.data_manager import DataMixin
+from src.backend.debounce import DebounceMixin
+from src.backend.output_builder import OutputMixin
+from src.backend.event_bus import EventBus
+from src.backend.lineup_model import LineupModel
 
 
 class App(
@@ -23,15 +27,22 @@ class App(
     SlotMixin,
     OutputMixin,
     DataMixin,
+    SettingsMixin,
     DebounceMixin,
+    ImportMixin,
     ctk.CTk,
 ):
     LIBRARY_FILE = "lineup_library.yaml"
     EVENTS_FILE = "lineup_events.yaml"
     WINDOW_STATE_FILE = "window_state.json"
+    AUTO_SAVE_FILE = "auto_save.json"
 
     def __init__(self):
         ctk.CTk.__init__(self)
+
+        # Core architecture: event bus + data model
+        self.bus = EventBus()
+        self.model = LineupModel(self.bus)
 
         self.title("Lineup Builder")
         self.geometry("1150x850")
@@ -59,8 +70,10 @@ class App(
         self.icon_grip          = _make_icon(_icons, "grip-vertical",        14)
         self.icon_save          = _make_icon(_icons, "save",                 16)
         self.icon_copy          = _make_icon(_icons, "copy",                 16)
+        self.icon_edit          = _make_icon(_icons, "pencil",               16)
 
         self.load_data()
+        self.load_settings()
 
         now = datetime.datetime.now()
         self.event_timestamp = ctk.StringVar(value=f"{now.strftime('%Y-%m-%d')} 20:00")
@@ -86,6 +99,9 @@ class App(
         self._update_job = None
         self._roster_job = None
         self._save_lib_job = None
+        self._auto_save_job = None
+        self._auto_event_save_job = None
+        self._current_event_key = None  # (title, vol) of currently edited event
 
         # DJ roster search
         self.dj_search_var = ctk.StringVar()
@@ -94,3 +110,12 @@ class App(
         self.add_initial_slots()
         self.update_output()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # Keyboard shortcuts
+        self.bind_all("<Control-s>", lambda e: self.save_event_lineup())
+        self.bind_all("<Control-d>", lambda e: self._duplicate_last_slot())
+        self.bind_all("<Control-i>", lambda e: self.open_import_dialog())
+        self.bind("<Escape>", lambda e: self.focus())
+
+        # Check for crash-recovered auto-save session
+        self.after(150, self._check_auto_save)

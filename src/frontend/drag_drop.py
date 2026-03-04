@@ -1,4 +1,5 @@
 import tkinter as tk
+import customtkinter as ctk
 
 
 class DragDropMixin:
@@ -8,24 +9,33 @@ class DragDropMixin:
 
     def _slot_drag_start(self, event, slot_ui):
         self._slot_ghost = None  # created on first motion
+        # Cache vertical bounding boxes so we don't call winfo_rooty() every frame
+        self._cached_slot_bounds: list[tuple] = []
+        for s in self.slots:
+            try:
+                y = s.winfo_rooty()
+                h = s.winfo_height()
+                self._cached_slot_bounds.append((s, y, h))
+            except Exception:
+                pass
 
     def _slot_drag_motion(self, event, slot_ui):
         name = slot_ui.name_var.get().strip() or "(empty)"
         if self._slot_ghost is None:
-            self._slot_ghost = tk.Toplevel(self)
-            self._slot_ghost.overrideredirect(True)
-            self._slot_ghost.attributes("-alpha", 0.80)
-            self._slot_ghost.configure(bg="#4F46E5")
-            tk.Label(
+            self._slot_ghost = ctk.CTkFrame(self, fg_color="#4F46E5", corner_radius=6)
+            ctk.CTkLabel(
                 self._slot_ghost, text=f"  {name}  ",
-                font=("Arial", 12, "bold"), fg="white", bg="#4F46E5",
-                padx=10, pady=5
-            ).pack()
-        self._slot_ghost.geometry(f"+{event.x_root + 12}+{event.y_root + 8}")
+                font=("Arial", 12, "bold"), text_color="white"
+            ).pack(padx=10, pady=5)
+            self._slot_ghost.lift()
+        rx = event.x_root - self.winfo_rootx() + 12
+        ry = event.y_root - self.winfo_rooty() + 8
+        self._slot_ghost.place(x=rx, y=ry)
         self._update_drop_indicator(event.y_root)
 
     def _slot_drag_end(self, event, slot_ui):
         if self._slot_ghost:
+            self._slot_ghost.place_forget()
             self._slot_ghost.destroy()
             self._slot_ghost = None
         if self._drop_indicator:
@@ -43,15 +53,10 @@ class DragDropMixin:
             self.update_output()
 
     def _get_drop_index(self, y_root):
-        """Return the insertion index closest to y_root."""
-        for i, slot in enumerate(self.slots):
-            try:
-                sy = slot.winfo_rooty()
-                sh = slot.winfo_height()
-                if y_root < sy + sh // 2:
-                    return i
-            except Exception:
-                pass
+        """Return the insertion index closest to y_root using cached bounds."""
+        for i, (slot, sy, sh) in enumerate(self._cached_slot_bounds):
+            if y_root < sy + sh // 2:
+                return i
         return len(self.slots)
 
     def _update_drop_indicator(self, y_root):
@@ -62,13 +67,14 @@ class DragDropMixin:
             )
         idx = self._get_drop_index(y_root)
         try:
-            if idx < len(self.slots):
-                ref = self.slots[idx]
-                ry = ref.winfo_rooty() - self.slots_scroll.winfo_rooty()
+            scroll_root_y = self.slots_scroll.winfo_rooty()
+            if idx < len(self._cached_slot_bounds):
+                _, sy, _ = self._cached_slot_bounds[idx]
+                ry = sy - scroll_root_y
                 self._drop_indicator.place(x=0, y=max(0, ry - 2), relwidth=1.0)
-            else:
-                ref = self.slots[-1]
-                ry = ref.winfo_rooty() + ref.winfo_height() - self.slots_scroll.winfo_rooty()
+            elif self._cached_slot_bounds:
+                _, sy, sh = self._cached_slot_bounds[-1]
+                ry = sy + sh - scroll_root_y
                 self._drop_indicator.place(x=0, y=ry, relwidth=1.0)
             self._drop_indicator.lift()
         except Exception:
@@ -79,17 +85,15 @@ class DragDropMixin:
     def _on_dj_drag(self, event, dj_name):
         """Create or move the drag ghost on B1-Motion."""
         if self._drag_ghost is None:
-            self._drag_ghost = tk.Toplevel(self)
-            self._drag_ghost.overrideredirect(True)
-            self._drag_ghost.attributes("-alpha", 0.88)
-            self._drag_ghost.configure(bg="#4F46E5")
-            tk.Label(
+            self._drag_ghost = ctk.CTkFrame(self, fg_color="#4F46E5", corner_radius=6)
+            ctk.CTkLabel(
                 self._drag_ghost, text=f"  {dj_name}  ",
-                font=("Arial", 12, "bold"), fg="white", bg="#4F46E5",
-                padx=12, pady=6
-            ).pack()
+                font=("Arial", 12, "bold"), text_color="white"
+            ).pack(padx=12, pady=6)
             self._drag_ghost.lift()
-        self._drag_ghost.geometry(f"+{event.x_root + 14}+{event.y_root + 10}")
+        rx = event.x_root - self.winfo_rootx() + 14
+        ry = event.y_root - self.winfo_rooty() + 10
+        self._drag_ghost.place(x=rx, y=ry)
         if self._is_over_slots_panel(event.x_root, event.y_root):
             self.slots_scroll.configure(fg_color="#1E3A5F")
         else:
@@ -99,6 +103,7 @@ class DragDropMixin:
         """Drop DJ into lineup if released over the slots panel."""
         was_dragging = self._drag_ghost is not None
         if self._drag_ghost is not None:
+            self._drag_ghost.place_forget()
             self._drag_ghost.destroy()
             self._drag_ghost = None
         self.slots_scroll.configure(fg_color="transparent")

@@ -10,3 +10,6 @@
 /window_state.json
 /build
 /dist/
+/settings.json
+/.repomix
+/.pytest_cache

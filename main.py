@@ -1,4 +1,4 @@
-from lineup_builder.app import App
+from src.frontend.app import App
 
 if __name__ == '__main__':
     app = App()

@@ -33,6 +33,16 @@ class SlotMixin:
             self.refresh_slots()
             self.update_output()
 
+    def _duplicate_last_slot(self):
+        """Duplicate the last slot in the lineup (Ctrl+D shortcut)."""
+        if self.slots:
+            s = self.slots[-1]
+            try:
+                dur = int(s.duration_var.get())
+            except ValueError:
+                dur = 60
+            self.add_slot(s.name_var.get(), s.genre_var.get(), dur)
+
     def delete_slot(self, slot_ui):
         if slot_ui in self.slots:
             slot_ui.destroy()
