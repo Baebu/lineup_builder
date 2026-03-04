@@ -3,8 +3,9 @@ import os
 
 import customtkinter as ctk
 from . import theme as T
+from .utils import get_data_dir
 
-SETTINGS_FILE = "settings.json"
+SETTINGS_FILE = os.path.join(get_data_dir(), "settings.json")
 DEFAULT_SETTINGS = {
     # Output preview
     "output_font_size": 14,

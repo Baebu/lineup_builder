@@ -9,14 +9,24 @@ iconipy_datas, iconipy_bins, iconipy_hidden = collect_all('iconipy')
 # tkcalendar needs babel locale data at runtime
 babel_datas = collect_data_files('babel')
 
+# Runtime data files bundled alongside the executable
+runtime_datas = [
+    ('lineup_library.yaml', '.'),
+    ('lineup_events.yaml',  '.'),
+    ('settings.json',       '.'),
+    ('window_state.json',   '.'),
+    ('auto_save.json',      '.'),
+]
+
 a = Analysis(
     ['main.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=ctk_bins + iconipy_bins,
     datas=(
         ctk_datas
         + iconipy_datas
         + babel_datas
+        + runtime_datas
     ),
     hiddenimports=(
         ctk_hidden
@@ -27,6 +37,29 @@ a = Analysis(
             'babel.numbers',
             'babel.dates',
             'yaml',
+            # src package tree
+            'src',
+            'src.backend',
+            'src.backend.data_manager',
+            'src.backend.debounce',
+            'src.backend.event_bus',
+            'src.backend.lineup_model',
+            'src.backend.output_builder',
+            'src.backend.output_generator',
+            'src.frontend',
+            'src.frontend.app',
+            'src.frontend.date_time_picker',
+            'src.frontend.dj_roster',
+            'src.frontend.drag_drop',
+            'src.frontend.events_manager',
+            'src.frontend.genre_manager',
+            'src.frontend.import_parser',
+            'src.frontend.settings_manager',
+            'src.frontend.slot_manager',
+            'src.frontend.slot_ui',
+            'src.frontend.theme',
+            'src.frontend.ui_builder',
+            'src.frontend.utils',
         ]
     ),
     hookspath=[],

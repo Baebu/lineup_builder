@@ -34,10 +34,16 @@ class App(
     ImportMixin,
     ctk.CTk,
 ):
-    LIBRARY_FILE = "lineup_library.yaml"
-    EVENTS_FILE = "lineup_events.yaml"
-    WINDOW_STATE_FILE = "window_state.json"
-    AUTO_SAVE_FILE = "auto_save.json"
+    @staticmethod
+    def _data_path(filename: str) -> str:
+        from .utils import get_data_dir
+        import os
+        return os.path.join(get_data_dir(), filename)
+
+    LIBRARY_FILE     = property(lambda self: self._data_path("lineup_library.yaml"))
+    EVENTS_FILE      = property(lambda self: self._data_path("lineup_events.yaml"))
+    WINDOW_STATE_FILE = property(lambda self: self._data_path("window_state.json"))
+    AUTO_SAVE_FILE   = property(lambda self: self._data_path("auto_save.json"))
 
     def __init__(self):
         ctk.CTk.__init__(self)
