@@ -8,6 +8,7 @@
 /.github
 /.venv
 /window_state.json
+/auto_save.json
 /build
 /dist/
 /settings.json
