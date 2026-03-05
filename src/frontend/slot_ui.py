@@ -1,146 +1,154 @@
 """
 Module: slot_ui.py
-Purpose: Represents a single performer slot row in the lineup editor.
-Dependencies: customtkinter, theme
-Architecture: Instantiated by SlotMixin, communicates with App via app_ref.
+Purpose: DPG variable wrappers and slot row builder for the lineup editor.
+Dependencies: dearpygui, theme
 """
 
-import customtkinter as ctk
+import dearpygui.dearpygui as dpg
+
 from . import theme as T
+from .fonts import Icon
 
 
-class SlotUI(ctk.CTkFrame):
-    """Represents a single performer slot row in the lineup editor."""
+class DPGVar:
+    """tkinter.StringVar replacement backed by a DPG input item."""
 
-    def __init__(self, master, app_ref, name="", genre="", duration=60):
-        super().__init__(master, fg_color=T.PANEL_BG, corner_radius=T.CARD_RADIUS, border_width=T.BORDER_W, border_color=T.BORDER)
-        self.app_ref = app_ref
+    def __init__(self, tag=None, default=""):
+        self._tag = tag
+        self._value = str(default)
 
-        self.name_var = ctk.StringVar(value=name)
-        self.genre_var = ctk.StringVar(value=genre)
-        self.duration_var = ctk.StringVar(value=str(duration))
+    def get(self) -> str:
+        if self._tag and dpg.does_item_exist(self._tag):
+            return str(dpg.get_value(self._tag))
+        return self._value
 
-        self._name_cb_name = self.name_var.trace_add("write", self._on_name_change)
-        self._genre_cb_name = self.genre_var.trace_add("write", lambda *args: self.app_ref._schedule_update())
-        self._duration_cb_name = self.duration_var.trace_add("write", lambda *args: self.app_ref._schedule_update())
+    def set(self, value):
+        self._value = str(value)
+        if self._tag and dpg.does_item_exist(self._tag):
+            dpg.set_value(self._tag, self._value)
 
-        self.grid_columnconfigure(2, weight=1)
-        self.configure(cursor="fleur")
+    # Compatibility stubs so code calling trace_add/trace_remove won't crash
+    def trace_add(self, mode, callback):
+        pass
 
-        # Bind drag to the card frame itself
-        self.bind("<ButtonPress-1>",   lambda e: self.app_ref._slot_drag_start(e, self))
-        self.bind("<B1-Motion>",       lambda e: self.app_ref._slot_drag_motion(e, self))
-        self.bind("<ButtonRelease-1>", lambda e: self.app_ref._slot_drag_end(e, self))
+    def trace_remove(self, mode, name):
+        pass
 
-        # Drag handle
-        self.grip = ctk.CTkButton(
-            self, text="", image=self.app_ref.icon_grip,
-            width=28, height=40, cursor="fleur",
-            fg_color="transparent", hover_color=T.BORDER,
-            corner_radius=6
-        )
-        self.grip.grid(row=0, column=0, padx=(6, 0), pady=6)
-        self.grip.bind("<ButtonPress-1>",   lambda e: self.app_ref._slot_drag_start(e, self))
-        self.grip.bind("<B1-Motion>",       lambda e: self.app_ref._slot_drag_motion(e, self))
-        self.grip.bind("<ButtonRelease-1>", lambda e: self.app_ref._slot_drag_end(e, self))
 
-        # Slot start-time label
-        self.time_lbl = ctk.CTkLabel(
-            self, text="--:--", font=T.FONT_VALUE,
-            text_color=T.ACCENT, width=55, anchor="center", cursor="fleur"
-        )
-        self.time_lbl.grid(row=0, column=1, padx=(2, 0), pady=6)
-        self.time_lbl.bind("<ButtonPress-1>",   lambda e: self.app_ref._slot_drag_start(e, self))
-        self.time_lbl.bind("<B1-Motion>",       lambda e: self.app_ref._slot_drag_motion(e, self))
-        self.time_lbl.bind("<ButtonRelease-1>", lambda e: self.app_ref._slot_drag_end(e, self))
+class DPGBoolVar:
+    """tkinter.BooleanVar replacement backed by a DPG checkbox item."""
 
-        self.name_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.name_frame.grid(row=0, column=2, padx=6, pady=6, sticky="ew")
-        self.name_frame.grid_columnconfigure(0, weight=1)
+    def __init__(self, tag=None, default=False):
+        self._tag = tag
+        self._value = bool(default)
 
-        self.name_entry = ctk.CTkComboBox(
-            self.name_frame, variable=self.name_var, values=self.app_ref.get_dj_names(),
-            **T.COMBO,
-            command=lambda v: (self.app_ref.update_output(), self.update_dj_info())
-        )
-        self.name_entry.grid(row=0, column=0, sticky="ew")
+    def get(self) -> bool:
+        if self._tag and dpg.does_item_exist(self._tag):
+            return bool(dpg.get_value(self._tag))
+        return self._value
 
-        self.info_label = ctk.CTkLabel(
-            self.name_frame, text="", font=T.FONT_SMALL, text_color=T.TEXT_MUTED, anchor="w",
-            cursor="fleur"
-        )
-        self.info_label.grid(row=1, column=0, sticky="ew", padx=(2, 0), pady=(0, 3))
-        self.info_label.grid_remove()  # hidden until there's content
-        self.info_label.bind("<ButtonPress-1>",   lambda e: self.app_ref._slot_drag_start(e, self))
-        self.info_label.bind("<B1-Motion>",       lambda e: self.app_ref._slot_drag_motion(e, self))
-        self.info_label.bind("<ButtonRelease-1>", lambda e: self.app_ref._slot_drag_end(e, self))
+    def set(self, value):
+        self._value = bool(value)
+        if self._tag and dpg.does_item_exist(self._tag):
+            dpg.set_value(self._tag, self._value)
 
-        # Duration dropdown (15–120 min in 15-min steps)
-        dur_values =[str(x) for x in range(15, 121, 15)]
-        if self.duration_var.get() not in dur_values:
-            dur_values.append(self.duration_var.get())
-            dur_values.sort(key=lambda x: int(x))
+    def trace_add(self, mode, callback):
+        pass
 
-        self.dur_menu = ctk.CTkOptionMenu(
-            self,
-            values=dur_values,
-            variable=self.duration_var,
-            width=80, height=T.WIDGET_H,
-            **T.OPTION_MENU,
-            command=self.on_duration_change
-        )
-        self.dur_menu.grid(row=0, column=3, padx=6, pady=6, sticky="ew")
+    def trace_remove(self, mode, name):
+        pass
 
-        # Refined Delete Button
-        self.del_btn = ctk.CTkButton(
-            self, text="", image=self.app_ref.icon_trash,
-            command=self.delete_slot,
-            **T.BTN_ICON_DANGER
-        )
-        self.del_btn.grid(row=0, column=4, padx=(2, 8), pady=6)
 
-    # ── Internal callbacks ────────────────────────────────────────────────
+class SlotState:
+    """Pure-data holder for a single performer slot; UI built by build_slot_row()."""
 
-    def _on_name_change(self, *args):
-        self.app_ref._schedule_update()
-        self.update_dj_info()
+    _counter = 0
 
-    def update_dj_info(self):
-        val = self.name_var.get().strip()
-        dj = next((d for d in self.app_ref.saved_djs if d.get("name") == val), None)
-        has_stream = bool(dj and dj.get("stream"))
-        self.info_label.configure(text="🎙 Stream linked" if has_stream else "")
-        if has_stream:
-            self.info_label.grid()
-        else:
-            self.info_label.grid_remove()
-
-    # ── Slot actions ──────────────────────────────────────────────────────
-
-    def on_duration_change(self, choice):
-        self.app_ref.update_output()
-
-    def move_up(self):
-        self.app_ref.move_slot(self, -1)
-
-    def move_down(self):
-        self.app_ref.move_slot(self, 1)
-
-    def delete_slot(self):
-        self.app_ref.delete_slot(self)
+    def __init__(self, name="", genre="", duration=60):
+        SlotState._counter += 1
+        self._id = SlotState._counter
+        self.name_var     = DPGVar(default=name)
+        self.genre_var    = DPGVar(default=genre)
+        self.duration_var = DPGVar(default=str(duration))
+        self.row_tag      = None  # set by build_slot_row
 
     def destroy(self):
-        """Clean up traces to prevent memory leaks."""
-        try:
-            self.name_var.trace_remove("write", self._name_cb_name)
-        except Exception:
-            pass
-        try:
-            self.genre_var.trace_remove("write", self._genre_cb_name)
-        except Exception:
-            pass
-        try:
-            self.duration_var.trace_remove("write", self._duration_cb_name)
-        except Exception:
-            pass
-        super().destroy()
+        """Remove the DPG widgets for this slot."""
+        if self.row_tag and dpg.does_item_exist(self.row_tag):
+            dpg.delete_item(self.row_tag)
+        self.row_tag = None
+
+
+def build_slot_row(slot: SlotState, app, parent_tag: str):
+    """Create DPG widgets for *slot* inside *parent_tag*."""
+    sid = slot._id
+    row_tag = f"slot_row_{sid}"
+    slot.row_tag = row_tag
+
+    dur_vals = [str(x) for x in range(15, 121, 15)]
+    if slot.duration_var.get() not in dur_vals:
+        dur_vals.append(slot.duration_var.get())
+        dur_vals.sort(key=int)
+
+    with dpg.group(tag=row_tag, parent=parent_tag):
+        with dpg.group(horizontal=True):
+            dpg.add_text(
+                "--:--",
+                tag=f"slot_time_{sid}",
+                color=T.DPG_ACCENT,
+            )
+            dpg.add_combo(
+                items=app.get_dj_names(),
+                default_value=slot.name_var.get(),
+                tag=f"slot_name_{sid}",
+                width=200,
+                callback=lambda s, a, u=slot: _on_name_change(u, a, app),
+            )
+            slot.name_var._tag = f"slot_name_{sid}"
+
+            dpg.add_combo(
+                items=dur_vals,
+                default_value=slot.duration_var.get(),
+                tag=f"slot_dur_{sid}",
+                width=75,
+                callback=lambda s, a, u=slot: (
+                    slot.duration_var.set(a),
+                    app._schedule_update(),
+                ),
+            )
+            slot.duration_var._tag = f"slot_dur_{sid}"
+
+            dpg.add_button(
+                label=Icon.UP,
+                callback=lambda s, a, u=slot: app.move_slot(u, -1),
+            )
+            dpg.add_button(
+                label=Icon.DOWN,
+                callback=lambda s, a, u=slot: app.move_slot(u, 1),
+            )
+            dpg.add_button(
+                label=Icon.CLOSE,
+                callback=lambda s, a, u=slot: app.delete_slot(u),
+            )
+        dpg.add_text("", tag=f"slot_info_{sid}", color=T.DPG_TEXT_MUTED, show=False)
+        dpg.add_separator()
+
+
+def _on_name_change(slot: SlotState, value: str, app):
+    slot.name_var.set(value)
+    app._schedule_update()
+    _update_slot_info(slot, app)
+
+
+def _update_slot_info(slot: SlotState, app):
+    val = slot.name_var.get().strip()
+    sid = slot._id
+    dj = next((d for d in app.saved_djs if d.get("name") == val), None)
+    has_stream = bool(dj and dj.get("stream"))
+    info_tag = f"slot_info_{sid}"
+    if dpg.does_item_exist(info_tag):
+        dpg.set_value(info_tag, "\U0001f3d9 Stream linked" if has_stream else "")
+        if has_stream:
+            dpg.show_item(info_tag)
+        else:
+            dpg.hide_item(info_tag)

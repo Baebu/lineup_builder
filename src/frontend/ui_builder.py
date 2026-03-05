@@ -1,230 +1,248 @@
 """
 Module: ui_builder.py
-Purpose: Builds the entire application UI layout and provides title management helpers.
-Dependencies: customtkinter, tkinter, theme, date_time_picker
-Architecture: Mixin for App class. Sets up the primary grid and instantiates mixin components.
+Purpose: Builds the entire application UI layout (Dear PyGui).
+Architecture: Mixin for App class.
 """
+import dearpygui.dearpygui as dpg
 
-import customtkinter as ctk
-from .date_time_picker import CTkDateTimePicker
-import tkinter as tk
-from tkinter import messagebox
 from . import theme as T
+from .date_time_picker import add_datetime_row
+from .fonts import Icon
 
 
 class UISetupMixin:
-    """Builds the entire application UI and provides title management helpers."""
+    """Builds the entire application UI and provides helpers."""
 
     def setup_ui(self):
-        # Ensure theme-tracking lists exist even if load_settings() hasn't run yet
-        for _attr in ("_accent_labels", "_primary_buttons", "_danger_buttons",
-                      "_success_buttons", "_scrollable_frames"):
-            self.__dict__.setdefault(_attr,[])
+        with dpg.window(tag="primary_window", no_title_bar=True, no_resize=True,
+                        no_move=True, no_scrollbar=True,
+                        no_scroll_with_mouse=True):
+            with dpg.table(header_row=False, resizable=True, borders_innerV=True,
+                           scrollX=False, scrollY=False):
+                dpg.add_table_column(init_width_or_weight=380.0, width_fixed=True)
+                dpg.add_table_column()
+                with dpg.table_row():
+                    with dpg.child_window(border=False, no_scrollbar=True):
+                        self._build_left_panel()
+                    with dpg.child_window(border=False, no_scrollbar=True):
+                        self._build_right_panel()
 
-        # Grid Layout
-        _lpw = self.settings.get("left_panel_width", 380)
-        self.grid_columnconfigure(0, weight=0, minsize=_lpw)
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=1)
+        dpg.set_primary_window("primary_window", True)
+        self._build_settings_tab()
+        self.apply_theme()
 
-        # ==========================================
-        # LEFT PANEL: Configuration & Settings
-        # ==========================================
-        _lpw = self.settings.get("left_panel_width", 380)
-        left_panel = ctk.CTkFrame(
-            self, width=_lpw,
-            fg_color=self.settings.get("panel_bg", T.PANEL_BG),
-            corner_radius=T.PANEL_RADIUS,
-            border_width=T.BORDER_W,
-            border_color=self.settings.get("border_color", T.BORDER),
+    # ── Left panel ────────────────────────────────────────────────────────
+
+    def _build_left_panel(self):
+        with dpg.tab_bar(tag="left_tabs"):
+            with dpg.tab(label="Event", tag="Event"):
+                self._build_event_tab()
+            with dpg.tab(label="DJ Roster", tag="DJ Roster"):
+                self._build_dj_roster_tab()
+            with dpg.tab(label="Settings", tag="Settings"):
+                with dpg.child_window(tag="settings_scroll", height=-1,
+                                      border=False, autosize_x=True):
+                    pass  # populated by _build_settings_tab()
+
+    def _build_event_tab(self):
+        # ── Header row ────────────────────────────────────────────────────
+        dpg.add_text("EVENT CONFIGURATION", color=T.DPG_ACCENT)
+        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
+                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
+            dpg.add_table_column()
+            dpg.add_table_column()
+            dpg.add_table_column()
+            with dpg.table_row():
+                dpg.add_button(label=Icon.PASTE + " Import", width=-1,
+                               callback=lambda: self.open_import_dialog())
+                dpg.add_button(label=Icon.SAVE + " Save", width=-1,
+                               callback=lambda: self.save_event_lineup())
+                dpg.add_button(label=Icon.ADD + " New", width=-1,
+                               callback=lambda: self.new_event())
+        dpg.add_separator()
+
+        # ── Event title + vol ─────────────────────────────────────────────
+        dpg.add_text("EVENT TITLE", color=T.DPG_TEXT_SECONDARY)
+        with dpg.group(horizontal=True):
+            dpg.add_input_text(
+                tag="event_title_input",
+                default_value=self.event_title_var.get(),
+                hint="Event title...", width=-70,
+                callback=lambda s, a: self._schedule_update(),
+            )
+            dpg.add_text("Vol.")
+            dpg.add_input_text(
+                tag="event_vol_input",
+                default_value=self.event_vol_var.get(),
+                width=55,
+                callback=lambda s, a: self._schedule_update(),
+            )
+        self.event_title_var._tag = "event_title_input"
+        self.event_vol_var._tag   = "event_vol_input"
+
+        # ── Timestamp ─────────────────────────────────────────────────────
+        dpg.add_text("EVENT START TIMESTAMP", color=T.DPG_TEXT_SECONDARY)
+        add_datetime_row(
+            "event_timestamp_input", self.event_timestamp,
+            callback=lambda s, a: self._schedule_update(),
         )
-        left_panel.grid(row=0, column=0, rowspan=2, padx=(4, 2), pady=(0, 4), sticky="nsew")
-        left_panel.grid_propagate(False)
-        left_panel.grid_columnconfigure(0, weight=1)
-        left_panel.grid_rowconfigure(0, weight=1)
-        self._left_panel = left_panel
+        dpg.add_separator()
 
-        # ==========================================
-        # RIGHT PANEL: Lineup & Output
-        # ==========================================
-        self.right_panel = ctk.CTkFrame(
-            self,
-            fg_color=T.PANEL_BG,
-            corner_radius=T.PANEL_RADIUS,
-            border_width=T.BORDER_W,
-            border_color=T.BORDER,
-        )
-        self.right_panel.grid(row=0, column=1, padx=(2, 4), pady=(0, 4), sticky="nsew")
-        self.right_panel.grid_propagate(False)
-        self.right_panel.grid_columnconfigure(0, weight=1)
-        self.right_panel.grid_rowconfigure(0, weight=2)
-        self.right_panel.grid_rowconfigure(1, weight=0)
+        # ── Genres ────────────────────────────────────────────────────────
+        dpg.add_text("GENRES (Press Enter to add)", color=T.DPG_TEXT_SECONDARY)
+        with dpg.group(horizontal=True):
+            dpg.add_input_text(
+                tag="genre_entry",
+                default_value=self.genre_entry_var.get(),
+                hint="Type and press Enter...", width=-85,
+                on_enter=True,
+                callback=lambda s, a: self.add_genre_from_entry(),
+            )
+        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
+                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
+            dpg.add_table_column()
+            dpg.add_table_column()
+            with dpg.table_row():
+                dpg.add_button(label=Icon.EDIT + " Edit Genres", width=-1,
+                               callback=lambda: self.open_genre_editor())
+                dpg.add_button(label=Icon.DELETE + " Delete Genre", width=-1,
+                               callback=lambda: self.delete_saved_genre())
+        self.genre_entry_var._tag = "genre_entry"
 
-        self._create_left_tabs(left_panel)
+        dpg.add_text("SAVED GENRES", color=T.DPG_TEXT_MUTED)
+        with dpg.child_window(tag="genre_tags_frame", height=90,
+                              border=False, autosize_x=True):
+            pass  # populated by refresh_genre_tags()
+        dpg.add_separator()
 
-        self.left_tabs.tab("Event").grid_columnconfigure(0, weight=1)
-        self.left_tabs.tab("Event").grid_rowconfigure(0, weight=0)
-        self.left_tabs.tab("Event").grid_rowconfigure(1, weight=0)
-        self.left_tabs.tab("DJ Roster").grid_columnconfigure(0, weight=1)
-        self.left_tabs.tab("DJ Roster").grid_rowconfigure(0, weight=0)
-        self.left_tabs.tab("DJ Roster").grid_rowconfigure(1, weight=1)
-        self.left_tabs.tab("Settings").grid_columnconfigure(0, weight=1)
-        self.left_tabs.tab("Settings").grid_rowconfigure(0, weight=1)
-
-        # ── Event tab ─────────────────────────────────────────────────────
-        _event_tab = self.left_tabs.tab("Event")
-
-        # Shared header (always visible)
-        config_header = ctk.CTkFrame(_event_tab, fg_color="transparent")
-        config_header.grid(row=0, column=0, sticky="ew", padx=15, pady=(8, 8))
-        self._event_header_lbl = ctk.CTkLabel(
-            config_header, text="EVENT CONFIGURATION",
-            font=("Arial", 11, "bold"), text_color=T.ACCENT
-        )
-        self._event_header_lbl.pack(side="left")
-        self._accent_labels.append(self._event_header_lbl)
-        
-        ctk.CTkButton(
-            config_header, text="\U0001F4CB Import", width=90, height=T.WIDGET_H_PILL,
-            fg_color=T.BORDER, hover_color=T.HOVER, corner_radius=13,
-            font=T.FONT_SMALL_BOLD, text_color=T.TEXT_SECONDARY,
-            command=self.open_import_dialog,
-        ).pack(side="right", padx=(8, 0))
-        
-        _save_btn = ctk.CTkButton(
-            config_header, text="💾 SAVE", width=80, height=T.WIDGET_H_PILL,
-            fg_color=self.settings.get("success_color", T.SUCCESS),
-            hover_color=self.settings.get("success_hover_color", T.SUCCESS_HOVER),
-            corner_radius=13,
-            font=T.FONT_SMALL_BOLD, text_color=T.TEXT_PRIMARY,
-            command=self.save_event_lineup,
-        )
-        _save_btn.pack(side="right", padx=(8, 0))
-        self._success_buttons.append(_save_btn)
-        
-        ctk.CTkButton(
-            config_header, text="+ NEW", width=70, height=T.WIDGET_H_PILL,
-            fg_color=T.BORDER, hover_color=T.HOVER, corner_radius=13,
-            font=T.FONT_SMALL_BOLD, text_color=T.TEXT_PRIMARY,
-            command=self.new_event,
-        ).pack(side="right", padx=(8, 0))
-
-        # ── Event config panel (default) ──────────────────────────────────
-        config_frame = ctk.CTkFrame(_event_tab, fg_color="transparent")
-        config_frame.grid(row=1, column=0, sticky="nsew")
-        config_frame.grid_columnconfigure(0, weight=1)
-        self._event_config_panel = config_frame
-
-        config_grid = ctk.CTkFrame(config_frame, fg_color="transparent")
-        config_grid.pack(fill="x", expand=False, padx=15, pady=0)
-        config_grid.grid_columnconfigure((0, 1), weight=1)
-
-        # Title
-        title_frame = ctk.CTkFrame(config_grid, fg_color="transparent")
-        title_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=5)
-        ctk.CTkLabel(title_frame, text="EVENT TITLE", font=T.FONT_LABEL, text_color=T.TEXT_SECONDARY).pack(anchor="w")
-
-        title_input_frame = ctk.CTkFrame(title_frame, fg_color="transparent")
-        title_input_frame.pack(fill="x", pady=(2, 0))
-        title_input_frame.grid_columnconfigure(0, weight=1)
-
-        self.title_entry = ctk.CTkEntry(
-            title_input_frame,
-            textvariable=self.event_title_var,
-            placeholder_text="Event title...",
-            **T.ENTRY,
-        )
-        self.title_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
-        self.event_title_var.trace_add("write", lambda *args: self._schedule_update())
-
-        vol_frame = ctk.CTkFrame(title_input_frame, fg_color="transparent")
-        vol_frame.grid(row=0, column=1, padx=(0, 5))
-        ctk.CTkLabel(vol_frame, text="Vol.", font=T.FONT_BODY_BOLD, text_color=T.TEXT_SECONDARY).pack(side="left", padx=(0, 3))
-        self.vol_entry = ctk.CTkEntry(
-            vol_frame,
-            textvariable=self.event_vol_var,
-            width=40, **T.ENTRY,
-        )
-        self.vol_entry.pack(side="left")
-        self.event_vol_var.trace_add("write", lambda *args: self._schedule_update())
-
-        def _on_title_commit(*_):
-            if self.event_title_var.get().strip():
-                self._auto_event_save()
-        self.title_entry.bind("<Return>", _on_title_commit)
-        self.title_entry.bind("<FocusOut>", _on_title_commit)
-
-        # Date & Time
-        timestamp_frame = ctk.CTkFrame(config_grid, fg_color="transparent")
-        timestamp_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=5)
-        ctk.CTkLabel(timestamp_frame, text="EVENT START TIMESTAMP", font=T.FONT_LABEL, text_color=T.TEXT_SECONDARY).pack(anchor="w")
-        CTkDateTimePicker(timestamp_frame, variable=self.event_timestamp).pack(fill="x", pady=(2, 0))
-
-        # Genres
-        genre_frame = ctk.CTkFrame(config_grid, fg_color="transparent")
-        genre_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=5)
-        ctk.CTkLabel(genre_frame, text="GENRES (Press Enter to add)", font=T.FONT_LABEL, text_color=T.TEXT_SECONDARY).pack(anchor="w")
-
-        genre_input_frame = ctk.CTkFrame(genre_frame, fg_color="transparent")
-        genre_input_frame.pack(fill="x", pady=(2, 0))
-        genre_input_frame.grid_columnconfigure(0, weight=1)
-
-        self.genre_entry = ctk.CTkEntry(
-            genre_input_frame, textvariable=self.genre_entry_var,
-            placeholder_text="Type and press Enter...",
-            **T.ENTRY,
-        )
-        self.genre_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
-        self.genre_entry.bind("<Return>", self.add_genre_from_entry)
-
-        ctk.CTkButton(
-            genre_input_frame, text="", image=self.icon_edit,
-            **T.BTN_ICON,
-            command=self.open_genre_editor
-        ).grid(row=0, column=1, padx=(5, 0))
-
-        self.genre_del_btn = ctk.CTkButton(
-            genre_input_frame, text="", image=self.icon_trash,
-            **T.BTN_ICON_DANGER,
-            command=self.delete_saved_genre
-        )
-        self.genre_del_btn.grid(row=0, column=2, padx=(5, 0))
-        self._danger_buttons.append(self.genre_del_btn)
-
-        # ── Saved genres scroll container ─────────────────────────────
-        ctk.CTkLabel(
-            genre_frame,
-            text="SAVED GENRES",
-            font=("Arial", 10, "bold"),
-            text_color=T.TEXT_MUTED,
-            anchor="w",
-        ).pack(fill="x", pady=(6, 0))
-
-        self.genre_tags_frame = ctk.CTkScrollableFrame(
-            genre_frame, fg_color="transparent", height=90
-        )
-        self.genre_tags_frame._scrollbar.configure(width=10)
-        self.genre_tags_frame.pack(fill="x", pady=(2, 0))
+        # ── Saved Events ──────────────────────────────────────────────────
+        dpg.add_text("Saved Events", color=T.DPG_TEXT_PRIMARY)
+        with dpg.child_window(tag="saved_events_scroll", height=-1,
+                              border=False, autosize_x=True):
+            pass  # populated by refresh_saved_events_ui()
 
         self.refresh_genre_tags()
-
-        self.event_timestamp.trace_add("write", lambda *args: self._schedule_update())
-
-        # ── Saved Events Section (under Event Config) ────────────────────
-        _event_tab = self.left_tabs.tab("Event")
-        ctk.CTkLabel(
-            _event_tab, text="Saved Events",
-            font=T.FONT_BODY_BOLD, text_color=self.settings.get("text_primary", T.TEXT_PRIMARY)
-        ).grid(row=2, column=0, sticky="w", padx=15, pady=(0, 5))
-
-        self.saved_events_scroll = self._create_scrollable_frame(
-            _event_tab, row=3, column=0, sticky="nsew", padx=6, pady=(0, 6)
-        )
         self.refresh_saved_events_ui()
-        
-        # Balance scrollable areas: give both equal vertical space expansion
-        _event_tab.grid_rowconfigure(1, weight=0)  # Config panel
-        _event_tab.grid_rowconfigure(3, weight=1)  # Saved events panel
+
+    def _build_dj_roster_tab(self):
+        with dpg.group(horizontal=True):
+            dpg.add_text("DJ ROSTER", color=T.DPG_ACCENT)
+            dpg.add_text(" drag to add →", color=T.DPG_DRAG_HINT)
+        dpg.add_input_text(
+            tag="dj_search_input",
+            default_value=self.dj_search_var.get(),
+            hint="Search...", width=-1,
+            callback=lambda s, a: self._schedule_roster_refresh(),
+        )
+        self.dj_search_var._tag = "dj_search_input"
+        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
+                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
+            dpg.add_table_column()
+            dpg.add_table_column()
+            with dpg.table_row():
+                dpg.add_button(label=Icon.ADD + " New DJ", width=-1,
+                               callback=lambda: self.add_new_dj_to_roster())
+                dpg.add_button(label=Icon.DOWNLOAD + " Links", width=-1,
+                               callback=lambda: self.open_dj_link_import())
+        with dpg.child_window(tag="dj_roster_scroll", height=-1,
+                              border=False, autosize_x=True):
+            pass  # populated by refresh_dj_roster_ui()
+        self.refresh_dj_roster_ui()
+
+    # ── Right panel ───────────────────────────────────────────────────────
+
+    def _build_right_panel(self):
+        # ── Lineup header ─────────────────────────────────────────────────
+        with dpg.group(horizontal=True):
+            dpg.add_text("Lineup", color=T.DPG_TEXT_PRIMARY)
+            dpg.add_text("Default length:", color=T.DPG_TEXT_SECONDARY)
+            dur_values = [str(x) for x in range(15, 121, 15)]
+            dpg.add_combo(
+                tag="master_dur_combo",
+                items=dur_values,
+                default_value=self.master_duration.get(),
+                width=80,
+                callback=lambda s, a: self.apply_master_duration(),
+            )
+            self.master_duration._tag = "master_dur_combo"
+            dpg.add_button(label=Icon.ADD + " Add DJ", width=90,
+                           callback=lambda: self.add_slot())
+
+        # ── Slots scroll area ─────────────────────────────────────────────
+        with dpg.child_window(tag="slots_scroll", height=320,
+                              border=True, autosize_x=True):
+            pass  # populated by slot_manager
+
+        # ── Open Decks row ────────────────────────────────────────────────
+        with dpg.group(horizontal=True):
+            dpg.add_checkbox(
+                tag="od_toggle", label="OPEN DECKS",
+                default_value=self.include_od.get(),
+                callback=lambda s, a: self.toggle_od(),
+            )
+            self.include_od._tag = "od_toggle"
+            dpg.add_text("  Amount:", color=T.DPG_TEXT_MUTED)
+            dpg.add_combo(
+                tag="od_count_combo",
+                items=[str(x) for x in range(1, 11)],
+                default_value=self.od_count.get(),
+                width=75, enabled=False,
+                callback=lambda s, a: self.update_output(),
+            )
+            self.od_count._tag = "od_count_combo"
+            dpg.add_text("  Slot length:", color=T.DPG_TEXT_MUTED)
+            dpg.add_combo(
+                tag="od_dur_combo",
+                items=[str(x) for x in range(15, 121, 15)],
+                default_value=self.od_duration.get(),
+                width=85, enabled=False,
+                callback=lambda s, a: self.update_output(),
+            )
+            self.od_duration._tag = "od_dur_combo"
+        dpg.add_separator()
+
+        # ── Output preview ────────────────────────────────────────────────
+        dpg.add_text("Output", color=T.DPG_TEXT_PRIMARY)
+        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
+                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
+            for _ in range(5):
+                dpg.add_table_column()
+            with dpg.table_row():
+                dpg.add_button(tag="fmt_discord", label=Icon.CHAT + " Discord", width=-1,
+                               callback=lambda: self.toggle_format())
+                dpg.add_button(tag="fmt_plain",   label=Icon.NOTES + " Plain",   width=-1,
+                               callback=lambda: self.set_plain_text())
+                dpg.add_button(tag="fmt_quest",   label=Icon.VR + " Quest",      width=-1,
+                               callback=lambda: self.set_quest_view())
+                dpg.add_button(tag="fmt_pc",      label=Icon.COMPUTER + " PC",   width=-1,
+                               callback=lambda: self.set_pc_view())
+                dpg.add_button(tag="fmt_times",   label=Icon.SCHEDULE + " Times on", width=-1,
+                               callback=lambda: self._toggle_times())
+
+        dpg.add_input_text(
+            tag="output_text",
+            multiline=True, readonly=True,
+            width=-1, height=-1,
+        )
+
+    # ── Helpers ───────────────────────────────────────────────────────────
+
+    def _toggle_times(self):
+        self.names_only.set(not self.names_only.get())
+        label = Icon.SCHEDULE + " Times off" if self.names_only.get() else Icon.SCHEDULE + " Times on"
+        if dpg.does_item_exist("fmt_times"):
+            dpg.configure_item("fmt_times", label=label)
+        self.update_output()
+
+    def _is_over_slots_panel(self, x_root: int, y_root: int) -> bool:
+        try:
+            mn = dpg.get_item_rect_min("slots_scroll")
+            mx = dpg.get_item_rect_max("slots_scroll")
+        except Exception:
+            return False
+        return mn[0] <= x_root <= mx[0] and mn[1] <= y_root <= mx[1]
+
+
 
         # ── DJ Roster tab ──────────────────────────────────────────────────
         dj_roster_tab = self.left_tabs.tab("DJ Roster")
@@ -451,126 +469,3 @@ class UISetupMixin:
         self._build_settings_tab()
         self.apply_theme()
 
-    # ── Scrollbar helper ──────────────────────────────────────────────────
-
-    def _autohide_scrollbar(self, sf: ctk.CTkScrollableFrame) -> None:
-        """
-        Hide the scrollbar on a CTkScrollableFrame when the content height
-        is less than or equal to the visible canvas height.
-        """
-        frames = self.__dict__.setdefault("_scrollable_frames",[])
-        if sf not in frames:
-            frames.append(sf)
-
-        pending_job = [None]
-
-        def schedule_check(event=None):
-            if pending_job[0] is not None:
-                return
-
-            def do_check():
-                pending_job[0] = None
-                sf.update_idletasks()
-
-                bbox = sf._parent_canvas.bbox("all")
-                if bbox is None:
-                    sf._scrollbar.grid_remove()
-                    return
-
-                content_height = bbox[3] - bbox[1]
-                visible_height = sf._parent_canvas.winfo_height()
-
-                if content_height > visible_height:
-                    sf._scrollbar.grid()
-                else:
-                    sf._scrollbar.grid_remove()
-
-            pending_job[0] = sf.after(80, do_check)
-
-        sf._parent_canvas.bind("<Configure>", lambda e: schedule_check(), add="+")
-        sf._parent_frame.bind("<Configure>", lambda e: schedule_check(), add="+")
-        sf.bind("<Configure>", lambda e: schedule_check(), add="+")
-
-    # ── UI Component Helpers ─────────────────────────────────────────────
-
-    def _create_left_tabs(self, left_panel: ctk.CTkFrame) -> None:
-        self.left_tabs = ctk.CTkTabview(
-            left_panel,
-            fg_color="transparent",
-            bg_color="transparent",
-            segmented_button_fg_color=self.settings.get("panel_bg", T.PANEL_BG),
-            segmented_button_unselected_color=self.settings.get("panel_bg", T.PANEL_BG),
-            segmented_button_selected_color=self.settings.get("border_color", T.BORDER),
-        )
-        self.left_tabs.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
-        self.left_tabs.add("Event")
-        self.left_tabs.add("DJ Roster")
-        self.left_tabs.add("Settings")
-
-    def _create_scrollable_frame(
-        self,
-        parent,
-        *,
-        row: int = 0,
-        column: int = 0,
-        padx=0,
-        pady=0,
-        sticky: str = "nsew",
-        autohide: bool = True,
-    ) -> ctk.CTkScrollableFrame:
-        sf = ctk.CTkScrollableFrame(parent, fg_color="transparent")
-        sf._scrollbar.configure(width=10)
-        sf.grid(row=row, column=column, sticky=sticky, padx=padx, pady=pady)
-        sf.grid_columnconfigure(0, weight=1)
-
-        if autohide:
-            self._autohide_scrollbar(sf)
-
-        return sf
-
-    def _create_scroll_containers(self, _event_tab, _saved_outer, dj_roster_tab,
-                                  slots_container_frame, settings_tab, genre_popup_win) -> None:
-        self._event_config_panel = self._create_scrollable_frame(
-            _event_tab, row=1, column=0, sticky="nsew",
-        )
-        self.saved_events_scroll = self._create_scrollable_frame(
-            _saved_outer, row=0, column=0, sticky="nsew",
-        )
-        self.dj_roster_scroll = self._create_scrollable_frame(
-            dj_roster_tab, row=1, column=0, padx=8, pady=(4, 6), sticky="nsew",
-        )
-        self.slots_scroll = self._create_scrollable_frame(
-            slots_container_frame, row=1, column=0, padx=10, pady=(0, 0), sticky="nsew",
-        )
-        self.settings_scroll = self._create_scrollable_frame(
-            settings_tab, row=0, column=0, sticky="nsew",
-        )
-        self.genre_editor_scroll = ctk.CTkScrollableFrame(
-            genre_popup_win, fg_color="transparent"
-        )
-        self.genre_editor_scroll._scrollbar.configure(width=10)
-        self.genre_editor_scroll.pack(fill="both", expand=True, padx=12, pady=(4, 12))
-        self.genre_editor_scroll.grid_columnconfigure(0, weight=1)
-
-    def _is_over_slots_panel(self, x_root: int, y_root: int) -> bool:
-        try:
-            sx = self.slots_scroll.winfo_rootx()
-            sy = self.slots_scroll.winfo_rooty()
-            sw = self.slots_scroll.winfo_width()
-            sh = self.slots_scroll.winfo_height()
-        except Exception:
-            return False
-        return sx <= x_root <= sx + sw and sy <= y_root <= sy + sh
-
-    def _enable_roster_wheel_scroll(self, roster_body: ctk.CTkFrame) -> None:
-        roster_canvas = self.dj_roster_scroll._parent_canvas
-
-        def _forward_scroll(e):
-            roster_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
-
-        def _bind_recursive(widget):
-            widget.bind("<MouseWheel>", _forward_scroll, add="+")
-            for child in widget.winfo_children():
-                _bind_recursive(child)
-
-        _bind_recursive(roster_body)

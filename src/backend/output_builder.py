@@ -1,7 +1,6 @@
-import datetime
-import re
+import dearpygui.dearpygui as dpg
 
-from .lineup_model import EventSnapshot, SlotData, DJInfo, OpenDecksConfig
+from .lineup_model import DJInfo, EventSnapshot, OpenDecksConfig, SlotData
 from .output_generator import OutputGenerator
 
 
@@ -79,42 +78,22 @@ class OutputMixin:
         # Always refresh slot start-time labels regardless of output format
         slot_times = OutputGenerator.compute_slot_times(snap)
         for _slot, time_str in zip(self.slots, slot_times):
-            _slot.time_lbl.configure(text=time_str)
+            tag = f"slot_time_{_slot._id}"
+            if dpg.does_item_exist(tag):
+                dpg.set_value(tag, time_str)
 
         # Delegate the heavy lifting to the pure-Python generator
         body = OutputGenerator.generate(snap)
 
-        self.output_text.configure(state="normal")
-        self.output_text.delete("1.0", "end")
-        self.output_text.insert("1.0", body)
-        self.output_text.configure(state="disabled")
+        if dpg.does_item_exist("output_text"):
+            dpg.set_value("output_text", body)
 
     # ── Copy helpers ──────────────────────────────────────────────────────
 
-    def _on_output_leave(self, event):
-        """Hide the copy icon only when the pointer truly leaves both the textbox and button."""
-        widget_under = self.winfo_containing(event.x_root, event.y_root)
-        if widget_under is None:
-            self.copy_icon_btn.place_forget()
-            return
-        w_str = str(widget_under)
-        if str(self.copy_icon_btn) in w_str or str(self.output_text) in w_str:
-            return
-        self.copy_icon_btn.place_forget()
-
     def copy_template(self):
-        text = self.output_text.get("1.0", "end-1c")
-        self.clipboard_clear()
-        self.clipboard_append(text)
-        self.copy_icon_btn.configure(
-            text="✓", fg_color="#059669", hover_color="#047857", text_color="#FFFFFF"
-        )
-        self.after(
-            1500,
-            lambda: self.copy_icon_btn.configure(
-                text="⎘", fg_color="#3F4147", hover_color="#4F46E5", text_color="#94A3B8"
-            ),
-        )
+        import threading
+        text = dpg.get_value("output_text") if dpg.does_item_exist("output_text") else ""
+        dpg.set_clipboard_text(text)
 
     def copy_quest_links(self):
         self.set_quest_view()
@@ -125,39 +104,23 @@ class OutputMixin:
         self._copy_output_to_clipboard()
 
     def _copy_output_to_clipboard(self):
-        text = self.output_text.get("1.0", "end-1c")
-        self.clipboard_clear()
-        self.clipboard_append(text)
+        text = dpg.get_value("output_text") if dpg.does_item_exist("output_text") else ""
+        dpg.set_clipboard_text(text)
 
     # ── Format-button state ───────────────────────────────────────────────
 
-    def _reset_format_btns(self):
-        """Set all four format buttons to their inactive style."""
-        self.format_btn.configure(fg_color="transparent", text_color="#94A3B8")
-        self.plain_btn.configure(fg_color="transparent", text_color="#94A3B8")
-        self.quest_btn.configure(fg_color="transparent", text_color="#94A3B8")
-        self.pc_btn.configure(fg_color="transparent", text_color="#94A3B8")
-
     def toggle_format(self):
         self.output_format.set("discord")
-        self._reset_format_btns()
-        self.format_btn.configure(fg_color="transparent", text_color="#818CF8")
         self.update_output()
 
     def set_plain_text(self):
         self.output_format.set("local")
-        self._reset_format_btns()
-        self.plain_btn.configure(fg_color="transparent", text_color="#34D399")
         self.update_output()
 
     def set_quest_view(self):
         self.output_format.set("quest")
-        self._reset_format_btns()
-        self.quest_btn.configure(fg_color="transparent", text_color="#34D399")
         self.update_output()
 
     def set_pc_view(self):
         self.output_format.set("pc")
-        self._reset_format_btns()
-        self.pc_btn.configure(fg_color="transparent", text_color="#818CF8")
         self.update_output()

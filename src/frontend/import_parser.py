@@ -1,7 +1,10 @@
-import re
 import datetime
-import customtkinter as ctk
+import re
+
+import dearpygui.dearpygui as dpg
+
 from . import theme as T
+from .fonts import Icon
 
 
 class ImportMixin:
@@ -11,109 +14,50 @@ class ImportMixin:
 
     def open_import_dialog(self):
         """Open a modal with a paste area and Import button."""
-        popup = ctk.CTkToplevel(self)
-        popup.title("Import Event")
-        popup.geometry("540x520")
-        popup.resizable(True, True)
-        popup.configure(fg_color=T.CARD_BG)
-        popup.grab_set()
-        popup.focus_force()
-
-        self.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() - 540) // 2
-        y = self.winfo_y() + (self.winfo_height() - 520) // 2
-        popup.geometry(f"540x520+{x}+{y}")
-
-        content = ctk.CTkFrame(popup, fg_color="transparent")
-        content.pack(fill="both", expand=True, padx=20, pady=16)
-        content.grid_columnconfigure(0, weight=1)
-        content.grid_rowconfigure(2, weight=1)
-
-        # Header
-        header = ctk.CTkFrame(content, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 2))
-        ctk.CTkLabel(
-            header, text="IMPORT EVENT",
-            font=T.FONT_BODY_BOLD, text_color=T.ACCENT,
-        ).pack(side="left")
-
-        # Hint
-        ctk.CTkLabel(
-            content,
-            text="Paste a Discord or plain-text formatted event below.\n"
-                 "Supports: titles, timestamps, genres, lineup slots, and Open Decks.",
-            font=T.FONT_SMALL, text_color=T.TEXT_MUTED, justify="left",
-        ).grid(row=1, column=0, sticky="w", pady=(0, 6))
-
-        # Paste area
-        text_box = ctk.CTkTextbox(
-            content, fg_color=T.PANEL_BG, text_color=T.TEXT_PRIMARY,
-            font=("Consolas", 12), border_width=T.BORDER_W, border_color=T.BORDER,
-            wrap="word",
-        )
-        text_box.grid(row=2, column=0, sticky="nsew", pady=(0, 8))
-
-        # Status / preview label
-        status_lbl = ctk.CTkLabel(
-            content, text="", font=T.FONT_SMALL, text_color=T.TEXT_SECONDARY,
-        )
-        status_lbl.grid(row=3, column=0, sticky="w", pady=(0, 6))
-
-        # Buttons
-        btn_row = ctk.CTkFrame(content, fg_color="transparent")
-        btn_row.grid(row=4, column=0, sticky="e")
-
-        def _preview():
-            raw = text_box.get("1.0", "end-1c").strip()
-            if not raw:
-                status_lbl.configure(text="Paste something first.", text_color=T.ERROR)
-                return
-            parsed = self._parse_event_text(raw)
-            if not parsed:
-                status_lbl.configure(text="Could not recognise any event data.", text_color=T.ERROR)
-                return
-            n_slots = len(parsed.get("slots", []))
-            title = parsed.get("title") or "Untitled"
-            genres = ", ".join(parsed.get("genres", [])) or "—"
-            od = f" + {parsed['od_count']} OD" if parsed.get("include_od") else ""
-            status_lbl.configure(
-                text=f'"{title}" — {n_slots} slot(s){od} — Genres: {genres}',
-                text_color=T.IMPORT_SUCCESS,
+        win_tag = "import_dialog_win"
+        if dpg.does_item_exist(win_tag):
+            dpg.delete_item(win_tag)
+        with dpg.window(tag=win_tag, label="Import Event", modal=True,
+                        width=540, height=520, no_resize=False):
+            dpg.add_text("IMPORT EVENT", color=T.DPG_ACCENT)
+            dpg.add_text(
+                "Paste a Discord or plain-text formatted event below.\n"
+                "Supports: titles, timestamps, genres, lineup slots, and Open Decks.",
+                color=T.DPG_TEXT_MUTED, wrap=520,
             )
+            paste_input = dpg.add_input_text(multiline=True, width=-1, height=120)
+            status_text = dpg.add_text("", color=T.DPG_TEXT_SECONDARY)
 
-        def _import():
-            raw = text_box.get("1.0", "end-1c").strip()
-            if not raw:
-                status_lbl.configure(text="Paste something first.", text_color=T.ERROR)
-                return
-            parsed = self._parse_event_text(raw)
-            if not parsed:
-                status_lbl.configure(text="Could not recognise any event data.", text_color=T.ERROR)
-                return
-            self._apply_parsed_event(parsed)
-            popup.destroy()
+            def _preview(s, a, _pi=paste_input, _st=status_text):
+                raw = dpg.get_value(_pi).strip()
+                if not raw:
+                    dpg.set_value(_st, "Paste something first."); return
+                parsed = self._parse_event_text(raw)
+                if not parsed:
+                    dpg.set_value(_st, "Could not recognise any event data."); return
+                n_slots = len(parsed.get("slots", []))
+                title = parsed.get("title") or "Untitled"
+                genres = ", ".join(parsed.get("genres", [])) or "\u2014"
+                od = f" + {parsed['od_count']} OD" if parsed.get("include_od") else ""
+                dpg.set_value(_st, f'"{title}" \u2014 {n_slots} slot(s){od} \u2014 Genres: {genres}')
 
-        ctk.CTkButton(
-            btn_row, text="Cancel", width=80, height=T.WIDGET_H_SM,
-            **T.BTN_SECONDARY,
-            font=T.FONT_BODY_BOLD, command=popup.destroy,
-        ).pack(side="left", padx=(0, 8))
+            def _import(s, a, _pi=paste_input, _st=status_text, _wt=win_tag):
+                raw = dpg.get_value(_pi).strip()
+                if not raw:
+                    dpg.set_value(_st, "Paste something first."); return
+                parsed = self._parse_event_text(raw)
+                if not parsed:
+                    dpg.set_value(_st, "Could not recognise any event data."); return
+                self._apply_parsed_event(parsed)
+                dpg.delete_item(_wt)
 
-        ctk.CTkButton(
-            btn_row, text="Preview", width=80, height=T.WIDGET_H_SM,
-            **T.BTN_SECONDARY,
-            font=T.FONT_BODY_BOLD, text_color=T.ACCENT,
-            command=_preview,
-        ).pack(side="left", padx=(0, 8))
+            with dpg.group(horizontal=True):
+                dpg.add_button(label=Icon.CLOSE + " Cancel",
+                               callback=lambda s, a, wt=win_tag: dpg.delete_item(wt))
+                dpg.add_button(label=Icon.PREVIEW + " Preview", callback=_preview)
+                dpg.add_button(label=Icon.DOWNLOAD + " Import", callback=_import)
 
-        ctk.CTkButton(
-            btn_row, text="Import", width=90, height=T.WIDGET_H_SM,
-            **T.BTN_PRIMARY,
-            font=T.FONT_BODY_BOLD, command=_import,
-        ).pack(side="left")
 
-        popup.bind("<Escape>", lambda e: popup.destroy())
-        text_box.focus_set()
 
     # ── Parser ────────────────────────────────────────────────────────────
 

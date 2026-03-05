@@ -1,8 +1,10 @@
 import copy
 import datetime
-import customtkinter as ctk
-from tkinter import messagebox
+
+import dearpygui.dearpygui as dpg
+
 from . import theme as T
+from .fonts import Icon
 
 
 class EventsMixin:
@@ -12,7 +14,12 @@ class EventsMixin:
         title = self.event_title_var.get().strip()
         vol = self.event_vol_var.get().strip()
         if not title:
-            messagebox.showwarning("Missing Title", "Please set an Event Title before saving the lineup.")
+            _warn_win = "save_warn_win"
+            if not dpg.does_item_exist(_warn_win):
+                with dpg.window(tag=_warn_win, label="Warning", modal=True,
+                                width=380, height=80, no_resize=True):
+                    dpg.add_text("Please set an Event Title before saving the lineup.")
+                    dpg.add_button(label=Icon.CHECK + " OK", callback=lambda s, a, wt=_warn_win: dpg.delete_item(wt))
             return
 
         full_title = f"{title} VOL.{vol}" if vol.isdigit() else title
@@ -47,49 +54,72 @@ class EventsMixin:
                 existing_idx = i
                 break
 
-        if existing_idx is not None:
-            if messagebox.askyesno("Update Event", f"'{full_title}' already exists. Overwrite?"):
+        def _do_save(_wt=None):
+            if existing_idx is not None:
                 self.saved_events[existing_idx] = event_data
             else:
-                return
-        else:
-            self.saved_events.append(event_data)
+                self.saved_events.append(event_data)
+            self.saved_events.sort(key=lambda e: e.get('created_at', ''), reverse=True)
+            self._current_event_key = (title, vol)
+            self._save_events()
+            self.refresh_saved_events_ui()
+            if _wt and dpg.does_item_exist(_wt):
+                dpg.delete_item(_wt)
 
-        self.saved_events.sort(key=lambda e: e.get('created_at', ''), reverse=True)
-        self._current_event_key = (title, vol)
-        self._save_events()
-        self.refresh_saved_events_ui()
-        messagebox.showinfo("Success", f"Event '{full_title}' saved successfully!")
+        if existing_idx is not None:
+            wt = "overwrite_confirm_win"
+            if dpg.does_item_exist(wt):
+                dpg.delete_item(wt)
+            with dpg.window(tag=wt, label="Update Event", modal=True,
+                            width=320, height=90, no_resize=True):
+                dpg.add_text(f"'{full_title}' already exists. Overwrite?")
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label=Icon.CHECK + " Yes", callback=lambda s, a, _wt=wt: _do_save(_wt))
+                    dpg.add_button(label=Icon.CLOSE + " No",  callback=lambda s, a, _wt=wt: dpg.delete_item(_wt))
+        else:
+            _do_save()
 
     def new_event(self):
         """Reset all event fields and slots to a blank state."""
-        if any(s.name_var.get().strip() or s.genre_var.get().strip() for s in self.slots):
-            if not messagebox.askyesno("New Event", "Clear the current lineup and start fresh?"):
-                return
+        has_content = any(s.name_var.get().strip() or s.genre_var.get().strip() for s in self.slots)
 
-        self._current_event_key = None
+        def _do_new(_wt=None):
+            self._current_event_key = None
+            import datetime as _dt
+            now = _dt.datetime.now()
+            self.event_title_var.set("")
+            self.event_vol_var.set("")
+            self.event_timestamp.set(now.strftime("%Y-%m-%d") + " 20:00")
+            self.master_duration.set("60")
+            self.active_genres = []
+            self.refresh_genre_tags()
+            self.names_only.set(False)
+            self.include_od.set(False)
+            self.od_count.set("4")
+            self.od_duration.set("30")
+            self.toggle_od()
+            for slot in self.slots:
+                slot.destroy()
+            self.slots.clear()
+            self.add_slot()
+            if dpg.does_item_exist("left_tabs"):
+                dpg.set_value("left_tabs", "Event")
+            self.update_output()
+            if _wt and dpg.does_item_exist(_wt):
+                dpg.delete_item(_wt)
 
-        import datetime as _dt
-        now = _dt.datetime.now()
-        self.event_title_var.set("")
-        self.event_vol_var.set("")
-        self.event_timestamp.set(now.strftime("%Y-%m-%d") + " 20:00")
-        self.master_duration.set("60")
-        self.active_genres = []
-        self.refresh_genre_tags()
-        self.names_only.set(False)
-        self.include_od.set(False)
-        self.od_count.set("4")
-        self.od_duration.set("30")
-        self.toggle_od()
-
-        for slot in self.slots:
-            slot.destroy()
-        self.slots.clear()
-        self.add_slot()
-
-        self.left_tabs.set("Event")
-        self.update_output()
+        if has_content:
+            wt = "new_event_confirm"
+            if dpg.does_item_exist(wt):
+                dpg.delete_item(wt)
+            with dpg.window(tag=wt, label="New Event", modal=True,
+                            width=300, height=90, no_resize=True):
+                dpg.add_text("Clear the current lineup and start fresh?")
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label=Icon.CHECK + " Yes", callback=lambda s, a, _wt=wt: _do_new(_wt))
+                    dpg.add_button(label=Icon.CLOSE + " No",  callback=lambda s, a, _wt=wt: dpg.delete_item(_wt))
+        else:
+            _do_new()
 
     def load_event_lineup(self, event_data):
         self.event_title_var.set(event_data.get("title", ""))
@@ -117,7 +147,8 @@ class EventsMixin:
                 int(slot_data.get("duration", 60))
             )
 
-        self.left_tabs.set("Event")
+        if dpg.does_item_exist("left_tabs"):
+            dpg.set_value("left_tabs", "Event")
         self.update_output()
         self._current_event_key = (event_data.get("title", ""), event_data.get("vol", ""))
 
@@ -188,10 +219,22 @@ class EventsMixin:
             if event_data.get('vol', '').isdigit()
             else event_data['title']
         )
-        if messagebox.askyesno("Confirm Delete", f"Delete saved event '{full_title}'?"):
-            self.saved_events.remove(event_data)
+        wt = "delete_event_confirm"
+        if dpg.does_item_exist(wt):
+            dpg.delete_item(wt)
+        def _do_delete(_wt=wt, _ev=event_data):
+            if _ev in self.saved_events:
+                self.saved_events.remove(_ev)
             self._save_events()
             self.refresh_saved_events_ui()
+            if dpg.does_item_exist(_wt):
+                dpg.delete_item(_wt)
+        with dpg.window(tag=wt, label="Confirm Delete", modal=True,
+                        width=300, height=90, no_resize=True):
+            dpg.add_text(f"Delete saved event '{full_title}'?")
+            with dpg.group(horizontal=True):
+                dpg.add_button(label=Icon.CHECK + " Yes", callback=lambda s, a: _do_delete())
+                dpg.add_button(label=Icon.CLOSE + " No",  callback=lambda s, a, _wt=wt: dpg.delete_item(_wt))
 
     def duplicate_event_lineup(self, event_data):
         dupe = copy.deepcopy(event_data)
@@ -206,66 +249,33 @@ class EventsMixin:
         self.refresh_saved_events_ui()
 
     def refresh_saved_events_ui(self):
-        for widget in self.saved_events_scroll.winfo_children():
-            widget.destroy()
-
-        if not self.saved_events:
-            ctk.CTkLabel(
-                self.saved_events_scroll, text="No saved events yet.", text_color=T.TEXT_SECONDARY
-            ).pack(pady=20)
+        if not dpg.does_item_exist("saved_events_scroll"):
             return
-
+        dpg.delete_item("saved_events_scroll", children_only=True)
+        if not self.saved_events:
+            dpg.add_text("No saved events yet.",
+                         parent="saved_events_scroll", color=T.DPG_TEXT_SECONDARY)
+            return
         for ev in self.saved_events:
-            frame = ctk.CTkFrame(
-                self.saved_events_scroll, **T.CARD
-            )
-            frame.pack(fill="x", padx=T.SCROLL_PAD_X, pady=5)
-            frame.grid_columnconfigure(0, weight=1)
-
             full_title = (
                 f"{ev['title']} VOL.{ev.get('vol', '')}"
                 if ev.get('vol', '').isdigit()
                 else ev['title']
             )
-
-            info_frame = ctk.CTkFrame(frame, fg_color="transparent")
-            info_frame.grid(row=0, column=0, padx=(10, 4), pady=8, sticky="ew")
-
-            ctk.CTkLabel(
-                info_frame, text=full_title, font=T.FONT_VALUE,
-                text_color=T.TEXT_PRIMARY, anchor="w"
-            ).pack(anchor="w")
-
             slots_count = len(ev.get("slots", []))
             timestamp = ev.get("timestamp", "")
             saved_at = ev.get("created_at", "")[:16]
-            ctk.CTkLabel(
-                info_frame, text=f"{timestamp}  •  {slots_count} slots",
-                font=T.FONT_SMALL, text_color=T.TEXT_SECONDARY, anchor="w"
-            ).pack(anchor="w")
-            if saved_at:
-                ctk.CTkLabel(
-                    info_frame, text=f"saved {saved_at}",
-                    font=T.FONT_TINY, text_color=T.TEXT_MUTED, anchor="w"
-                ).pack(anchor="w")
-
-            btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-            btn_frame.grid(row=0, column=1, padx=(0, 8), pady=8, sticky="e")
-
-            ctk.CTkButton(
-                btn_frame, text="Load", width=54, height=T.WIDGET_H_XS,
-                fg_color=T.LOAD_BTN, hover_color=T.PRIMARY_HOVER, font=T.FONT_SMALL_BOLD,
-                command=lambda e=ev: self.load_event_lineup(e)
-            ).pack(side="left", padx=(0, 2))
-
-            ctk.CTkButton(
-                btn_frame, text="", image=self.icon_copy, width=T.WIDGET_H_XS, height=T.WIDGET_H_XS,
-                **T.BTN_SECONDARY,
-                command=lambda e=ev: self.duplicate_event_lineup(e)
-            ).pack(side="left", padx=(0, 2))
-
-            ctk.CTkButton(
-                btn_frame, text="", image=self.icon_trash, width=T.WIDGET_H_XS, height=T.WIDGET_H_XS,
-                **T.BTN_DANGER,
-                command=lambda e=ev: self.delete_event_lineup(e)
-            ).pack(side="left")
+            with dpg.group(parent="saved_events_scroll"):
+                with dpg.group(horizontal=True):
+                    dpg.add_text(full_title, color=T.DPG_TEXT_PRIMARY)
+                    dpg.add_button(label=Icon.FOLDER, small=True,
+                                   callback=lambda s, a, e=ev: self.load_event_lineup(e))
+                    dpg.add_button(label=Icon.COPY, small=True,
+                                   callback=lambda s, a, e=ev: self.duplicate_event_lineup(e))
+                    dpg.add_button(label=Icon.DELETE, small=True,
+                                   callback=lambda s, a, e=ev: self.delete_event_lineup(e))
+                dpg.add_text(f"{timestamp}  \u2022  {slots_count} slots",
+                             color=T.DPG_TEXT_SECONDARY)
+                if saved_at:
+                    dpg.add_text(f"saved {saved_at}", color=T.DPG_TEXT_MUTED)
+                dpg.add_separator()

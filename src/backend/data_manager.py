@@ -1,16 +1,17 @@
-import datetime
+"""
+Module: data_manager.py
+Purpose: File I/O for library, events, window state, and crash recovery.
+"""
 import json
 import os
+
 import yaml
 
 
 class DataMixin:
     """Handles all YAML/JSON persistence and window-state save/restore."""
 
-    # ── Data loading ──────────────────────────────────────────────────────
-
     def load_data(self):
-        # ── Library: titles, DJs, genres ─────────────────────────────────
         lib = {}
         for src in [self.LIBRARY_FILE, "lineup_data.yaml"]:
             if os.path.exists(src):
@@ -32,7 +33,6 @@ class DataMixin:
                     continue
                 self.saved_djs.append({"name": name, "stream": ""})
             elif "stream" not in _d:
-                # Migrate old goggles/link fields → stream
                 name = _d.get("name") or ""
                 if not name:
                     continue
@@ -48,7 +48,6 @@ class DataMixin:
 
         self.saved_genres = lib.get("genres", [])
 
-        # ── Events ───────────────────────────────────────────────────────
         evts = {}
         for src in [self.EVENTS_FILE, "lineup_data.yaml"]:
             if os.path.exists(src):
@@ -66,8 +65,6 @@ class DataMixin:
 
     def get_dj_names(self):
         return [d["name"] for d in self.saved_djs if d.get("name")]
-
-    # ── Persistence ───────────────────────────────────────────────────────
 
     def save_data(self):
         self._save_library()
@@ -92,24 +89,21 @@ class DataMixin:
         except Exception as e:
             print(f"Error saving {self.EVENTS_FILE}: {e}")
 
-    # ── Auto-save (crash recovery) ────────────────────────────────────────
-
     def _save_auto_state(self):
-        """Persist the current working session to auto_save.json for crash recovery."""
         state = {
-            "title": self.event_title_var.get(),
-            "vol": self.event_vol_var.get(),
-            "timestamp": self.event_timestamp.get(),
+            "title":           self.event_title_var.get(),
+            "vol":             self.event_vol_var.get(),
+            "timestamp":       self.event_timestamp.get(),
             "master_duration": self.master_duration.get(),
-            "genres": list(self.active_genres),
-            "names_only": self.names_only.get(),
-            "include_od": self.include_od.get(),
-            "od_duration": self.od_duration.get(),
-            "od_count": self.od_count.get(),
+            "genres":          list(self.active_genres),
+            "names_only":      self.names_only.get(),
+            "include_od":      self.include_od.get(),
+            "od_duration":     self.od_duration.get(),
+            "od_count":        self.od_count.get(),
             "slots": [
                 {
-                    "name": s.name_var.get().strip(),
-                    "genre": s.genre_var.get().strip(),
+                    "name":     s.name_var.get().strip(),
+                    "genre":    s.genre_var.get().strip(),
                     "duration": s.duration_var.get(),
                 }
                 for s in self.slots
@@ -122,7 +116,7 @@ class DataMixin:
             print(f"Auto-save error: {e}")
 
     def _check_auto_save(self):
-        """On startup, detect an unclean exit and offer to restore the session."""
+        """On startup, detect an unclean exit and offer to restore."""
         if not os.path.exists(self.AUTO_SAVE_FILE):
             return
         try:
@@ -130,56 +124,43 @@ class DataMixin:
                 state = json.load(f)
         except Exception:
             return
-        # Clean-exit flag written by _on_close — no restore needed
         if state.get("clean_close"):
             return
-        # Skip if essentially empty (no title and all slots are blank)
         title = state.get("title", "").strip()
         slots = state.get("slots", [])
         has_content = title or any(s.get("name") or s.get("genre") for s in slots)
         if not has_content:
             return
-        from tkinter import messagebox
-        if messagebox.askyesno(
-            "Restore Unsaved Session",
-            f"An unsaved lineup was found{(' \u2014 ' + title) if title else ''}.\n"
-            "Restore it?"
-        ):
-            self.load_event_lineup(state)
-
-    # ── Window state ──────────────────────────────────────────────────────
+        # Show a DPG modal asking to restore
+        msg = f"An unsaved lineup was found{(' — ' + title) if title else ''}.\nRestore it?"
+        self._show_confirm(msg, lambda: self.load_event_lineup(state))
 
     def _restore_window_state(self):
         try:
             if os.path.exists(self.WINDOW_STATE_FILE):
                 with open(self.WINDOW_STATE_FILE, "r") as f:
                     state = json.load(f)
-                geo = state.get("geometry")
-                if geo:
-                    self.geometry(geo)
-                if state.get("maximized"):
-                    self.after(50, lambda: self.state("zoomed"))
+                import dearpygui.dearpygui as dpg
+                if "pos" in state:
+                    dpg.set_viewport_pos(state["pos"])
+                if "width" in state and "height" in state:
+                    dpg.set_viewport_width(int(state["width"]))
+                    dpg.set_viewport_height(int(state["height"]))
         except Exception:
             pass
 
     def _on_close(self):
+        import dearpygui.dearpygui as dpg
         try:
-            maximized = self.state() == "zoomed"
-            if not maximized:
-                geo = self.geometry()
-            else:
-                geo = (
-                    f"{self.winfo_width()}x{self.winfo_height()}"
-                    f"+{self.winfo_x()}+{self.winfo_y()}"
-                )
+            pos = dpg.get_viewport_pos()
+            w   = dpg.get_viewport_width()
+            h   = dpg.get_viewport_height()
             with open(self.WINDOW_STATE_FILE, "w") as f:
-                json.dump({"geometry": geo, "maximized": maximized}, f)
+                json.dump({"pos": list(pos), "width": w, "height": h}, f)
         except Exception:
             pass
-        # Mark clean exit so auto-save won't prompt on next launch
         try:
             with open(self.AUTO_SAVE_FILE, "w") as f:
                 json.dump({"clean_close": True}, f)
         except Exception:
             pass
-        self.destroy()

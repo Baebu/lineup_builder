@@ -170,3 +170,37 @@ SCROLLBAR_STYLE = dict(
     button_hover_color=HOVER,
     width=10,
 )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Dear PyGui helpers
+# ─────────────────────────────────────────────────────────────────
+
+def hex_to_dpg(hex_color: str, alpha: int = 255) -> tuple:
+    """Convert a CSS hex color string to a DearPyGui (R, G, B, A) tuple."""
+    h = hex_color.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), alpha)
+
+
+# Pre-converted DPG color tuples (used by DPG theme and widget calls)
+DPG_APP_BG         = hex_to_dpg(APP_BG)
+DPG_PANEL_BG       = hex_to_dpg(PANEL_BG)
+DPG_CARD_BG        = hex_to_dpg(CARD_BG)
+DPG_BORDER         = hex_to_dpg(BORDER)
+DPG_HOVER          = hex_to_dpg(HOVER)
+DPG_SCROLLBAR      = hex_to_dpg(SCROLLBAR)
+DPG_TEXT_PRIMARY   = hex_to_dpg(TEXT_PRIMARY)
+DPG_TEXT_SECONDARY = hex_to_dpg(TEXT_SECONDARY)
+DPG_TEXT_MUTED     = hex_to_dpg(TEXT_MUTED)
+DPG_ACCENT         = hex_to_dpg(ACCENT)
+DPG_PRIMARY        = hex_to_dpg(PRIMARY)
+DPG_PRIMARY_HOVER  = hex_to_dpg(PRIMARY_HOVER)
+DPG_DANGER         = hex_to_dpg(DANGER)
+DPG_DANGER_HOVER   = hex_to_dpg(DANGER_HOVER)
+DPG_SUCCESS        = hex_to_dpg(SUCCESS)
+DPG_SUCCESS_HOVER  = hex_to_dpg(SUCCESS_HOVER)
+DPG_ERROR          = hex_to_dpg(ERROR)
+DPG_WHITE          = hex_to_dpg(WHITE)
+DPG_DRAG_HINT      = hex_to_dpg(DRAG_HINT)
+DPG_LOAD_BTN       = hex_to_dpg(LOAD_BTN)
+DPG_IMPORT_SUCCESS = hex_to_dpg(IMPORT_SUCCESS)
