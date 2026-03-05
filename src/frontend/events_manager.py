@@ -89,7 +89,6 @@ class EventsMixin:
         self.add_slot()
 
         self.left_tabs.set("Event")
-        self.right_tabs.set("Lineup")
         self.update_output()
 
     def load_event_lineup(self, event_data):
@@ -119,7 +118,6 @@ class EventsMixin:
             )
 
         self.left_tabs.set("Event")
-        self.right_tabs.set("Lineup")
         self.update_output()
         self._current_event_key = (event_data.get("title", ""), event_data.get("vol", ""))
 

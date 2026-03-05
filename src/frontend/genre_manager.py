@@ -81,21 +81,10 @@ class GenreMixin:
             )
             buttons.append(btn)
 
-        # Update drawer header with active count
-        active_count = len(self.active_genres)
-        total_count = len(self.saved_genres)
-        chevron = "▾" if getattr(self, "_genre_drawer_open", True) else "▸"
-        lbl = f"{chevron}  SAVED GENRES"
-        if active_count:
-            lbl += f"  ({active_count}/{total_count} active)"
-        if hasattr(self, "_genre_drawer_chevron"):
-            self._genre_drawer_chevron.configure(text=lbl)
-
         self._genre_buttons = buttons
 
         def _reflow(event=None):
-            canvas = getattr(self, "_genre_canvas", None)
-            frame_w = canvas.winfo_width() if canvas else self.genre_tags_frame.winfo_width()
+            frame_w = self.genre_tags_frame.winfo_width()
             if frame_w <= 1:
                 frame_w = 400
             cols = max(1, frame_w // 120)
@@ -106,25 +95,11 @@ class GenreMixin:
             for i, btn in enumerate(self._genre_buttons):
                 r, c = divmod(i, cols)
                 btn.grid(row=r, column=c, padx=1, pady=1, sticky="ew")
-            # Update canvas scroll region after reflow
-            if canvas:
-                canvas.configure(scrollregion=canvas.bbox("all"))
 
         self._genre_reflow = _reflow
         _reflow()
         # Single replacing bind — always calls current self._genre_reflow
         self.genre_tags_frame.bind("<Configure>", lambda e: self._genre_reflow(e))
-
-    # ── Drawer toggle ─────────────────────────────────────────────────────
-
-    def _toggle_genre_drawer(self):
-        self._genre_drawer_open = not getattr(self, "_genre_drawer_open", True)
-        if self._genre_drawer_open:
-            self._genre_drawer_body.pack(fill="x", pady=(2, 0))
-        else:
-            self._genre_drawer_body.pack_forget()
-        # Refresh header chevron + count
-        self.refresh_genre_tags()
 
     # ── Genre editor popout ───────────────────────────────────────────────
 

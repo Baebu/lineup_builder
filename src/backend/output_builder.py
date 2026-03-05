@@ -141,23 +141,23 @@ class OutputMixin:
     def toggle_format(self):
         self.output_format.set("discord")
         self._reset_format_btns()
-        self.format_btn.configure(fg_color="#1E293B", text_color="#818CF8")
+        self.format_btn.configure(fg_color="transparent", text_color="#818CF8")
         self.update_output()
 
     def set_plain_text(self):
         self.output_format.set("local")
         self._reset_format_btns()
-        self.plain_btn.configure(fg_color="#1E293B", text_color="#34D399")
+        self.plain_btn.configure(fg_color="transparent", text_color="#34D399")
         self.update_output()
 
     def set_quest_view(self):
         self.output_format.set("quest")
         self._reset_format_btns()
-        self.quest_btn.configure(fg_color="#1E293B", text_color="#34D399")
+        self.quest_btn.configure(fg_color="transparent", text_color="#34D399")
         self.update_output()
 
     def set_pc_view(self):
         self.output_format.set("pc")
         self._reset_format_btns()
-        self.pc_btn.configure(fg_color="#1E293B", text_color="#818CF8")
+        self.pc_btn.configure(fg_color="transparent", text_color="#818CF8")
         self.update_output()

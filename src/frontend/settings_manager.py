@@ -7,6 +7,8 @@ from .utils import get_data_dir
 
 SETTINGS_FILE = os.path.join(get_data_dir(), "settings.json")
 DEFAULT_SETTINGS = {
+    # Layout
+    "left_panel_width": 380,
     # Output preview
     "output_font_size": 14,
     # Interactive colors
@@ -36,6 +38,9 @@ _COLOR_ATTRS = [
     "dropdown_fg_color", "dropdown_hover_color",
     "progress_color", "scrollbar_color",
     "text_color", "placeholder_text_color",
+    "segmented_button_fg_color", "segmented_button_unselected_color",
+    "segmented_button_selected_color", "segmented_button_selected_hover_color",
+    "segmented_button_unselected_hover_color"
 ]
 
 BUILTIN_PRESETS = [
@@ -522,6 +527,45 @@ class SettingsMixin:
         ctk.CTkSlider(
             font_card, from_=10, to=24, number_of_steps=14,
             variable=font_size_var, command=_on_font_size,
+            fg_color=self.settings["border_color"],
+            progress_color=self.settings["accent_color"],
+            button_color=self.settings["primary_color"],
+            button_hover_color=self.settings.get("primary_hover_color", "#4338CA"),
+        ).grid(row=0, column=1, padx=(0, 8), pady=12, sticky="ew")
+
+        # ── Left panel width ──────────────────────────────────────────────
+        width_card = ctk.CTkFrame(
+            scroll, fg_color=self.settings["panel_bg"], corner_radius=12,
+            border_width=1, border_color=self.settings["border_color"],
+        )
+        width_card.pack(fill="x", padx=15, pady=(0, 6))
+        width_card.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            width_card, text="Panel Width",
+            font=("Arial", 11), text_color=self.settings.get("text_secondary", "#94A3B8"),
+        ).grid(row=0, column=0, padx=12, pady=12, sticky="w")
+
+        panel_width_lbl = ctk.CTkLabel(
+            width_card, text=str(self.settings.get("left_panel_width", 380)),
+            font=("Arial", 12, "bold"), text_color=self.settings.get("text_primary", "#CBD5E1"), width=34,
+        )
+        panel_width_lbl.grid(row=0, column=2, padx=(0, 12), pady=12)
+
+        panel_width_var = ctk.IntVar(value=self.settings.get("left_panel_width", 380))
+
+        def _on_panel_width(val):
+            w = int(val)
+            self.settings["left_panel_width"] = w
+            panel_width_lbl.configure(text=str(w))
+            self.grid_columnconfigure(0, weight=0, minsize=w)
+            if hasattr(self, "_left_panel"):
+                self._left_panel.configure(width=w)
+            self.save_settings()
+
+        ctk.CTkSlider(
+            width_card, from_=280, to=560, number_of_steps=28,
+            variable=panel_width_var, command=_on_panel_width,
             fg_color=self.settings["border_color"],
             progress_color=self.settings["accent_color"],
             button_color=self.settings["primary_color"],

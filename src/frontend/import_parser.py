@@ -423,5 +423,4 @@ class ImportMixin:
         self.toggle_od()
 
         self.left_tabs.set("Event")
-        self.right_tabs.set("Lineup")
         self.update_output()

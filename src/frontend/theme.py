@@ -55,7 +55,7 @@ WIDGET_H_PILL   = 26    # header action pills
 ICON_BTN_W      = 34    # width of square icon-only buttons
 
 CARD_RADIUS     = 12    # rounded corners for cards / slots
-PANEL_RADIUS    = 15    # rounded corners for panels, tabviews
+PANEL_RADIUS    = 5     # rounded corners for panels, tabviews
 BORDER_W        = 1     # standard border width
 
 SCROLL_PAD_X    = 6     # horizontal padding: scroll container ↔ card edge
@@ -66,12 +66,12 @@ CARD_PAD_INNER  = 10    # internal card padding (content from card edge)
 # Fonts
 # ─────────────────────────────────────────────────────────────────
 
-FONT_TINY       = ("Arial", 10)
-FONT_LABEL      = ("Arial", 10, "bold")    # section field labels (all-caps)
-FONT_SMALL      = ("Arial", 12)
-FONT_SMALL_BOLD = ("Arial", 12, "bold")
-FONT_BODY       = ("Arial", 14)
-FONT_BODY_BOLD  = ("Arial", 14, "bold")
+FONT_TINY       = ("Arial", 12)           # very small text (genre pills, timestamps)
+FONT_LABEL      = ("Arial", 14, "bold")   # section field labels (all-caps)
+FONT_SMALL      = ("Arial", 12)           # secondary text (field values, pill text)
+FONT_SMALL_BOLD = ("Arial", 12, "bold")   # emphasized secondary text (pill text when active)
+FONT_BODY       = ("Arial", 14)           # main text (DJ names, event titles, tab labels)
+FONT_BODY_BOLD  = ("Arial", 14, "bold")   # emphasized main text (section headers, active tab labels)
 FONT_VALUE      = ("Arial", 12, "bold")   # prominent values (DJ name, event title)
 FONT_MONO       = ("Consolas", 14)        # output preview
 

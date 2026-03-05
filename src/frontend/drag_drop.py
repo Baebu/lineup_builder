@@ -115,10 +115,6 @@ class DragDropMixin:
             except ValueError:
                 dur = 60
             self.add_slot(dj_name, "", dur)
-            try:
-                self.right_tabs.set("Lineup")
-            except Exception:
-                pass
 
     def _is_over_slots_panel(self, x_root, y_root):
         """Return True if screen coordinates are within self.slots_scroll."""

@@ -15,44 +15,56 @@ class UISetupMixin:
             self.__dict__.setdefault(_attr, [])
 
         # Grid Layout
-        self.grid_columnconfigure(0, weight=0, minsize=380)
+        _lpw = self.settings.get("left_panel_width", 380)
+        self.grid_columnconfigure(0, weight=0, minsize=_lpw)
         self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(0, weight=3, uniform="row")
-        self.grid_rowconfigure(1, weight=2, uniform="row")
+        self.grid_rowconfigure(0, weight=1)
 
         # ==========================================
         # LEFT PANEL: Configuration & Settings
         # ==========================================
-        left_panel = ctk.CTkFrame(self, fg_color="transparent", width=380)
-        left_panel.grid(row=0, column=0, rowspan=2, padx=(4, 2), pady=4, sticky="nsew")
+        _lpw = self.settings.get("left_panel_width", 380)
+        left_panel = ctk.CTkFrame(
+            self, width=_lpw,
+            fg_color=self.settings.get("panel_bg", T.PANEL_BG),
+            corner_radius=T.PANEL_RADIUS,
+            border_width=T.BORDER_W,
+            border_color=self.settings.get("border_color", T.BORDER),
+        )
+        left_panel.grid(row=0, column=0, rowspan=2, padx=(4, 2), pady=(0, 4), sticky="nsew")
         left_panel.grid_propagate(False)
         left_panel.grid_columnconfigure(0, weight=1)
         left_panel.grid_rowconfigure(0, weight=1)
+        self._left_panel = left_panel
 
         # ==========================================
-        # RIGHT PANEL (TOP): Lineup
+        # RIGHT PANEL: Lineup & Output
         # ==========================================
-        top_right = ctk.CTkFrame(self, fg_color="transparent")
-        top_right.grid(row=0, column=1, padx=(2, 4), pady=(4, 2), sticky="nsew")
-        top_right.grid_propagate(False)
-        top_right.grid_columnconfigure(0, weight=1)
-        top_right.grid_rowconfigure(0, weight=1)
+        self.right_panel = ctk.CTkFrame(
+            self,
+            fg_color=T.PANEL_BG,
+            corner_radius=T.PANEL_RADIUS,
+            border_width=T.BORDER_W,
+            border_color=T.BORDER,
+        )
+        self.right_panel.grid(row=0, column=1, padx=(2, 4), pady=(0, 4), sticky="nsew")
+        self.right_panel.grid_propagate(False)
+        self.right_panel.grid_columnconfigure(0, weight=1)
+        self.right_panel.grid_rowconfigure(0, weight=2)
+        self.right_panel.grid_rowconfigure(1, weight=0)
 
-        self._create_tabviews(left_panel, top_right)
+        self._create_left_tabs(left_panel)
 
         self.left_tabs.tab("Event").grid_columnconfigure(0, weight=1)
         self.left_tabs.tab("Event").grid_rowconfigure(0, weight=0)
-        self.left_tabs.tab("Event").grid_rowconfigure(1, weight=1)
+        self.left_tabs.tab("Event").grid_rowconfigure(1, weight=0)
         self.left_tabs.tab("DJ Roster").grid_columnconfigure(0, weight=1)
         self.left_tabs.tab("DJ Roster").grid_rowconfigure(0, weight=0)
         self.left_tabs.tab("DJ Roster").grid_rowconfigure(1, weight=1)
         self.left_tabs.tab("Settings").grid_columnconfigure(0, weight=1)
         self.left_tabs.tab("Settings").grid_rowconfigure(0, weight=1)
 
-        # Tabviews are created in _create_tabviews above
-
-        self.right_tabs.tab("Lineup").grid_columnconfigure(0, weight=1)
-        self.right_tabs.tab("Lineup").grid_rowconfigure(0, weight=1)
+        # Tabview is created in _create_left_tabs above
 
         # ── Event tab ─────────────────────────────────────────────────────
         _event_tab = self.left_tabs.tab("Event")
@@ -89,14 +101,13 @@ class UISetupMixin:
         ).pack(side="right", padx=(0, 4))
 
         # ── Event config panel (default) ──────────────────────────────────
-        config_frame = ctk.CTkScrollableFrame(_event_tab, fg_color="transparent")
+        config_frame = ctk.CTkFrame(_event_tab, fg_color="transparent")
         config_frame.grid(row=1, column=0, sticky="nsew")
         config_frame.grid_columnconfigure(0, weight=1)
-        self._autohide_scrollbar(config_frame)
         self._event_config_panel = config_frame
 
         config_grid = ctk.CTkFrame(config_frame, fg_color="transparent")
-        config_grid.pack(fill="x", expand=False, padx=15, pady=(0, 15))
+        config_grid.pack(fill="x", expand=False, padx=15, pady=0)
         config_grid.grid_columnconfigure((0, 1), weight=1)
 
         # Title
@@ -172,20 +183,19 @@ class UISetupMixin:
         self.genre_del_btn.grid(row=0, column=2, padx=(5, 0))
         self._danger_buttons.append(self.genre_del_btn)
 
-        # ── Collapsible genre drawer ────────────────────────────────────
-        _BTN_ROW_H = 28  # button height (26) + pady (1+1)
-        _DRAWER_H = _BTN_ROW_H * 2
+        # ── Saved genres scroll container ─────────────────────────────
+        ctk.CTkLabel(
+            genre_frame,
+            text="SAVED GENRES",
+            font=("Arial", 10, "bold"),
+            text_color=T.TEXT_MUTED,
+            anchor="w",
+        ).pack(fill="x", pady=(6, 0))
 
-        self._create_genre_drawer(genre_frame, _DRAWER_H)
-
-        def _on_canvas_resize(event):
-            if hasattr(self, '_genre_canvas_window') and self._genre_canvas_window:
-                self._genre_canvas.itemconfig(self._genre_canvas_window, width=event.width)
-        self._genre_canvas.bind("<Configure>", _on_canvas_resize)
-
-        # Mouse-wheel scrolling — bind directly to canvas; focus it on hover
-        self._genre_canvas.bind("<Enter>", lambda e: self._genre_canvas.focus_set())
-        self._genre_canvas.bind("<MouseWheel>", lambda e: self._genre_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units"))
+        self.genre_tags_frame = ctk.CTkScrollableFrame(
+            genre_frame, fg_color="transparent", height=90
+        )
+        self.genre_tags_frame.pack(fill="x", pady=(2, 0))
 
         self.refresh_genre_tags()
 
@@ -194,9 +204,9 @@ class UISetupMixin:
         # ── Saved Events Section (under Event Config) ────────────────────
         _event_tab = self.left_tabs.tab("Event")
         ctk.CTkLabel(
-            _event_tab, text="SAVED EVENTS",
-            font=T.FONT_BODY_BOLD, text_color=T.ACCENT
-        ).grid(row=2, column=0, sticky="w", padx=15, pady=(10, 5))
+            _event_tab, text="Saved Events",
+            font=T.FONT_BODY_BOLD, text_color=self.settings.get("text_primary", T.TEXT_PRIMARY)
+        ).grid(row=2, column=0, sticky="w", padx=15, pady=(0, 5))
 
         self.saved_events_scroll = ctk.CTkScrollableFrame(_event_tab, fg_color="transparent")
         self.saved_events_scroll.grid(row=3, column=0, sticky="nsew", padx=6, pady=(0, 6))
@@ -205,7 +215,7 @@ class UISetupMixin:
         self.refresh_saved_events_ui()
 
         # Balance scrollable areas: give both equal vertical space expansion
-        _event_tab.grid_rowconfigure(1, weight=1)  # Config panel
+        _event_tab.grid_rowconfigure(1, weight=0)  # Config panel
         _event_tab.grid_rowconfigure(3, weight=1)  # Saved events panel
 
         # ── DJ Roster tab ──────────────────────────────────────────────────
@@ -245,13 +255,18 @@ class UISetupMixin:
         settings_tab = self.left_tabs.tab("Settings")
         # Settings UI is built in _build_settings_tab() called at the end
 
-        slots_container_frame = ctk.CTkFrame(self.right_tabs.tab("Lineup"), fg_color="transparent")
+        slots_container_frame = ctk.CTkFrame(self.right_panel, fg_color="transparent")
         slots_container_frame.grid(row=0, column=0, sticky="nsew")
         slots_container_frame.grid_rowconfigure(1, weight=1)
         slots_container_frame.grid_columnconfigure(0, weight=1)
 
         slots_header = ctk.CTkFrame(slots_container_frame, fg_color="transparent")
-        slots_header.grid(row=0, column=0, sticky="ew", padx=15, pady=(2, 10))
+        slots_header.grid(row=0, column=0, sticky="ew", padx=15, pady=(10, 5))
+
+        ctk.CTkLabel(
+            slots_header, text="Lineup", 
+            font=T.FONT_BODY_BOLD, text_color=self.settings.get("text_primary", T.TEXT_PRIMARY)
+        ).pack(side="left")
 
         _btn = ctk.CTkButton(
             slots_header, text="+ ADD DJ", command=self.add_slot,
@@ -278,8 +293,14 @@ class UISetupMixin:
         self._autohide_scrollbar(self.slots_scroll)
 
         # Open Decks row
-        self._od_row = ctk.CTkFrame(slots_container_frame, fg_color=self.settings.get("card_bg", T.CARD_BG), corner_radius=T.CARD_RADIUS)
-        self._od_row.grid(row=2, column=0, sticky="ew", padx=15, pady=(6, 12))
+        self._od_row = ctk.CTkFrame(
+            slots_container_frame, 
+            fg_color=self.settings.get("card_bg", T.CARD_BG), 
+            corner_radius=T.CARD_RADIUS,
+            border_width=T.BORDER_W,
+            border_color=self.settings.get("border_color", T.BORDER)
+        )
+        self._od_row.grid(row=2, column=0, sticky="ew", padx=15, pady=(2, 0))
         od_row = self._od_row
 
         self.od_toggle_btn = ctk.CTkCheckBox(
@@ -316,31 +337,37 @@ class UISetupMixin:
         self.od_dur_menu.pack(side="left", padx=(0, 8))
 
         # ==========================================
-        # RIGHT PANEL (BOTTOM): Output Preview
+        # LINEUP TAB (BOTTOM): Output Preview
         # ==========================================
-        self._bot_right = ctk.CTkFrame(self, fg_color=self.settings.get("panel_bg", T.PANEL_BG), corner_radius=T.PANEL_RADIUS, border_width=T.BORDER_W, border_color=self.settings.get("border_color", T.BORDER))
-        self._bot_right.grid(row=1, column=1, padx=(2, 4), pady=(2, 4), sticky="nsew")
-        self._bot_right.grid_columnconfigure(0, weight=1)
-        self._bot_right.grid_rowconfigure(1, weight=1)
-        bot_right = self._bot_right
+        _lineup_tab = self.right_panel
 
-        self._preview_header = ctk.CTkFrame(bot_right, fg_color=self.settings.get("card_bg", T.CARD_BG), corner_radius=T.PANEL_RADIUS)
+        self._preview_header = ctk.CTkFrame(
+            _lineup_tab,
+            fg_color=self.settings.get("panel_bg", T.PANEL_BG),
+            corner_radius=0,
+        )
         preview_header = self._preview_header
-        preview_header.grid(row=0, column=0, sticky="ew")
+        preview_header.grid(row=1, column=0, sticky="ew")
 
-        header_row = ctk.CTkFrame(preview_header, fg_color="transparent")
-        header_row.pack(fill="x", padx=0, pady=10)
+        out_lbl = ctk.CTkLabel(
+            preview_header, text="Output", 
+            font=T.FONT_BODY_BOLD, text_color=self.settings.get("text_primary", T.TEXT_PRIMARY)
+        )
+        out_lbl.pack(anchor="w", padx=15, pady=(4, 0))
+
+        buttons_row = ctk.CTkFrame(preview_header, fg_color="transparent")
+        buttons_row.pack(fill="x", padx=0, pady=(4, 4))
 
         self.format_btn = ctk.CTkButton(
-            header_row, text="Discord", image=self.icon_discord, compound="left",
+            buttons_row, text="Discord", image=self.icon_discord, compound="left",
             command=self.toggle_format,
-            fg_color=T.PANEL_BG, hover_color=T.BORDER, border_width=T.BORDER_W, border_color=T.BORDER,
+            fg_color="transparent", hover_color=T.BORDER, border_width=T.BORDER_W, border_color=T.BORDER,
             text_color=T.ACCENT, width=110, height=T.WIDGET_H, font=T.FONT_BODY_BOLD
         )
         self.format_btn.pack(side="left", padx=(15, 4))
 
         self.plain_btn = ctk.CTkButton(
-            header_row, text="Plain Text", image=self.icon_text, compound="left",
+            buttons_row, text="Plain Text", image=self.icon_text, compound="left",
             command=self.set_plain_text,
             fg_color="transparent", hover_color=T.BORDER, border_width=T.BORDER_W, border_color=T.BORDER,
             text_color=T.TEXT_SECONDARY, width=110, height=T.WIDGET_H, font=T.FONT_BODY_BOLD
@@ -348,7 +375,7 @@ class UISetupMixin:
         self.plain_btn.pack(side="left", padx=(0, 4))
 
         self.quest_btn = ctk.CTkButton(
-            header_row, text="Quest", image=self.icon_quest, compound="left",
+            buttons_row, text="Quest", image=self.icon_quest, compound="left",
             command=self.set_quest_view,
             fg_color="transparent", hover_color=T.BORDER, border_width=T.BORDER_W, border_color=T.BORDER,
             text_color=T.TEXT_SECONDARY, width=110, height=T.WIDGET_H, font=T.FONT_BODY_BOLD
@@ -356,7 +383,7 @@ class UISetupMixin:
         self.quest_btn.pack(side="left", padx=(0, 4))
 
         self.pc_btn = ctk.CTkButton(
-            header_row, text="PC", image=self.icon_pc, compound="left",
+            buttons_row, text="PC", image=self.icon_pc, compound="left",
             command=self.set_pc_view,
             fg_color="transparent", hover_color=T.BORDER, border_width=T.BORDER_W, border_color=T.BORDER,
             text_color=T.TEXT_SECONDARY, width=80, height=T.WIDGET_H, font=T.FONT_BODY_BOLD
@@ -368,7 +395,7 @@ class UISetupMixin:
             self.update_output()
 
         self._times_toggle_btn = ctk.CTkButton(
-            header_row, text="Times on",
+            buttons_row, text="Times on",
             command=_toggle_times,
             fg_color="transparent", hover_color=T.BORDER,
             text_color=T.TEXT_SECONDARY, width=76, height=T.WIDGET_H,
@@ -383,10 +410,11 @@ class UISetupMixin:
                 self._times_toggle_btn.configure(text="Times on", text_color=T.TEXT_SECONDARY)
         self.names_only.trace_add("write", _sync_times_btn)
 
-        output_container = ctk.CTkFrame(bot_right, fg_color="transparent")
-        output_container.grid(row=1, column=0, sticky="nsew", padx=20, pady=20)
+        output_container = ctk.CTkFrame(_lineup_tab, fg_color="transparent")
+        output_container.grid(row=2, column=0, sticky="nsew", padx=12, pady=(0, 12))
         output_container.grid_columnconfigure(0, weight=1)
         output_container.grid_rowconfigure(0, weight=1)
+        _lineup_tab.grid_rowconfigure(2, weight=1)
 
         self.output_text = ctk.CTkTextbox(
             output_container,
@@ -457,25 +485,20 @@ class UISetupMixin:
 
     # ── UI Component Helpers ─────────────────────────────────────────────
 
-    def _create_tabviews(self, left_panel: ctk.CTkFrame, top_right: ctk.CTkFrame) -> None:
-        common_tabview_kwargs = dict(
-            fg_color=T.PANEL_BG,
-            corner_radius=T.PANEL_RADIUS,
-            border_width=T.BORDER_W,
-            border_color=T.BORDER,
-        )
-
+    def _create_left_tabs(self, left_panel: ctk.CTkFrame) -> None:
         # Left panel tabview
-        self.left_tabs = ctk.CTkTabview(left_panel, **common_tabview_kwargs)
-        self.left_tabs.grid(row=0, column=0, sticky="nsew")
+        self.left_tabs = ctk.CTkTabview(
+            left_panel,
+            fg_color="transparent",
+            bg_color="transparent",
+            segmented_button_fg_color=self.settings.get("panel_bg", T.PANEL_BG),
+            segmented_button_unselected_color=self.settings.get("panel_bg", T.PANEL_BG),
+            segmented_button_selected_color=self.settings.get("border_color", T.BORDER),
+        )
+        self.left_tabs.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
         self.left_tabs.add("Event")
         self.left_tabs.add("DJ Roster")
         self.left_tabs.add("Settings")
-
-        # Right panel tabview
-        self.right_tabs = ctk.CTkTabview(top_right, **common_tabview_kwargs)
-        self.right_tabs.grid(row=0, column=0, sticky="nsew")
-        self.right_tabs.add("Lineup")
 
     def _create_scrollable_frame(
         self,
@@ -547,54 +570,6 @@ class UISetupMixin:
         self.genre_editor_scroll = ctk.CTkScrollableFrame(genre_popup_win, fg_color="transparent")
         self.genre_editor_scroll.pack(fill="both", expand=True, padx=12, pady=(4, 12))
         self.genre_editor_scroll.grid_columnconfigure(0, weight=1)
-
-    def _create_genre_drawer(self, genre_frame: ctk.CTkFrame, drawer_height: int) -> None:
-        self._genre_drawer_open = True
-
-        # Header
-        header = ctk.CTkFrame(genre_frame, fg_color="transparent")
-        header.pack(fill="x", pady=(6, 0))
-        header.grid_columnconfigure(0, weight=1)
-
-        self._genre_drawer_chevron = ctk.CTkLabel(
-            header,
-            text="▾  SAVED GENRES",
-            font=("Arial", 10, "bold"),
-            text_color=T.TEXT_MUTED,
-            cursor="hand2",
-            anchor="w",
-        )
-        self._genre_drawer_chevron.grid(row=0, column=0, sticky="w")
-        self._genre_drawer_chevron.bind("<Button-1>", lambda e: self._toggle_genre_drawer())
-
-        # Body with custom canvas scroll
-        drawer_outer = ctk.CTkFrame(genre_frame, fg_color="transparent", height=drawer_height)
-        drawer_outer.pack(fill="x", pady=(2, 0))
-        drawer_outer.pack_propagate(False)
-        self._genre_drawer_body = drawer_outer
-
-        canvas = tk.Canvas(
-            drawer_outer,
-            height=drawer_height,
-            bd=0,
-            highlightthickness=0,
-            bg=T.PANEL_BG,
-        )
-        scrollbar = ctk.CTkScrollbar(
-            drawer_outer,
-            **T.SCROLLBAR_STYLE,
-            command=canvas.yview,
-        )
-
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        self.genre_tags_frame = ctk.CTkFrame(canvas, fg_color="transparent")
-        self._genre_canvas_window = canvas.create_window((0, 0), window=self.genre_tags_frame, anchor="nw")
-
-        # Keep reference if you need to adjust scrollregion later
-        self._genre_canvas = canvas
 
     def _is_over_slots_panel(self, x_root: int, y_root: int) -> bool:
         """Return True if screen coordinates are within self.slots_scroll."""
