@@ -15,3 +15,5 @@
 /.repomix
 /.pytest_cache
 /release
+/repomix-output*.xml
+/ARCHITECTURE.md

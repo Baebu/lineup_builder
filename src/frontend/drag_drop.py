@@ -1,5 +1,13 @@
+"""
+Module: drag_drop.py
+Purpose: Handles slot reordering and dragging DJs from the roster into the lineup.
+Dependencies: tkinter, customtkinter, theme
+Architecture: Mixin for App class. Hooks into mouse events to render visual indicators.
+"""
+
 import tkinter as tk
 import customtkinter as ctk
+from . import theme as T
 
 
 class DragDropMixin:
@@ -10,7 +18,7 @@ class DragDropMixin:
     def _slot_drag_start(self, event, slot_ui):
         self._slot_ghost = None  # created on first motion
         # Cache vertical bounding boxes so we don't call winfo_rooty() every frame
-        self._cached_slot_bounds: list[tuple] = []
+        self._cached_slot_bounds: list[tuple] =[]
         for s in self.slots:
             try:
                 y = s.winfo_rooty()
@@ -22,12 +30,17 @@ class DragDropMixin:
     def _slot_drag_motion(self, event, slot_ui):
         name = slot_ui.name_var.get().strip() or "(empty)"
         if self._slot_ghost is None:
-            self._slot_ghost = ctk.CTkFrame(self, fg_color="#4F46E5", corner_radius=6)
+            primary = getattr(self, "settings", {}).get("primary_color", T.PRIMARY)
+            self._slot_ghost = ctk.CTkFrame(
+                self, fg_color=primary, corner_radius=6,
+                border_width=1, border_color=T.BORDER
+            )
             ctk.CTkLabel(
-                self._slot_ghost, text=f"  {name}  ",
-                font=("Arial", 12, "bold"), text_color="white"
-            ).pack(padx=10, pady=5)
+                self._slot_ghost, text=f" ↕  {name} ",
+                font=T.FONT_BODY_BOLD, text_color=T.WHITE
+            ).pack(padx=14, pady=8)
             self._slot_ghost.lift()
+            
         rx = event.x_root - self.winfo_rootx() + 12
         ry = event.y_root - self.winfo_rooty() + 8
         self._slot_ghost.place(x=rx, y=ry)
@@ -40,10 +53,12 @@ class DragDropMixin:
             self._slot_ghost = None
         if self._drop_indicator:
             self._drop_indicator.place_forget()
+            
         if slot_ui not in self.slots:
             return
         if not getattr(self, "_cached_slot_bounds", None):
             return
+            
         target_idx = self._get_drop_index(event.y_root)
         src_idx = self.slots.index(slot_ui)
         if target_idx is not None and target_idx != src_idx:
@@ -64,9 +79,12 @@ class DragDropMixin:
     def _update_drop_indicator(self, y_root):
         """Draw a thin colored line between slots at the drop position."""
         if self._drop_indicator is None:
+            accent = getattr(self, "settings", {}).get("accent_color", T.ACCENT)
+            # Using tk.Frame for the indicator line as it renders sharper at 2px than CTkFrame
             self._drop_indicator = tk.Frame(
-                self.slots_scroll, bg="#818CF8", height=3, bd=0
+                self.slots_scroll, bg=accent, height=3, bd=0
             )
+            
         idx = self._get_drop_index(y_root)
         try:
             scroll_root_y = self.slots_scroll.winfo_rooty()
@@ -87,17 +105,25 @@ class DragDropMixin:
     def _on_dj_drag(self, event, dj_name):
         """Create or move the drag ghost on B1-Motion."""
         if self._drag_ghost is None:
-            self._drag_ghost = ctk.CTkFrame(self, fg_color="#4F46E5", corner_radius=6)
+            primary = getattr(self, "settings", {}).get("primary_color", T.PRIMARY)
+            self._drag_ghost = ctk.CTkFrame(
+                self, fg_color=primary, corner_radius=6,
+                border_width=1, border_color=T.BORDER
+            )
             ctk.CTkLabel(
-                self._drag_ghost, text=f"  {dj_name}  ",
-                font=("Arial", 12, "bold"), text_color="white"
-            ).pack(padx=12, pady=6)
+                self._drag_ghost, text=f" ➕  {dj_name} ",
+                font=T.FONT_BODY_BOLD, text_color=T.WHITE
+            ).pack(padx=14, pady=8)
             self._drag_ghost.lift()
+            
         rx = event.x_root - self.winfo_rootx() + 14
         ry = event.y_root - self.winfo_rooty() + 10
         self._drag_ghost.place(x=rx, y=ry)
+        
+        # Highlight the slots panel if hovering over it
         if self._is_over_slots_panel(event.x_root, event.y_root):
-            self.slots_scroll.configure(fg_color="#1E3A5F")
+            hover_bg = getattr(self, "settings", {}).get("hover_color", T.HOVER)
+            self.slots_scroll.configure(fg_color=hover_bg)
         else:
             self.slots_scroll.configure(fg_color="transparent")
 
@@ -108,7 +134,9 @@ class DragDropMixin:
             self._drag_ghost.place_forget()
             self._drag_ghost.destroy()
             self._drag_ghost = None
+            
         self.slots_scroll.configure(fg_color="transparent")
+        
         if was_dragging and self._is_over_slots_panel(event.x_root, event.y_root):
             try:
                 dur = int(self.master_duration.get())

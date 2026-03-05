@@ -1,12 +1,8 @@
 """
-theme.py — Single source of truth for all visual constants.
-
-Colors, dimensions, fonts, and reusable widget-style dicts live here.
-All frontend modules import from this file instead of using inline literals.
-
-The dynamic runtime theming (user-selectable presets) is handled by
-settings_manager.py, which walks the widget tree and reconfigures colors.
-These constants are used only at widget-creation time (the defaults).
+Module: theme.py
+Purpose: Single source of truth for all visual constants.
+Dependencies: None
+Architecture: Provides default styling dicts. SettingsManager overrides colors at runtime.
 """
 
 # ─────────────────────────────────────────────────────────────────
@@ -78,8 +74,6 @@ FONT_MONO       = ("Consolas", 14)        # output preview
 
 # ─────────────────────────────────────────────────────────────────
 # Reusable widget-style dicts
-#   Usage:  ctk.CTkEntry(parent, **ENTRY, textvariable=v)
-#   Override a key:  ctk.CTkEntry(parent, **{**ENTRY, "width": 40})
 # ─────────────────────────────────────────────────────────────────
 
 # Text inputs
@@ -88,6 +82,7 @@ ENTRY = dict(
     border_width=BORDER_W,
     border_color=BORDER,
     height=WIDGET_H,
+    corner_radius=6,
 )
 
 # Drop-down combo boxes (name entry, title, etc.)
@@ -101,6 +96,7 @@ COMBO = dict(
     dropdown_fg_color=PANEL_BG,
     dropdown_text_color=TEXT_PRIMARY,
     dropdown_hover_color=BORDER,
+    corner_radius=6,
 )
 
 # OptionMenu (duration, OD count, etc.)
@@ -112,6 +108,7 @@ OPTION_MENU = dict(
     dropdown_fg_color=PANEL_BG,
     dropdown_text_color=TEXT_PRIMARY,
     dropdown_hover_color=BORDER,
+    corner_radius=6,
 )
 
 # OptionMenu when disabled (muted appearance)
@@ -123,13 +120,14 @@ OPTION_MENU_DISABLED = dict(
     dropdown_fg_color=PANEL_BG,
     dropdown_text_color=TEXT_PRIMARY,
     dropdown_hover_color=BORDER,
+    corner_radius=6,
 )
 
 # Standard buttons
-BTN_PRIMARY   = dict(fg_color=PRIMARY,   hover_color=PRIMARY_HOVER)
-BTN_SECONDARY = dict(fg_color=BORDER,    hover_color=HOVER)
-BTN_DANGER    = dict(fg_color=DANGER,    hover_color=DANGER_HOVER)
-BTN_SUCCESS   = dict(fg_color=SUCCESS,   hover_color=SUCCESS_HOVER)
+BTN_PRIMARY   = dict(fg_color=PRIMARY,   hover_color=PRIMARY_HOVER, corner_radius=6)
+BTN_SECONDARY = dict(fg_color=BORDER,    hover_color=HOVER, corner_radius=6)
+BTN_DANGER    = dict(fg_color=DANGER,    hover_color=DANGER_HOVER, corner_radius=6)
+BTN_SUCCESS   = dict(fg_color=SUCCESS,   hover_color=SUCCESS_HOVER, corner_radius=6)
 
 # Icon-only square button (secondary style)
 BTN_ICON = dict(
@@ -137,6 +135,7 @@ BTN_ICON = dict(
     hover_color=HOVER,
     width=ICON_BTN_W,
     height=WIDGET_H_SM,
+    corner_radius=6,
 )
 
 # Icon-only square button (danger style)
@@ -145,6 +144,7 @@ BTN_ICON_DANGER = dict(
     hover_color=DANGER_HOVER,
     width=ICON_BTN_W,
     height=WIDGET_H_SM,
+    corner_radius=6,
 )
 
 # Card frame (slot cards, event cards, DJ cards)

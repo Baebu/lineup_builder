@@ -1,3 +1,10 @@
+"""
+Module: dj_roster.py
+Purpose: Manages the DJ Roster tab: display, edit, add, and delete DJ cards.
+Dependencies: re, customtkinter, tkinter.messagebox, theme
+Architecture: Mixin for App class. Emits events/updates model via DataMixin.
+"""
+
 import re
 import customtkinter as ctk
 from tkinter import messagebox
@@ -11,12 +18,14 @@ class DJRosterMixin:
         # Keep roster sorted alphabetically
         self.saved_djs.sort(key=lambda d: re.sub(r'[^a-z]', '', (d.get("name") or "").lower()))
         query = self.dj_search_var.get().strip().lower()
-        filtered = [
+        filtered =[
             (idx, dj) for idx, dj in enumerate(self.saved_djs)
             if not query or query in dj.get("name", "").lower()
         ]
+        
         for widget in self.dj_roster_scroll.winfo_children():
             widget.destroy()
+            
         if not self.saved_djs:
             ctk.CTkLabel(
                 self.dj_roster_scroll,
@@ -24,6 +33,7 @@ class DJRosterMixin:
                 text_color=T.TEXT_SECONDARY, justify="center"
             ).pack(pady=20)
             return
+            
         if not filtered:
             ctk.CTkLabel(
                 self.dj_roster_scroll,
@@ -31,6 +41,7 @@ class DJRosterMixin:
                 text_color=T.TEXT_SECONDARY, justify="center"
             ).pack(pady=20)
             return
+            
         for idx, dj in filtered:
             self._build_dj_card(self.dj_roster_scroll, dj, idx)
 
@@ -49,12 +60,34 @@ class DJRosterMixin:
         )
         grip_btn.pack(side="left", padx=(0, 6))
 
+        # ── Info Column (Name + Stream Link) ──
+        info_col = ctk.CTkFrame(header, fg_color="transparent", cursor="hand2")
+        info_col.pack(side="left", fill="x", expand=True, padx=(4, 10))
+
         name_lbl = ctk.CTkLabel(
-            header, text=dj.get("name", "Unnamed DJ"),
+            info_col, text=dj.get("name", "Unnamed DJ"),
             font=T.FONT_VALUE, text_color=T.TEXT_PRIMARY, cursor="hand2"
         )
-        name_lbl.pack(side="left")
+        name_lbl.pack(anchor="w")
 
+        stream = dj.get("stream", "")
+        if stream:
+            exact = dj.get("exact_link", False)
+            prefix = "🔗 Exact: " if exact else "🎙 "
+            short_stream = stream if len(stream) <= 38 else stream[:35] + "..."
+            stream_lbl = ctk.CTkLabel(
+                info_col, text=f"{prefix}{short_stream}",
+                font=T.FONT_TINY, text_color=T.TEXT_MUTED, cursor="hand2"
+            )
+            stream_lbl.pack(anchor="w", pady=(0, 2))
+        else:
+            stream_lbl = ctk.CTkLabel(
+                info_col, text="No stream link set",
+                font=T.FONT_TINY, text_color=T.TEXT_MUTED, cursor="hand2"
+            )
+            stream_lbl.pack(anchor="w", pady=(0, 2))
+
+        # ── Action Buttons ──
         edit_btn = ctk.CTkButton(
             header, text="", image=self.icon_edit,
             width=T.WIDGET_H_SM, height=T.WIDGET_H_SM, **T.BTN_SECONDARY,
@@ -69,16 +102,13 @@ class DJRosterMixin:
         )
         del_btn.pack(side="right", padx=(0, 4))
 
-        # No click binding needed - using hover on edit button
-
-        # Drag-and-drop: grip → add to lineup
-        for w in (grip_btn,):
-            w.bind("<B1-Motion>",       lambda e: self._on_dj_drag(e, name_lbl.cget("text")))
-            w.bind("<ButtonRelease-1>", lambda e: self._end_dj_drag(e, name_lbl.cget("text")))
+        # Drag-and-drop: Bind to grip AND the entire info column for easier grabbing
+        for w in (grip_btn, info_col, name_lbl, stream_lbl):
+            w.bind("<B1-Motion>",       lambda e, n=dj.get("name", ""): self._on_dj_drag(e, n))
+            w.bind("<ButtonRelease-1>", lambda e, n=dj.get("name", ""): self._end_dj_drag(e, n))
 
     def _open_dj_edit_window(self, dj, idx, name_label, button):
         """Open a pop-out window positioned near the edit button."""
-        # Toggle: Close if already open
         window_key = f"dj_edit_{idx}"
         cur_win = getattr(self, window_key, None)
         if cur_win and cur_win.winfo_exists():
@@ -87,49 +117,41 @@ class DJRosterMixin:
 
         popup = ctk.CTkToplevel(self)
         setattr(self, window_key, popup)
-        popup.title("")  # No title for cleaner look
+        popup.title("")
         popup.geometry("320x240")
         popup.resizable(False, False)
         popup.configure(fg_color=T.CARD_BG, border_color=T.BORDER, border_width=T.BORDER_W)
         popup.overrideredirect(True)
         popup.attributes("-topmost", True)
 
-        # Close on click-off (focus out)
         def _on_focus_out(event):
             new_focus = self.focus_get()
-            # If focus moves to something unrelated (not popup and not its children)
             if new_focus != popup and (new_focus is None or not str(new_focus).startswith(str(popup))):
-                # If clicking the toggle button, let button command handle the close
                 if new_focus == button:
                     return
                 popup.destroy()
 
         popup.bind("<FocusOut>", _on_focus_out)
 
-        # Position near the button
         self.update_idletasks()
         button_x = button.winfo_rootx()
         button_y = button.winfo_rooty()
         button_width = button.winfo_width()
         button_height = button.winfo_height()
 
-        # Position to the right of the button, aligned with top
         popup_x = button_x + button_width + 5
         popup_y = button_y
 
-        # If it would go off-screen to the right, position to the left
         screen_width = self.winfo_screenwidth()
         if popup_x + 320 > screen_width:
             popup_x = button_x - 320 - 5
 
-        # If it would go off-screen at the bottom, position upwards (align bottom with button bottom)
         screen_height = self.winfo_screenheight()
         if popup_y + 240 > screen_height:
             popup_y = button_y + button_height - 240
 
         popup.geometry(f"320x240+{popup_x}+{popup_y}")
 
-        # Add visible border frame
         border_frame = ctk.CTkFrame(popup, fg_color=T.CARD_BG, border_width=2, border_color=T.BORDER)
         border_frame.pack(fill="both", expand=True)
 
@@ -168,7 +190,7 @@ class DJRosterMixin:
             if not name:
                 name_entry.configure(border_color=T.ERROR)
                 return
-            if name.lower() != dj.get("name", "").lower() and name.lower() in [d.get("name", "").lower() for d in self.saved_djs]:
+            if name.lower() != dj.get("name", "").lower() and name.lower() in[d.get("name", "").lower() for d in self.saved_djs]:
                 name_entry.configure(border_color=T.ERROR)
                 ctk.CTkLabel(content, text="Name already exists.",
                              font=T.FONT_SMALL, text_color=T.ERROR).grid(row=6, column=0, sticky="w")
@@ -180,8 +202,9 @@ class DJRosterMixin:
             dj["exact_link"] = exact_var.get()
 
             self._save_library()
-            name_label.configure(text=name)
+            self.refresh_dj_roster_ui()
             self.after(0, self._refresh_slot_combos)
+            
             for slot in self.slots:
                 if slot.name_var.get().strip() in (old_name, name):
                     slot.update_dj_info()
@@ -201,17 +224,10 @@ class DJRosterMixin:
             command=_save
         ).pack(side="left")
 
-        # Keyboard shortcuts
         popup.bind("<Return>", lambda e: _save())
         popup.bind("<Escape>", lambda e: _cancel())
-
-        # Focus the name entry
         name_entry.focus_set()
-
-        # Bring to front
         popup.lift()
-
-    # ── Link Import ───────────────────────────────────────────────────────
 
     def open_dj_link_import(self):
         """Popup: paste links → auto-detect name → create or assign to DJ."""
@@ -233,7 +249,6 @@ class DJRosterMixin:
         outer.grid_columnconfigure(0, weight=1)
         outer.grid_rowconfigure(2, weight=1)
 
-        # Header
         ctk.CTkLabel(
             outer, text="IMPORT DJ LINKS",
             font=T.FONT_BODY_BOLD, text_color=T.ACCENT,
@@ -259,7 +274,6 @@ class DJRosterMixin:
         )
         status_lbl.grid(row=3, column=0, sticky="w", pady=(0, 4))
 
-        # Results scroll area (populated after Parse)
         results_scroll = ctk.CTkScrollableFrame(
             outer, fg_color="transparent", height=200,
         )
@@ -267,9 +281,8 @@ class DJRosterMixin:
         results_scroll.grid_columnconfigure(0, weight=1)
         outer.grid_rowconfigure(4, weight=1)
 
-        result_rows: list[dict] = []   # [{url, name_var, mode_var, assign_var}]
-
-        existing_names = [d.get("name", "") for d in self.saved_djs]
+        result_rows: list[dict] = []
+        existing_names =[d.get("name", "") for d in self.saved_djs]
 
         def _parse():
             nonlocal result_rows
@@ -297,14 +310,12 @@ class DJRosterMixin:
                 row_frame.pack(fill="x", padx=T.SCROLL_PAD_X, pady=(0, 6))
                 row_frame.grid_columnconfigure(1, weight=1)
 
-                # URL label (truncated)
                 short_url = url if len(url) <= 44 else url[:41] + "…"
                 ctk.CTkLabel(
                     row_frame, text=short_url,
                     font=("Consolas", 10), text_color=T.TEXT_MUTED,
                 ).grid(row=0, column=0, columnspan=3, sticky="w", padx=10, pady=(6, 2))
 
-                # Mode toggle: "New DJ" / "Assign to existing"
                 mode_var   = ctk.StringVar(value="new")
                 name_var   = ctk.StringVar(value=det_name)
                 assign_var = ctk.StringVar(value=existing_names[0] if existing_names else "")
@@ -344,7 +355,6 @@ class DJRosterMixin:
                 )
                 mode_seg.grid(row=1, column=0, padx=(10, 6), pady=(2, 6))
                 name_entry.grid(row=1, column=1, sticky="ew", padx=(0, 10), pady=(2, 6))
-                # assign_menu hidden until mode switched
 
                 if not existing_names:
                     mode_seg.configure(state="disabled")
@@ -376,8 +386,7 @@ class DJRosterMixin:
                         row["name_entry"].configure(border_color=T.ERROR)
                         errors.append("One or more new DJ names are blank.")
                         continue
-                    if name.lower() in [d.get("name", "").lower() for d in self.saved_djs]:
-                        # Treat as update instead of creating a duplicate
+                    if name.lower() in[d.get("name", "").lower() for d in self.saved_djs]:
                         for d in self.saved_djs:
                             if d.get("name", "").lower() == name.lower():
                                 d["stream"] = url
@@ -403,7 +412,6 @@ class DJRosterMixin:
             self.after(0, self._refresh_slot_combos)
             popup.destroy()
 
-        # Button row
         btn_row = ctk.CTkFrame(outer, fg_color="transparent")
         btn_row.grid(row=5, column=0, sticky="e", pady=(0, 0))
 
@@ -428,55 +436,32 @@ class DJRosterMixin:
 
     @staticmethod
     def _parse_dj_links(text: str) -> list[tuple[str, str]]:
-        """Extract (name, url) pairs from pasted text.
-
-        Detects URLs from various formats:
-          • Raw URL per line
-          • ``Name: URL`` / ``Name — URL`` / ``Name - URL``
-          • ``**Name** URL`` or ``**Name**: URL``
-          • Discord-style ``<URL>`` suppressed-embed links
-          Derives a name candidate from the URL's last path segment when
-          no explicit name is found.
-        """
-        url_re = re.compile(
-            r'https?://[^\s<>"]+',
-            re.IGNORECASE,
-        )
-        results: list[tuple[str, str]] = []
+        url_re = re.compile(r'https?://[^\s<>"]+', re.IGNORECASE)
+        results: list[tuple[str, str]] =[]
 
         for line in text.splitlines():
             s = line.strip()
             if not s:
                 continue
 
-            # Strip Discord embed-suppression < >
             s_clean = re.sub(r'<(https?://[^>]+)>', r'\1', s)
-
             urls_in_line = url_re.findall(s_clean)
             if not urls_in_line:
                 continue
             url = urls_in_line[0]
 
-            # Remove the URL (and any trailing punctuation) to get the name fragment
             name_fragment = url_re.sub("", s_clean).strip().rstrip(":—-– ").strip()
-
-            # Strip bold / italic markdown
             name_fragment = re.sub(r'\*\*(.+?)\*\*', r'\1', name_fragment)
             name_fragment = re.sub(r'\*([^*]+?)\*',  r'\1', name_fragment)
-
-            # Strip leading separators that weren't removed yet
             name_fragment = re.sub(r'^[:\-–—]+\s*', '', name_fragment).strip()
             name_fragment = re.sub(r'\s*[:\-–—]+$', '', name_fragment).strip()
 
             if name_fragment:
                 det_name = name_fragment
             else:
-                # Derive from last non-empty path segment of the URL
-                path_parts = [p for p in url.rstrip('/').split('/') if p]
+                path_parts =[p for p in url.rstrip('/').split('/') if p]
                 raw_slug   = path_parts[-1] if path_parts else ""
-                # Strip query string
                 raw_slug   = raw_slug.split('?')[0]
-                # Title-case underscores/hyphens → spaces
                 det_name   = raw_slug.replace('_', ' ').replace('-', ' ').title()
 
             results.append((det_name, url))
@@ -493,7 +478,6 @@ class DJRosterMixin:
                 self.after(0, self._refresh_slot_combos)
 
     def add_new_dj_to_roster(self):
-        """Open a modal popup to collect DJ details before adding to the roster."""
         popup = ctk.CTkToplevel(self)
         popup.title("New DJ")
         popup.geometry("380x240")
@@ -542,7 +526,7 @@ class DJRosterMixin:
             if not name:
                 name_entry.configure(border_color=T.ERROR)
                 return
-            if name.lower() in [d.get("name", "").lower() for d in self.saved_djs]:
+            if name.lower() in[d.get("name", "").lower() for d in self.saved_djs]:
                 name_entry.configure(border_color=T.ERROR)
                 ctk.CTkLabel(content, text="Name already exists.",
                              font=T.FONT_SMALL, text_color=T.ERROR).grid(row=6, column=0, sticky="w")
