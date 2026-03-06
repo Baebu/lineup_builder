@@ -1,7 +1,9 @@
-import re
 import datetime
-import customtkinter as ctk
-from . import theme as T
+import re
+
+import dearpygui.dearpygui as dpg
+
+from .fonts import HEADER, LABEL, MUTED, styled_text
 
 
 class ImportMixin:
@@ -11,286 +13,199 @@ class ImportMixin:
 
     def open_import_dialog(self):
         """Open a modal with a paste area and Import button."""
-        popup = ctk.CTkToplevel(self)
-        popup.title("Import Event")
-        popup.geometry("540x520")
-        popup.resizable(True, True)
-        popup.configure(fg_color=T.CARD_BG)
-        popup.grab_set()
-        popup.focus_force()
-
-        self.update_idletasks()
-        x = self.winfo_x() + (self.winfo_width() - 540) // 2
-        y = self.winfo_y() + (self.winfo_height() - 520) // 2
-        popup.geometry(f"540x520+{x}+{y}")
-
-        content = ctk.CTkFrame(popup, fg_color="transparent")
-        content.pack(fill="both", expand=True, padx=20, pady=16)
-        content.grid_columnconfigure(0, weight=1)
-        content.grid_rowconfigure(2, weight=1)
-
-        # Header
-        header = ctk.CTkFrame(content, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 2))
-        ctk.CTkLabel(
-            header, text="IMPORT EVENT",
-            font=T.FONT_BODY_BOLD, text_color=T.ACCENT,
-        ).pack(side="left")
-
-        # Hint
-        ctk.CTkLabel(
-            content,
-            text="Paste a Discord or plain-text formatted event below.\n"
-                 "Supports: titles, timestamps, genres, lineup slots, and Open Decks.",
-            font=T.FONT_SMALL, text_color=T.TEXT_MUTED, justify="left",
-        ).grid(row=1, column=0, sticky="w", pady=(0, 6))
-
-        # Paste area
-        text_box = ctk.CTkTextbox(
-            content, fg_color=T.PANEL_BG, text_color=T.TEXT_PRIMARY,
-            font=("Consolas", 12), border_width=T.BORDER_W, border_color=T.BORDER,
-            wrap="word",
-        )
-        text_box.grid(row=2, column=0, sticky="nsew", pady=(0, 8))
-
-        # Status / preview label
-        status_lbl = ctk.CTkLabel(
-            content, text="", font=T.FONT_SMALL, text_color=T.TEXT_SECONDARY,
-        )
-        status_lbl.grid(row=3, column=0, sticky="w", pady=(0, 6))
-
-        # Buttons
-        btn_row = ctk.CTkFrame(content, fg_color="transparent")
-        btn_row.grid(row=4, column=0, sticky="e")
-
-        def _preview():
-            raw = text_box.get("1.0", "end-1c").strip()
-            if not raw:
-                status_lbl.configure(text="Paste something first.", text_color=T.ERROR)
-                return
-            parsed = self._parse_event_text(raw)
-            if not parsed:
-                status_lbl.configure(text="Could not recognise any event data.", text_color=T.ERROR)
-                return
-            n_slots = len(parsed.get("slots", []))
-            title = parsed.get("title") or "Untitled"
-            genres = ", ".join(parsed.get("genres", [])) or "—"
-            od = f" + {parsed['od_count']} OD" if parsed.get("include_od") else ""
-            status_lbl.configure(
-                text=f'"{title}" — {n_slots} slot(s){od} — Genres: {genres}',
-                text_color=T.IMPORT_SUCCESS,
+        win_tag = "import_dialog_win"
+        if dpg.does_item_exist(win_tag):
+            dpg.delete_item(win_tag)
+        with dpg.window(tag=win_tag, label="Import Event", modal=True,
+                        width=480, no_resize=False, no_scrollbar=True,
+                        pos=dpg.get_mouse_pos(local=False)):
+            styled_text("IMPORT EVENT", HEADER)
+            styled_text(
+                "Paste a Discord or plain-text formatted event below.\n"
+                "Supports: titles, timestamps, genres, lineup slots, and Open Decks.",
+                MUTED, wrap=450,
             )
+            paste_tag   = f"{win_tag}_paste"
+            dpg.add_input_text(tag=paste_tag, multiline=True, width=-11, height=120)
+            status_text = styled_text("", LABEL, show=False)
 
-        def _import():
-            raw = text_box.get("1.0", "end-1c").strip()
-            if not raw:
-                status_lbl.configure(text="Paste something first.", text_color=T.ERROR)
-                return
-            parsed = self._parse_event_text(raw)
-            if not parsed:
-                status_lbl.configure(text="Could not recognise any event data.", text_color=T.ERROR)
-                return
-            self._apply_parsed_event(parsed)
-            popup.destroy()
+            def _preview(s, a, _pi=paste_tag, _st=status_text):
+                raw = (dpg.get_value(_pi) or "").strip()
+                if not raw:
+                    dpg.show_item(_st); dpg.set_value(_st, "Paste something first."); return
+                parsed = self._parse_event_text(raw)
+                if not parsed:
+                    dpg.show_item(_st); dpg.set_value(_st, "Could not recognise any event data."); return
+                n_slots = len(parsed.get("slots", []))
+                title = parsed.get("title") or "Untitled"
+                genres = ", ".join(parsed.get("genres", [])) or "\u2014"
+                dpg.show_item(_st)
+                dpg.set_value(_st, f'"{title}" \u2014 {n_slots} slot(s) \u2014 Genres: {genres}')
 
-        ctk.CTkButton(
-            btn_row, text="Cancel", width=80, height=T.WIDGET_H_SM,
-            **T.BTN_SECONDARY,
-            font=T.FONT_BODY_BOLD, command=popup.destroy,
-        ).pack(side="left", padx=(0, 8))
+            def _import(s, a, _pi=paste_tag, _st=status_text, _wt=win_tag):
+                raw = (dpg.get_value(_pi) or "").strip()
+                if not raw:
+                    dpg.show_item(_st); dpg.set_value(_st, "Paste something first."); return
+                parsed = self._parse_event_text(raw)
+                if not parsed:
+                    dpg.show_item(_st); dpg.set_value(_st, "Could not recognise any event data."); return
+                self._apply_parsed_event(parsed)
+                dpg.delete_item(_wt)
 
-        ctk.CTkButton(
-            btn_row, text="Preview", width=80, height=T.WIDGET_H_SM,
-            **T.BTN_SECONDARY,
-            font=T.FONT_BODY_BOLD, text_color=T.ACCENT,
-            command=_preview,
-        ).pack(side="left", padx=(0, 8))
+            with dpg.group(horizontal=True):
+                dpg.add_button(label="Preview", width=140, callback=_preview)
+                import_btn = dpg.add_button(label="Import", width=140, callback=_import)
+                dpg.bind_item_theme(import_btn, "primary_btn_theme")
 
-        ctk.CTkButton(
-            btn_row, text="Import", width=90, height=T.WIDGET_H_SM,
-            **T.BTN_PRIMARY,
-            font=T.FONT_BODY_BOLD, command=_import,
-        ).pack(side="left")
 
-        popup.bind("<Escape>", lambda e: popup.destroy())
-        text_box.focus_set()
 
     # ── Parser ────────────────────────────────────────────────────────────
 
     def _parse_event_text(self, text: str) -> dict | None:
-        """Parse event text from any common format.
+        """Parse text generated by OutputGenerator back into event data.
 
-        Handles Discord markdown (bold names, Unix timestamps) and plain-text
-        variations.  Flexible on:
-          • dividers between time and name: | – — - or plain whitespace
-          • name bold markup (**Name**) being present or absent
-          • genre in (parens), [brackets], or as a trailing "- Genre" suffix
-          • VOL written as VOL.3 / Vol 3 / Volume 3 / #3
-          • section headers with or without # prefixes
+        Detects format automatically (Discord vs plain-text) and delegates to
+        the appropriate sub-parser.  Both parsers recover:
+          • title + volume number
+          • event timestamp
+          • genre list
+          • per-slot name, genre, and duration (computed from time deltas)
         """
-        lines = text.strip().splitlines()
+        lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
         if not lines:
             return None
+        is_discord = any(re.search(r'<t:\d+:', ln) for ln in lines)
+        return self._parse_discord(lines) if is_discord else self._parse_plain(lines)
 
-        parsed = {
-            "title": "",
-            "vol": "",
-            "timestamp": "",
-            "genres": [],
-            "slots": [],
-            "names_only": False,
-            "include_od": False,
-            "od_count": "0",
-            "od_duration": "30",
-        }
+    # ── Discord format ────────────────────────────────────────────────────
 
+    def _parse_discord(self, lines: list[str]) -> dict | None:
+        """Parse the Discord output format:
+
+            # Event Title VOL.3
+            # <t:UNIX:F> (<t:UNIX:R>)
+            ## Genre1 // Genre2
+            ### LINEUP
+            <t:UNIX:t> | **DJ Name** (Genre)
+        """
+        parsed = {"title": "", "vol": "", "timestamp": "", "genres": [], "slots": [], "names_only": False}
         slot_times: list[int] = []
-        od_times: list[int] = []
         in_lineup = False
-        in_od = False
 
         for line in lines:
-            s = line.strip()
-            if not s:
-                continue
-
-            # Strip bold / italic markdown for cleaner matching while
-            # preserving the original line (s) for edge-case checks.
-            clean = re.sub(r'\*\*(.+?)\*\*', r'\1', s)
-            clean = re.sub(r'\*([^*]+?)\*', r'\1', clean)
-            clean = re.sub(r'__(.+?)__', r'\1', clean)
-
-            # ── Title: "#+ Title" / "## Title Vol 3" / "**Title**" ───
-            m = re.match(r'^#{1,3}\s+(.+?)\s*$', clean)
-            if m and not parsed["title"] and '<t:' not in s and '//' not in m.group(1):
-                candidate = m.group(1).strip()
-                vol_m = re.search(
-                    r'\s+(?:VOL\.?\s*|Vol\.?\s*|Volume\s+|#)(\d+)\s*$',
-                    candidate, re.IGNORECASE,
-                )
-                if vol_m:
-                    parsed["vol"] = vol_m.group(1)
-                    candidate = candidate[:vol_m.start()].strip()
-                parsed["title"] = candidate
-                continue
-
-            # ── Discord event timestamp: "<t:UNIX:F>" ─────────────────
-            m = re.search(r'<t:(\d+):F>', s)
+            # ── Event timestamp: "# <t:UNIX:F> (<t:UNIX:R>)" ────────────
+            m = re.search(r'<t:(\d+):F>', line)
             if m and not parsed["timestamp"]:
                 dt = datetime.datetime.fromtimestamp(int(m.group(1)))
                 parsed["timestamp"] = dt.strftime("%Y-%m-%d %H:%M")
                 continue
 
-            # ── Plain-text timestamp: "YYYY-MM-DD @ HH:MM" ───────────
-            m = re.match(r'^(\d{4}-\d{2}-\d{2})\s*@\s*(\d{2}:\d{2})', s)
-            if m and not parsed["timestamp"]:
-                parsed["timestamp"] = f"{m.group(1)} {m.group(2)}"
+            # ── Slot with timestamp: "<t:UNIX:t> | **Name** (Genre)" ─────
+            m = re.match(r'^<t:(\d+):t>\s*\|\s*(.+)$', line)
+            if m:
+                unix = int(m.group(1))
+                rest = re.sub(r'\*\*(.+?)\*\*', r'\1', m.group(2)).strip()
+                name, genre = self._extract_name_genre(rest)
+                slot_times.append(unix)
+                parsed["slots"].append({"name": name, "genre": genre, "duration": "60"})
                 continue
 
-            # ── Genres: any line with "//" that isn't a slot ──────────
-            if '//' in s and not in_lineup and not in_od:
-                genre_text = re.sub(r'^#{1,3}\s+', '', clean).strip()
-                if genre_text and not parsed["genres"]:
-                    parsed["genres"] = [g.strip() for g in genre_text.split("//") if g.strip()]
-                    continue
-
-            # ── Section markers ───────────────────────────────────────
-            if re.match(r'^(?:#{1,3}\s+)?LINEUP\s*$', clean, re.IGNORECASE):
+            # ── Section header: "### LINEUP" ─────────────────────────────
+            if re.match(r'^#{0,3}\s*LINEUP\s*$', line, re.IGNORECASE):
                 in_lineup = True
-                in_od = False
-                continue
-            if re.match(r'^(?:#{1,3}\s+)?OPEN\s*DECKS?\s*$', clean, re.IGNORECASE):
-                in_od = True
-                in_lineup = False
                 continue
 
-            # ── Bullet / names-only: "• Name" / "- Name" / "* Name" ──
-            m = re.match(r'^[•\-\*]\s+(.+)$', s)
-            if m and not in_od:
-                name = re.sub(r'\*\*(.+?)\*\*', r'\1', m.group(1)).strip()
-                parsed["slots"].append({"name": name, "genre": "", "duration": "60"})
+            # ── Genre line: "## Genre1 // Genre2" ────────────────────────
+            if '//' in line and not in_lineup:
+                genre_text = re.sub(r'^#+\s*', '', line).strip()
+                parsed["genres"] = [g.strip() for g in genre_text.split("//") if g.strip()]
+                continue
+
+            # ── Title: "# Night Beats VOL.3" (no timestamp on this line) ─
+            m = re.match(r'^#+\s+(.+)$', line)
+            if m and not parsed["title"] and '<t:' not in line:
+                self._split_title_vol(m.group(1).strip(), parsed)
+                continue
+
+            # ── Names-only slot: plain text line inside LINEUP section ────
+            if in_lineup and not re.match(r'^#+', line):
                 parsed["names_only"] = True
+                parsed["slots"].append({"name": line, "genre": "", "duration": "60"})
+
+        self._compute_slot_durations(parsed["slots"], slot_times)
+        return parsed if (parsed["title"] or parsed["slots"]) else None
+
+    # ── Plain-text / local format ─────────────────────────────────────────
+
+    def _parse_plain(self, lines: list[str]) -> dict | None:
+        """Parse the local/plain-text output format:
+
+            Event Title VOL.3
+            2025-06-01 @ 20:00 (PST)
+            Genre1 // Genre2
+            LINEUP
+            20:00 | DJ Name (Genre)
+        """
+        parsed = {"title": "", "vol": "", "timestamp": "", "genres": [], "slots": [], "names_only": False}
+        slot_times: list[int] = []
+        in_lineup = False
+
+        for line in lines:
+            # ── Timestamp: "YYYY-MM-DD @ HH:MM (TZ)" ─────────────────────
+            m = re.match(r'^(\d{4}-\d{2}-\d{2})\s*@\s*(\d{1,2}:\d{2})', line)
+            if m and not parsed["timestamp"]:
+                parsed["timestamp"] = f"{m.group(1)} {m.group(2).zfill(5)}"
                 continue
 
-            # ── Discord slot: "<t:UNIX:t> [divider] Name [(Genre)]" ───
-            # Divider may be |, –, —, - or absent; bold markers already
-            # stripped from `clean`.
-            discord_m = re.match(
-                r'^<t:(\d+):t>\s*(?:[|–—\-]\s*)?(.+)$', clean,
-            )
-            if discord_m:
-                unix = int(discord_m.group(1))
-                rest = discord_m.group(2).strip()
-                name, genre = self._extract_name_genre(rest)
-                is_placeholder = (
-                    re.match(r'Slot\s+\d+\s*:', name, re.IGNORECASE)
-                    or '[Available]' in name
-                )
-                if is_placeholder:
-                    od_times.append(unix)
-                    in_od = True
-                elif in_od:
-                    od_times.append(unix)
-                else:
-                    slot_times.append(unix)
-                    parsed["slots"].append({"name": name, "genre": genre, "duration": "60"})
+            # ── Section header: "LINEUP" ──────────────────────────────────
+            if re.match(r'^LINEUP\s*$', line, re.IGNORECASE):
+                in_lineup = True
                 continue
 
-            # ── Plain time slot: "HH:MM [divider] Name [(Genre)]" ─────
-            # Divider may be |, –, —, - or plain whitespace.
-            time_m = re.match(
-                r'^(\d{1,2}:\d{2})(?!\d)\s*(?:[|–—\-]\s*|\s+)(.+)$', clean,
-            )
-            if time_m:
-                time_str = time_m.group(1)
-                rest = time_m.group(2).strip()
-                name, genre = self._extract_name_genre(rest)
-                unix = self._time_str_to_unix(time_str, parsed.get("timestamp", ""))
-                is_placeholder = (
-                    re.match(r'Slot\s+\d+\s*:', name, re.IGNORECASE)
-                    or '[Available]' in name
-                )
-                if is_placeholder or in_od:
-                    if unix is not None:
-                        od_times.append(unix)
-                    in_od = True
-                else:
+            if in_lineup:
+                # ── Timed slot: "HH:MM | DJ Name (Genre)" ────────────────
+                m = re.match(r'^(\d{1,2}:\d{2})\s*\|\s*(.+)$', line)
+                if m:
+                    time_str = m.group(1)
+                    name, genre = self._extract_name_genre(m.group(2).strip())
+                    unix = self._time_str_to_unix(time_str, parsed["timestamp"])
                     if unix is not None:
                         slot_times.append(unix)
                     parsed["slots"].append({"name": name, "genre": genre, "duration": "60"})
+                    continue
+                # ── Names-only slot: any non-empty line inside LINEUP ─────
+                parsed["names_only"] = True
+                parsed["slots"].append({"name": line, "genre": "", "duration": "60"})
                 continue
 
-            # ── Fallback: first unrecognised line → title candidate ────
-            if not parsed["title"] and not in_lineup and not in_od:
-                if not any(ch in s for ch in ['|', '<t:', '•', '# ', '//']):
-                    # Standalone **bold** line
-                    bold_m = re.match(r'^\*\*(.+?)\*\*\s*$', s)
-                    candidate = bold_m.group(1).strip() if bold_m else clean.strip()
-                    vol_m = re.search(
-                        r'\s+(?:VOL\.?\s*|Vol\.?\s*|Volume\s+|#)(\d+)\s*$',
-                        candidate, re.IGNORECASE,
-                    )
-                    if vol_m:
-                        parsed["vol"] = vol_m.group(1)
-                        candidate = candidate[:vol_m.start()].strip()
-                    if candidate:
-                        parsed["title"] = candidate
+            # ── Genre line: "Genre1 // Genre2" ───────────────────────────
+            if '//' in line:
+                parsed["genres"] = [g.strip() for g in line.split("//") if g.strip()]
+                continue
 
-        # ── Compute durations from consecutive timestamps ─────────────
-        self._compute_slot_durations(parsed["slots"], slot_times, od_times)
+            # ── Title: first unrecognised line before LINEUP ──────────────
+            if not parsed["title"]:
+                self._split_title_vol(line, parsed)
 
-        # ── Open Decks ────────────────────────────────────────────────
-        if od_times:
-            parsed["include_od"] = True
-            parsed["od_count"] = str(len(od_times))
-            if len(od_times) >= 2:
-                diff = (od_times[1] - od_times[0]) // 60
-                if 0 < diff <= 480:
-                    parsed["od_duration"] = str(diff)
-
+        self._compute_slot_durations(parsed["slots"], slot_times)
         return parsed if (parsed["title"] or parsed["slots"]) else None
 
     # ── Helpers ───────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _split_title_vol(candidate: str, parsed: dict):
+        """Split 'Event Title VOL.3' into separate title and vol fields.
+
+        Matches the exact format produced by ``EventSnapshot.full_title``:
+        ``"{title} VOL.{vol}"`` when vol is a digit string.
+        Writes directly into *parsed* in-place.
+        """
+        m = re.search(r'\s+VOL\.(\d+)\s*$', candidate, re.IGNORECASE)
+        if m:
+            parsed["vol"] = m.group(1)
+            parsed["title"] = candidate[: m.start()].strip()
+        else:
+            parsed["title"] = candidate
 
     @staticmethod
     def _extract_name_genre(rest: str) -> tuple[str, str]:
@@ -338,7 +253,7 @@ class ImportMixin:
             return None
 
     @staticmethod
-    def _compute_slot_durations(slots: list, slot_times: list[int], od_times: list[int]):
+    def _compute_slot_durations(slots: list, slot_times: list[int]):
         """Fill in duration for each slot from consecutive start-time deltas."""
         if not slot_times or len(slot_times) != len(slots):
             return
@@ -347,17 +262,10 @@ class ImportMixin:
         for i in range(1, len(slot_times)):
             if slot_times[i] <= slot_times[i - 1]:
                 slot_times[i] += 86400  # +24h
-        if od_times:
-            for i in range(len(od_times)):
-                ref = slot_times[-1] if slot_times else 0
-                if od_times[i] <= ref:
-                    od_times[i] += 86400
 
         for i in range(len(slot_times)):
             if i + 1 < len(slot_times):
                 diff = (slot_times[i + 1] - slot_times[i]) // 60
-            elif od_times:
-                diff = (od_times[0] - slot_times[i]) // 60
             else:
                 diff = 0
             if 0 < diff <= 480:
@@ -410,17 +318,9 @@ class ImportMixin:
                 added = True
         if added:
             self._save_library()
-            self.after(0, self.refresh_dj_roster_ui)
-            self.after(0, self._refresh_slot_combos)
+            self._schedule_roster_refresh()
+            self._refresh_slot_combos()
 
-        # Open Decks
-        if parsed.get("include_od"):
-            self.include_od.set(True)
-            self.od_count.set(parsed.get("od_count", "4"))
-            self.od_duration.set(parsed.get("od_duration", "30"))
-        else:
-            self.include_od.set(False)
-        self.toggle_od()
-
-        self.left_tabs.set("Event")
+        if dpg.does_item_exist("left_tabs"):
+            dpg.set_value("left_tabs", "Event")
         self.update_output()

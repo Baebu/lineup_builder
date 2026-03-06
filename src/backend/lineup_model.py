@@ -22,68 +22,14 @@ import datetime
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from .types import DJInfo, EventSnapshot, SlotData
+
 if TYPE_CHECKING:
     from .event_bus import EventBus
 
 
-# ── Value objects ─────────────────────────────────────────────────────────
-
-@dataclass
-class SlotData:
-    """One performer slot — pure data, no widgets."""
-    name: str = ""
-    genre: str = ""
-    duration: int = 60
-
-
-@dataclass
-class DJInfo:
-    """Saved DJ metadata from the library."""
-    name: str = ""
-    stream: str = ""
-    exact_link: bool = False
-
-
-@dataclass
-class OpenDecksConfig:
-    """Open-decks section configuration."""
-    enabled: bool = False
-    count: int = 4
-    duration: int = 30
-
-
-@dataclass
-class EventSnapshot:
-    """An immutable snapshot of the full event state.
-
-    ``OutputGenerator`` works exclusively with this — it never touches
-    Tkinter widgets, ``StringVar``s, or the live model.
-    """
-    title: str = ""
-    vol: str = ""
-    timestamp: str = ""            # "YYYY-MM-DD HH:MM"
-    genres: list[str] = field(default_factory=list)
-    slots: list[SlotData] = field(default_factory=list)
-    names_only: bool = False
-    output_format: str = "discord"  # "discord" | "local" | "quest" | "pc"
-    open_decks: OpenDecksConfig = field(default_factory=OpenDecksConfig)
-    saved_djs: list[DJInfo] = field(default_factory=list)
-
-    # ── Derived helpers ───────────────────────────────────────────────
-
-    @property
-    def start_datetime(self) -> datetime.datetime:
-        """Parse ``self.timestamp`` into a ``datetime``, falling back to *now*."""
-        try:
-            return datetime.datetime.strptime(self.timestamp, "%Y-%m-%d %H:%M")
-        except (ValueError, TypeError):
-            return datetime.datetime.now()
-
-    @property
-    def full_title(self) -> str:
-        if self.vol.isdigit():
-            return f"{self.title} VOL.{self.vol}"
-        return self.title
+# ── Re-export for backward compatibility ──────────────────────────────────
+__all__ = ["SlotData", "DJInfo", "EventSnapshot", "LineupModel"]
 
 
 # ── Live mutable model ────────────────────────────────────────────────────
@@ -110,7 +56,6 @@ class LineupModel:
         self.slots: list[SlotData] = []
         self.names_only: bool = False
         self.output_format: str = "discord"
-        self.open_decks: OpenDecksConfig = OpenDecksConfig()
         self.saved_djs: list[DJInfo] = []
 
     # ── Snapshot ──────────────────────────────────────────────────────
@@ -125,11 +70,6 @@ class LineupModel:
             slots=[SlotData(s.name, s.genre, s.duration) for s in self.slots],
             names_only=self.names_only,
             output_format=self.output_format,
-            open_decks=OpenDecksConfig(
-                enabled=self.open_decks.enabled,
-                count=self.open_decks.count,
-                duration=self.open_decks.duration,
-            ),
             saved_djs=[DJInfo(d.name, d.stream, d.exact_link) for d in self.saved_djs],
         )
 
@@ -143,11 +83,6 @@ class LineupModel:
         self.master_duration = int(data.get("master_duration", 60))
         self.genres = list(data.get("genres", []))
         self.names_only = bool(data.get("names_only", False))
-        self.open_decks = OpenDecksConfig(
-            enabled=bool(data.get("include_od", False)),
-            count=int(data.get("od_count", 4)),
-            duration=int(data.get("od_duration", 30)),
-        )
         self.slots = [
             SlotData(
                 name=s.get("name", ""),
@@ -167,9 +102,6 @@ class LineupModel:
             "master_duration": str(self.master_duration),
             "genres": list(self.genres),
             "names_only": self.names_only,
-            "include_od": self.open_decks.enabled,
-            "od_count": str(self.open_decks.count),
-            "od_duration": str(self.open_decks.duration),
             "slots": [
                 {"name": s.name, "genre": s.genre, "duration": str(s.duration)}
                 for s in self.slots

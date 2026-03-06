@@ -1,0 +1,33 @@
+{
+  "output": {
+    "filePath": "repomix-output.xml",
+    "style": "xml",
+    "removeComments": false,
+    "removeEmptyLines": false,
+    "showLineNumbers": true,
+    "copyToClipboard": false
+  },
+  "include": [
+    "main.py",
+    "dev.py",
+    "src/__init__.py",
+    "src/backend/**/*.py",
+    "src/frontend/**/*.py",
+    "tests/**/*.py",
+    ".github/copilot-instructions.md",
+    "README.md",
+    "requirements.txt",
+    "pyproject.toml"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "**/__pycache__/**",
+      "**/*.pyc",
+      "assets/**",
+      "repomix-output.*",
+      "repomix.config.json"
+    ]
+  }
+}

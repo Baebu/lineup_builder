@@ -1,190 +1,68 @@
 import json
 import os
 
-import customtkinter as ctk
+import dearpygui.dearpygui as dpg
+
 from . import theme as T
+from .fonts import HEADER, LABEL, styled_text
 from .utils import get_data_dir
 
 SETTINGS_FILE = os.path.join(get_data_dir(), "settings.json")
 DEFAULT_SETTINGS = {
     # Layout
-    "left_panel_width": 380,
-    # Output preview
-    "output_font_size": 14,
-    # Interactive colors
-    "accent_color":    T.ACCENT,          # section headers / highlights
-    "primary_color":   T.PRIMARY,         # main action buttons
-    "danger_color":    T.DANGER,          # delete / destructive buttons
-    "success_color":   T.SUCCESS,         # save / confirm buttons
-    # Text colors
-    "text_primary":    T.TEXT_PRIMARY,    # main text / values
-    "text_secondary":  T.TEXT_SECONDARY,  # labels / muted text
-    # Interactive Hovers
-    "primary_hover_color": T.PRIMARY_HOVER,
-    "danger_hover_color":  T.DANGER_HOVER,
-    "success_hover_color": T.SUCCESS_HOVER,
-    # Structural colors
-    "panel_bg":        T.PANEL_BG,        # panels, tabviews, cards in foreground
-    "card_bg":         T.CARD_BG,         # deep cards, input field backgrounds
-    "border_color":    T.BORDER,          # all borders, secondary button backgrounds
-    "hover_color":     T.HOVER,           # general hover state
-    "scrollbar_color": T.SCROLLBAR,       # scrollbar thumb
-}
+    "left_panel_width": 325,
+    "ui_scale": 1.0,
 
-# All widget attributes that carry color values and should be walked
-_COLOR_ATTRS = [
-    "fg_color", "border_color", "hover_color",
-    "button_color", "button_hover_color",
-    "dropdown_fg_color", "dropdown_hover_color",
-    "progress_color", "scrollbar_color",
-    "text_color", "placeholder_text_color",
-    "segmented_button_fg_color", "segmented_button_unselected_color",
-    "segmented_button_selected_color", "segmented_button_selected_hover_color",
-    "segmented_button_unselected_hover_color"
-]
+    # Fixed Button Colors (Theme independent)
+    "primary_color":   "#4F46E5",
+    "primary_hover":   "#4338CA",
+    "secondary_color": "#334155",
+    "secondary_hover": "#475569",
+    "success_color":   "#059669",
+    "success_hover":   "#047857",
+    "danger_color":    "#DC2626",
+    "danger_hover":    "#B91C1C",
+    "accent_color":    "#818CF8",
+
+    # Structural Colors (Vary by theme)
+    "panel_bg":        "#1E293B",
+    "card_bg":         "#0F172A",
+    "border_color":    "#334155",
+    "hover_color":     "#475569",
+    "scrollbar_color": "#475569",
+    "text_primary":    "#CBD5E1",
+    "text_secondary":  "#94A3B8",
+}
 
 BUILTIN_PRESETS = [
     {
-        "name": "Default (Indigo)",
+        "name": "Slate (Default)",
         "settings": dict(DEFAULT_SETTINGS),
     },
     {
-        "name": "Emerald",
+        "name": "Midnight",
         "settings": {
             **DEFAULT_SETTINGS,
-            "accent_color":  "#34D399",
-            "primary_color": "#059669",
-            "success_color": "#047857",
-            "danger_color":  "#7F1D1D",
-            "panel_bg":      "#1A2E24",
-            "card_bg":       "#0D1F18",
-            "border_color":  "#1F4D36",
-            "hover_color":   "#2D6E4E",
-            "scrollbar_color": "#2D6E4E",
-            # New Theme
-            "text_primary":    "#D1FAE5", # Emerald-100
-            "text_secondary":  "#6EE7B7", # Emerald-300
-            "primary_hover_color": "#047857",
-            "danger_hover_color":  "#991B1B",
-            "success_hover_color": "#064E3B",
+            "panel_bg":      "#0A1128",
+            "card_bg":       "#040814",
+            "border_color":  "#1C2A4A",
+            "hover_color":   "#2A3B61",
+            "scrollbar_color": "#1C2A4A",
+            "text_primary":  "#E2E8F0",
+            "text_secondary": "#94A3B8",
         },
     },
     {
-        "name": "Rose",
+        "name": "OLED Black",
         "settings": {
             **DEFAULT_SETTINGS,
-            "accent_color":  "#FB7185",
-            "primary_color": "#E11D48",
-            "success_color": "#059669",
-            "danger_color":  "#7F1D1D",
-            "panel_bg":      "#2D1B22",
-            "card_bg":       "#1A0F14",
-            "border_color":  "#4C1D30",
-            "hover_color":   "#6D2840",
-            "scrollbar_color": "#6D2840",
-            # New Theme
-            "text_primary":    "#FFE4E6",
-            "text_secondary":  "#FDA4AF",
-            "primary_hover_color": "#BE123C",
-            "danger_hover_color":  "#991B1B",
-            "success_hover_color": "#047857",
-        },
-    },
-    {
-        "name": "Slate (Mono)",
-        "settings": {
-            **DEFAULT_SETTINGS,
-            "accent_color":  "#94A3B8",
-            "primary_color": "#475569",
-            "success_color": "#64748B",
-            "danger_color":  "#7F1D1D",
-            "panel_bg":      "#1E293B",
-            "card_bg":       "#0F172A",
-            "border_color":  "#334155",
-            "hover_color":   "#475569",
-            "scrollbar_color": "#475569",
-            # New Theme
-            "text_primary":    "#CBD5E1",
-            "text_secondary":  "#94A3B8",
-            "primary_hover_color": "#334155",
-            "danger_hover_color":  "#991B1B",
-            "success_hover_color": "#475569",
-        },
-    },
-    {
-        "name": "Ocean (Blue)",
-        "settings": {
-            **DEFAULT_SETTINGS,
-            "accent_color":  "#38BDF8",  # Sky 400
-            "primary_color": "#0284C7",  # Sky 600
-            "success_color": "#059669",
-            "danger_color":  "#9F1239",  # Rose 800
-            "panel_bg":      "#0C4A6E",  # Sky 900
-            "card_bg":       "#082F49",  # Sky 950
-            "border_color":  "#0369A1",  # Sky 700
-            "hover_color":   "#075985",  # Sky 800
-            "scrollbar_color": "#075985",
-            "text_primary":    "#E0F2FE", # Sky 100
-            "text_secondary":  "#7DD3FC", # Sky 300
-            "primary_hover_color": "#0369A1",
-            "danger_hover_color":  "#881337",
-        },
-    },
-    {
-        "name": "Amber (Orange)",
-        "settings": {
-            **DEFAULT_SETTINGS,
-            "accent_color":  "#F59E0B",  # Amber 500
-            "primary_color": "#D97706",  # Amber 600
-            "success_color": "#059669",
-            "danger_color":  "#7F1D1D",
-            "panel_bg":      "#451A03",  # Amber 950 (shifted to brown)
-            "card_bg":       "#270E01",  # Deep brown
-            "border_color":  "#78350F",  # Amber 900
-            "hover_color":   "#92400E",  # Amber 800
-            "scrollbar_color": "#92400E",
-            "text_primary":    "#FEF3C7", # Amber 100
-            "text_secondary":  "#FCD34D", # Amber 300
-            "primary_hover_color": "#B45309",
-            "danger_hover_color":  "#991B1B",
-        },
-    },
-    {
-        "name": "Violet (Deep)",
-        "settings": {
-            **DEFAULT_SETTINGS,
-            "accent_color":  "#A78BFA",  # Violet 400
-            "primary_color": "#7C3AED",  # Violet 600
-            "success_color": "#059669",
-            "danger_color":  "#831843",  # Pink 900
-            "panel_bg":      "#2E1065",  # Violet 950
-            "card_bg":       "#170536",  # Deep violet
-            "border_color":  "#5B21B6",  # Violet 800
-            "hover_color":   "#6D28D9",  # Violet 700
-            "scrollbar_color": "#6D28D9",
-            "text_primary":    "#EDE9FE", # Violet 100
-            "text_secondary":  "#C4B5FD", # Violet 300
-            "primary_hover_color": "#6D28D9",
-            "danger_hover_color":  "#831843",
-        },
-    },
-    {
-        "name": "Crimson (Red)",
-        "settings": {
-            **DEFAULT_SETTINGS,
-            "accent_color":  "#F87171",  # Red 400
-            "primary_color": "#DC2626",  # Red 600
-            "success_color": "#059669",
-            "danger_color":  "#450A0A",  # Red 950
-            "panel_bg":      "#450A0A",  # Red 950
-            "card_bg":       "#280505",  # Deep red
-            "border_color":  "#7F1D1D",  # Red 900
-            "hover_color":   "#991B1B",  # Red 800
-            "scrollbar_color": "#991B1B",
-            "text_primary":    "#FEE2E2", # Red 100
-            "text_secondary":  "#FCA5A5", # Red 300
-            "primary_hover_color": "#B91C1C",
-            "danger_hover_color":  "#450A0A",
+            "panel_bg":      "#121212",
+            "card_bg":       "#000000",
+            "border_color":  "#27272A",
+            "hover_color":   "#3F3F46",
+            "scrollbar_color": "#27272A",
+            "text_primary":  "#F4F4F5",
+            "text_secondary": "#A1A1AA",
         },
     },
 ]
@@ -210,15 +88,10 @@ class SettingsMixin:
             except Exception:
                 pass
 
-        # Tracks the last-applied color for each key so repeated changes chain
+        # Tracks the last-applied color for each key
         self._applied_settings: dict = dict(self.settings)
-
-        # Explicit widget reference lists (for colors that need precise control)
-        self._accent_labels:   list = []
-        self._primary_buttons: list = []
-        self._danger_buttons:  list = []
-        self._success_buttons: list = []
-        self._scrollable_frames: list = []
+        self._global_theme = None
+        self._danger_btn_theme = None
 
     def save_settings(self):
         try:
@@ -229,156 +102,145 @@ class SettingsMixin:
 
     # ── Theme application ─────────────────────────────────────────────────
 
-    @staticmethod
-    def _clean_list(lst: list) -> list:
-        alive = []
-        for w in lst:
-            try:
-                if w.winfo_exists():
-                    alive.append(w)
-            except Exception:
-                pass
-        return alive
-
-    def _recolor_widgets(self, root, old: str, new: str):
-        """Walk the full widget tree under *root* and replace every occurrence
-        of *old* color with *new* across all color attributes."""
-        if old.upper() == new.upper():
-            return
-        stack = list(root.winfo_children())
-        while stack:
-            w = stack.pop()
-            for attr in _COLOR_ATTRS:
-                try:
-                    cur = w.cget(attr)
-                    if isinstance(cur, str) and cur.upper() == old.upper():
-                        w.configure(**{attr: new})
-                except Exception:
-                    pass
-            try:
-                stack.extend(w.winfo_children())
-            except Exception:
-                pass
-
     def apply_theme(self):
-        """Apply current settings to all widgets. Uses the last-applied values
-        as 'from' colors so chained changes work correctly."""
-        applied = self._applied_settings
+        """Build and bind a global DPG theme from current settings."""
+        def _c(hex_val, alpha=255):
+            h = hex_val.lstrip("#")
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            return (r, g, b, alpha)
 
-        # ── Recursive structural color walk ───────────────────────────────
-        full_keys = [
-            "panel_bg", "card_bg", "border_color", "hover_color",
-            "text_primary", "text_secondary"
-        ]
-        for key in full_keys:
-            old = applied.get(key, DEFAULT_SETTINGS[key])
-            new = self.settings[key]
-            self._recolor_widgets(self, old, new)
-            applied[key] = new  # Keep track for next update!
-
-        # ── Explicit registered lists ─────────────────────────────────────
-        self._accent_labels   = self._clean_list(self._accent_labels)
-        self._primary_buttons = self._clean_list(self._primary_buttons)
-        self._danger_buttons  = self._clean_list(self._danger_buttons)
-        self._success_buttons = self._clean_list(self._success_buttons)
-        self._scrollable_frames = self._clean_list(self._scrollable_frames)
-
-        accent  = self.settings["accent_color"]
-        primary = self.settings["primary_color"]
-        p_hover = self.settings["primary_hover_color"]
-        danger  = self.settings["danger_color"]
-        d_hover = self.settings["danger_hover_color"]
-        success = self.settings["success_color"]
-        s_hover = self.settings["success_hover_color"]
-
-        applied["accent_color"]  = accent
-        applied["primary_color"] = primary
-        applied["danger_color"]  = danger
-        applied["success_color"] = success
-
-        for lbl in self._accent_labels:
+        s = self.settings
+        with dpg.theme() as global_theme:
+            with dpg.theme_component(dpg.mvAll):
+                dpg.add_theme_color(dpg.mvThemeCol_WindowBg,           _c(s.get("panel_bg",             "#1E293B")))
+                dpg.add_theme_color(dpg.mvThemeCol_ChildBg,             _c(s.get("panel_bg",            "#1E293B")))
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBg,             _c(s.get("card_bg",             "#0F172A")))
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered,      _c(s.get("hover_color",         "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive,       _c(s.get("primary_color",       "#4F46E5")))
+                dpg.add_theme_color(dpg.mvThemeCol_Button,              _c(s.get("secondary_color",     "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered,       _c(s.get("secondary_hover",     "#475569")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,        _c(s.get("secondary_color",     "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_Text,                _c(s.get("text_primary",        "#CBD5E1")))
+                dpg.add_theme_color(dpg.mvThemeCol_TextDisabled,        _c(s.get("text_secondary",      "#94A3B8")))
+                dpg.add_theme_color(dpg.mvThemeCol_Border,              _c(s.get("border_color",        "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_ScrollbarBg,         (0, 0, 0, 0))
+                dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrab,       _c(s.get("scrollbar_color",     "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrabHovered,_c(s.get("hover_color",         "#475569")))
+                dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrabActive, _c(s.get("primary_color",       "#4F46E5")))
+                dpg.add_theme_color(dpg.mvThemeCol_Header,              _c(s.get("primary_color",       "#4F46E5")))
+                dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered,       _c(s.get("primary_hover_color", "#4338CA")))
+                dpg.add_theme_color(dpg.mvThemeCol_Tab,                 _c(s.get("panel_bg",            "#1E293B")))
+                dpg.add_theme_color(dpg.mvThemeCol_TabHovered,          _c(s.get("primary_hover_color", "#4338CA")))
+                dpg.add_theme_color(dpg.mvThemeCol_TabActive,           _c(s.get("primary_color",       "#4F46E5")))
+                dpg.add_theme_color(dpg.mvThemeCol_TitleBg,             _c(s.get("panel_bg",            "#1E293B")))
+                dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive,       _c(s.get("primary_color",       "#4F46E5")))
+                dpg.add_theme_color(dpg.mvThemeCol_PopupBg,             _c(s.get("panel_bg",            "#1E293B")))
+                dpg.add_theme_color(dpg.mvThemeCol_Separator,           _c(s.get("border_color",        "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_CheckMark,           _c(s.get("accent_color",        "#818CF8")))
+                dpg.add_theme_color(dpg.mvThemeCol_SliderGrab,          _c(s.get("primary_color",       "#4F46E5")))
+                dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive,    _c(s.get("primary_hover_color", "#4338CA")))
+                # Rounding  (from Style)
+                S = T.Style
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding,    S.FRAME_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_ChildRounding,     S.CHILD_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_WindowRounding,    S.WINDOW_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_PopupRounding,     S.POPUP_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_ScrollbarRounding, S.SCROLLBAR_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_GrabRounding,      S.GRAB_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_TabRounding,       S.TAB_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_ButtonTextAlign,   S.BTN_ALIGN_X, S.BTN_ALIGN_Y)
+                # Sizing  (fixed — font_scale handles perceived size)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding,     S.FRAME_PAD_X, S.FRAME_PAD_Y)
+                dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing,      S.ITEM_SPACING_X, S.ITEM_SPACING_Y)
+                dpg.add_theme_style(dpg.mvStyleVar_ItemInnerSpacing, S.INNER_SPACING_X, S.INNER_SPACING_Y)
+                dpg.add_theme_style(dpg.mvStyleVar_ScrollbarSize,    S.SCROLLBAR_SIZE)
+                dpg.add_theme_style(dpg.mvStyleVar_GrabMinSize,      S.GRAB_MIN_SIZE)
+                dpg.add_theme_style(dpg.mvStyleVar_WindowPadding,    S.WINDOW_PAD_X, S.WINDOW_PAD_Y)
+                dpg.add_theme_style(dpg.mvStyleVar_WindowBorderSize, S.WINDOW_BORDER)
+                dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize,  S.FRAME_BORDER)
+        # ── Explicit Button Themes ──────────────────────────────────────
+        _btn_tags = ["primary_btn_theme", "secondary_btn_theme",
+                     "success_btn_theme", "danger_btn_theme"]
+        for t in _btn_tags:
             try:
-                lbl.configure(text_color=accent)
+                if dpg.does_item_exist(t):
+                    dpg.delete_item(t)
+                if dpg.does_alias_exist(t):
+                    dpg.remove_alias(t)
             except Exception:
                 pass
 
-        for btn in self._primary_buttons:
+        with dpg.theme(tag="primary_btn_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("primary_color", "#4F46E5")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("primary_hover", "#4338CA")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("primary_color", "#4F46E5")))
+
+        with dpg.theme(tag="secondary_btn_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("secondary_color", "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("secondary_hover", "#475569")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("secondary_color", "#334155")))
+
+        with dpg.theme(tag="success_btn_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("success_color", "#059669")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("success_hover", "#047857")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("success_color", "#059669")))
+                dpg.add_theme_color(dpg.mvThemeCol_Text,          (10, 10, 10, 255))
+
+        with dpg.theme(tag="danger_btn_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("danger_color", "#DC2626")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("danger_hover", "#B91C1C")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("danger_color", "#DC2626")))
+
+        if self._global_theme is not None:
             try:
-                btn.configure(fg_color=primary, hover_color=p_hover)
+                dpg.delete_item(self._global_theme)
             except Exception:
                 pass
 
-        for btn in self._danger_buttons:
-            try:
-                btn.configure(fg_color=danger, hover_color=d_hover)
-            except Exception:
-                pass
+        self._global_theme = global_theme
+        self._danger_btn_theme = "danger_btn_theme"
+        dpg.bind_theme(global_theme)
 
-        for btn in self._success_buttons:
-            try:
-                btn.configure(fg_color=success, hover_color=s_hover)
-            except Exception:
-                pass
-
-        # ── Scrollbars ────────────────────────────────────────────────────
-        old_sb = applied.get("scrollbar_color", DEFAULT_SETTINGS["scrollbar_color"])
-        new_sb = self.settings["scrollbar_color"]
-        for sf in self._scrollable_frames:
-            try:
-                if sf.winfo_exists() and hasattr(sf, "_scrollbar"):
-                    cur = sf._scrollbar.cget("button_color")
-                    if isinstance(cur, str) and cur.upper() == old_sb.upper():
-                        sf._scrollbar.configure(
-                            button_color=new_sb, button_hover_color=new_sb
-                        )
-                    else:
-                        # always force to current setting
-                        sf._scrollbar.configure(
-                            button_color=new_sb, button_hover_color=new_sb
-                        )
-            except Exception:
-                pass
-
-        # ── Output preview colors & font ──────────────────────────────────
-        if hasattr(self, "output_text"):
-            self.output_text.configure(
-                font=("Consolas", self.settings["output_font_size"]),
-                fg_color=self.settings.get("card_bg", "#0F172A"),
-                text_color=self.settings.get("text_primary", "#CBD5E1"),
-                border_color=self.settings.get("border_color", "#334155"),
-            )
-        if hasattr(self, "copy_icon_btn"):
-            self.copy_icon_btn.configure(
-                fg_color=self.settings.get("border_color", "#334155"),
-                hover_color=self.settings.get("primary_color", "#4F46E5"),
-                text_color=self.settings.get("text_secondary", "#94A3B8"),
-            )
-
-        # ── Structural panels ─────────────────────────────────────────────
-        if hasattr(self, "_bot_right"):
-            self._bot_right.configure(
-                fg_color=self.settings.get("panel_bg", "#1E293B"),
-                border_color=self.settings.get("border_color", "#334155"),
-            )
-        if hasattr(self, "_preview_header"):
-            self._preview_header.configure(
-                fg_color=self.settings.get("card_bg", "#0F172A"),
-            )
-        if hasattr(self, "_od_row"):
-            self._od_row.configure(
-                fg_color=self.settings.get("card_bg", "#0F172A"),
-            )
-
-        # ── Slot delete buttons (dynamically created) ─────────────────────
-        for slot in getattr(self, "slots", []):
-            try:
-                slot.del_btn.configure(fg_color=danger)
-                slot.del_dj_btn.configure(fg_color=danger)
-            except Exception:
-                pass
-
-        # ── Snap applied state ────────────────────────────────────────────
         self._applied_settings = dict(self.settings)
+        dpg.set_global_font_scale(float(s.get("ui_scale", 0.75)))
+        self._set_titlebar_color(
+            bg=s.get("panel_bg",      "#1E293B"),
+            text=s.get("text_primary",  "#CBD5E1"),
+            border=s.get("accent_color", "#818CF8"),
+        )
+
+    def _set_titlebar_color(self, bg: str, text: str, border: str):
+        """Set the Windows title bar background, text, and border color via DWM API (Windows 11+)."""
+        import sys
+        if sys.platform != "win32":
+            return
+        import ctypes
+
+        def _colorref(hex_val):
+            h = hex_val.lstrip("#")
+            r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+            return ctypes.c_ulong(b | (g << 8) | (r << 16))  # DWM expects BGR
+
+        DWMWA_BORDER_COLOR  = 34
+        DWMWA_CAPTION_COLOR = 35
+        DWMWA_TEXT_COLOR    = 36
+        try:
+            hwnd = ctypes.windll.user32.FindWindowW(None, "Lineup Builder")
+            if hwnd:
+                for attr, val in [
+                    (DWMWA_BORDER_COLOR,  _colorref(border)),
+                    (DWMWA_CAPTION_COLOR, _colorref(bg)),
+                    (DWMWA_TEXT_COLOR,    _colorref(text)),
+                ]:
+                    ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                        hwnd, attr, ctypes.byref(val), ctypes.sizeof(val)
+                    )
+        except Exception:
+            pass
 
     # ── Preset helpers ────────────────────────────────────────────────────
 
@@ -390,9 +252,6 @@ class SettingsMixin:
         )
         self.save_settings()
         self.apply_theme()
-        tab = self.left_tabs.tab("Settings")
-        for w in tab.winfo_children():
-            w.destroy()
         self._build_settings_tab()
 
     def save_current_as_preset(self, name: str):
@@ -411,175 +270,69 @@ class SettingsMixin:
     # ── Settings tab builder ──────────────────────────────────────────────
 
     def _build_settings_tab(self):
-        tab = self.left_tabs.tab("Settings")
-        tab.grid_columnconfigure(0, weight=1)
-        tab.grid_rowconfigure(0, weight=1)
+        container = "settings_scroll"
+        if not dpg.does_item_exist(container):
+            return
+        dpg.delete_item(container, children_only=True)
 
-        scroll = ctk.CTkScrollableFrame(tab, fg_color="transparent")
-        scroll.grid(row=0, column=0, sticky="nsew")
-        scroll.grid_columnconfigure(0, weight=1)
-        self._autohide_scrollbar(scroll)
-
-        def _section(text):
-            lbl = ctk.CTkLabel(
-                scroll, text=text, font=("Arial", 11, "bold"),
-                text_color=self.settings["accent_color"],
-            )
-            lbl.pack(anchor="w", padx=15, pady=(12, 4))
-            self._accent_labels.append(lbl)
-
-        # ── Output preview font size ──────────────────────────────────────
         # ── Theme Selection ───────────────────────────────────────────────
-        _section("THEME SELECTION")
-
-        theme_card = ctk.CTkFrame(
-            scroll, fg_color=self.settings["panel_bg"], corner_radius=12,
-            border_width=1, border_color=self.settings["border_color"],
-        )
-        theme_card.pack(fill="x", padx=15, pady=(0, 6))
-        theme_card.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(
-            theme_card, text="Color Theme",
-            font=("Arial", 11), text_color=self.settings.get("text_secondary", "#94A3B8"),
-        ).grid(row=0, column=0, padx=12, pady=12, sticky="w")
-
-        # 1. Get presets names
+        styled_text("   THEME SELECTION", HEADER, parent=container)
         preset_names = [p["name"] for p in BUILTIN_PRESETS]
-
-        # 2. Determine current preset
         current_selection = preset_names[0]
-        # Simple heuristic: check if primary_color matches a preset
-        # (A full dict compare is better but this is likely sufficient for UI state)
         for p in BUILTIN_PRESETS:
-            if p["settings"]["primary_color"] == self.settings["primary_color"]:
+            if p["settings"].get("panel_bg") == self.settings.get("panel_bg"):
                 current_selection = p["name"]
                 break
 
-        def _on_theme_change(choice):
-            # Find the preset
+        def _on_theme_change(s, a):
+            choice = dpg.get_value(s)
             preset = next((p for p in BUILTIN_PRESETS if p["name"] == choice), None)
             if not preset:
                 return
-            
-            # Update settings from preset (excluding font size to preserve it)
-            old_font = self.settings.get("output_font_size", 14)
             self.settings.update(preset["settings"])
-            self.settings["output_font_size"] = old_font
-            
-            # Save & Apply
             self.save_settings()
             self.apply_theme()
-            
-            # Rebuild this settings tab to reflect new colors immediately
-            # (panel background, dropdown colors, etc)
-            for widget in tab.winfo_children():
-                widget.destroy()
             self._build_settings_tab()
 
-        theme_menu = ctk.CTkOptionMenu(
-            theme_card,
-            values=preset_names,
-            command=_on_theme_change,
-            fg_color=self.settings.get("card_bg", "#0F172A"),
-            button_color=self.settings["primary_color"],
-            button_hover_color=self.settings.get("primary_hover_color", self.settings["primary_color"]),
-            text_color=self.settings.get("text_primary", "#CBD5E1"),
-            dropdown_fg_color=self.settings.get("card_bg", "#0F172A"),
-            dropdown_hover_color=self.settings.get("hover_color", "#334155"),
-            dropdown_text_color=self.settings.get("text_primary", "#CBD5E1"),
-            width=140
-        )
-        theme_menu.grid(row=0, column=2, padx=(0, 12), pady=12, sticky="e")
-        theme_menu.set(current_selection)
+        _theme_combo = dpg.add_combo(items=preset_names, default_value=current_selection,
+                      parent=container, width=-1, callback=_on_theme_change)
+        with dpg.theme() as _center_theme:
+            with dpg.theme_component(dpg.mvCombo):
+                dpg.add_theme_style(dpg.mvStyleVar_ButtonTextAlign, 0.5, 0.5)
+        dpg.bind_item_theme(_theme_combo, _center_theme)
+        dpg.add_separator(parent=container)
 
-        # ── Output Preview ────────────────────────────────────────────────
-        _section("OUTPUT PREVIEW")
+        # ── UI Scale ──────────────────────────────────────────────────────
+        styled_text("   UI SCALE", HEADER, parent=container)
+        current_scale = float(self.settings.get("ui_scale", 1.0))
+        styled_text(f"{current_scale:.2f}\u00d7", LABEL, parent=container,
+                     tag="ui_scale_label")
 
-        font_card = ctk.CTkFrame(
-            scroll, fg_color=self.settings["panel_bg"], corner_radius=12,
-            border_width=1, border_color=self.settings["border_color"],
-        )
-        font_card.pack(fill="x", padx=15, pady=(0, 6))
-        font_card.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(
-            font_card, text="Font Size",
-            font=("Arial", 11), text_color=self.settings.get("text_secondary", "#94A3B8"),
-        ).grid(row=0, column=0, padx=12, pady=12, sticky="w")
-
-        font_size_lbl = ctk.CTkLabel(
-            font_card, text=str(self.settings["output_font_size"]),
-            font=("Arial", 12, "bold"), text_color=self.settings.get("text_primary", "#CBD5E1"), width=28,
-        )
-        font_size_lbl.grid(row=0, column=2, padx=(0, 12), pady=12)
-
-        font_size_var = ctk.IntVar(value=self.settings["output_font_size"])
-
-        def _on_font_size(val):
-            size = int(val)
-            self.settings["output_font_size"] = size
-            font_size_lbl.configure(text=str(size))
-            if hasattr(self, "output_text"):
-                self.output_text.configure(font=("Consolas", size))
+        def _on_scale(s, a):
+            # slider gives int steps 75..200 representing 0.75..2.00
+            raw = dpg.get_value(s)
+            scale = round(raw / 100, 2)
+            self.settings["ui_scale"] = scale
             self.save_settings()
+            self.apply_theme()
+            if dpg.does_item_exist("ui_scale_label"):
+                dpg.set_value("ui_scale_label", f"Scale: {scale:.2f}×")
 
-        ctk.CTkSlider(
-            font_card, from_=10, to=24, number_of_steps=14,
-            variable=font_size_var, command=_on_font_size,
-            fg_color=self.settings["border_color"],
-            progress_color=self.settings["accent_color"],
-            button_color=self.settings["primary_color"],
-            button_hover_color=self.settings.get("primary_hover_color", "#4338CA"),
-        ).grid(row=0, column=1, padx=(0, 8), pady=12, sticky="ew")
-
-        # ── Left panel width ──────────────────────────────────────────────
-        width_card = ctk.CTkFrame(
-            scroll, fg_color=self.settings["panel_bg"], corner_radius=12,
-            border_width=1, border_color=self.settings["border_color"],
+        dpg.add_slider_int(
+            min_value=75, max_value=125,
+            default_value=int(current_scale * 100),
+            parent=container, width=-1, callback=_on_scale,
+            format="",
         )
-        width_card.pack(fill="x", padx=15, pady=(0, 6))
-        width_card.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkLabel(
-            width_card, text="Panel Width",
-            font=("Arial", 11), text_color=self.settings.get("text_secondary", "#94A3B8"),
-        ).grid(row=0, column=0, padx=12, pady=12, sticky="w")
-
-        panel_width_lbl = ctk.CTkLabel(
-            width_card, text=str(self.settings.get("left_panel_width", 380)),
-            font=("Arial", 12, "bold"), text_color=self.settings.get("text_primary", "#CBD5E1"), width=34,
+        dpg.add_button(
+            label="Reset to Defaults", parent=container, width=-1,
+            callback=lambda: self._reset_to_defaults(),
         )
-        panel_width_lbl.grid(row=0, column=2, padx=(0, 12), pady=12)
-
-        panel_width_var = ctk.IntVar(value=self.settings.get("left_panel_width", 380))
-
-        def _on_panel_width(val):
-            w = int(val)
-            self.settings["left_panel_width"] = w
-            panel_width_lbl.configure(text=str(w))
-            self.grid_columnconfigure(0, weight=0, minsize=w)
-            if hasattr(self, "_left_panel"):
-                self._left_panel.configure(width=w)
-            self.save_settings()
-
-        ctk.CTkSlider(
-            width_card, from_=280, to=560, number_of_steps=28,
-            variable=panel_width_var, command=_on_panel_width,
-            fg_color=self.settings["border_color"],
-            progress_color=self.settings["accent_color"],
-            button_color=self.settings["primary_color"],
-            button_hover_color=self.settings.get("primary_hover_color", "#4338CA"),
-        ).grid(row=0, column=1, padx=(0, 8), pady=12, sticky="ew")
 
     def _reset_to_defaults(self):
-        # Keep applied_settings pointing at current so walker can find & replace
         self._applied_settings = dict(self.settings)
         self.settings = dict(DEFAULT_SETTINGS)
         self.save_settings()
         self.apply_theme()
-        tab = self.left_tabs.tab("Settings")
-        for w in tab.winfo_children():
-            w.destroy()
         self._build_settings_tab()
 

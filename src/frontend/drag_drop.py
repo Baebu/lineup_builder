@@ -1,156 +1,106 @@
 """
 Module: drag_drop.py
-Purpose: Handles slot reordering and dragging DJs from the roster into the lineup.
-Dependencies: tkinter, customtkinter, theme
-Architecture: Mixin for App class. Hooks into mouse events to render visual indicators.
+Purpose: Slot reordering and DJ-to-lineup interaction helpers.
+Architecture: Mixin for App class. Drag-and-drop for slot reordering
+              and DJ roster → lineup insertion.
 """
+import dearpygui.dearpygui as dpg
 
-import tkinter as tk
-import customtkinter as ctk
 from . import theme as T
+
+# ── Highlight theme (created once, reused) ────────────────────────────────
+_flash_theme_tag = "_dd_flash_theme"
+
+
+def _ensure_flash_theme():
+    """Create a DPG theme that tints a group with the accent color."""
+    if dpg.does_item_exist(_flash_theme_tag):
+        return
+    with dpg.theme(tag=_flash_theme_tag):
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_Text, T.DPG_ACCENT)
 
 
 class DragDropMixin:
-    """Slot reorder drag-and-drop + DJ roster → lineup drop."""
+    """Helpers for roster-to-lineup drag/drop and slot reordering."""
 
-    # ── Slot reorder ──────────────────────────────────────────────────────
-
-    def _slot_drag_start(self, event, slot_ui):
-        self._slot_ghost = None  # created on first motion
-        # Cache vertical bounding boxes so we don't call winfo_rooty() every frame
-        self._cached_slot_bounds: list[tuple] =[]
-        for s in self.slots:
-            try:
-                y = s.winfo_rooty()
-                h = s.winfo_height()
-                self._cached_slot_bounds.append((s, y, h))
-            except Exception:
-                pass
-
-    def _slot_drag_motion(self, event, slot_ui):
-        name = slot_ui.name_var.get().strip() or "(empty)"
-        if self._slot_ghost is None:
-            primary = getattr(self, "settings", {}).get("primary_color", T.PRIMARY)
-            self._slot_ghost = ctk.CTkFrame(
-                self, fg_color=primary, corner_radius=6,
-                border_width=1, border_color=T.BORDER
-            )
-            ctk.CTkLabel(
-                self._slot_ghost, text=f" ↕  {name} ",
-                font=T.FONT_BODY_BOLD, text_color=T.WHITE
-            ).pack(padx=14, pady=8)
-            self._slot_ghost.lift()
-            
-        rx = event.x_root - self.winfo_rootx() + 12
-        ry = event.y_root - self.winfo_rooty() + 8
-        self._slot_ghost.place(x=rx, y=ry)
-        self._update_drop_indicator(event.y_root)
-
-    def _slot_drag_end(self, event, slot_ui):
-        if self._slot_ghost:
-            self._slot_ghost.place_forget()
-            self._slot_ghost.destroy()
-            self._slot_ghost = None
-        if self._drop_indicator:
-            self._drop_indicator.place_forget()
-            
-        if slot_ui not in self.slots:
-            return
-        if not getattr(self, "_cached_slot_bounds", None):
-            return
-            
-        target_idx = self._get_drop_index(event.y_root)
-        src_idx = self.slots.index(slot_ui)
-        if target_idx is not None and target_idx != src_idx:
-            self.slots.pop(src_idx)
-            if target_idx > src_idx:
-                target_idx -= 1
-            self.slots.insert(target_idx, slot_ui)
-            self.refresh_slots()
-            self.update_output()
-
-    def _get_drop_index(self, y_root):
-        """Return the insertion index closest to y_root using cached bounds."""
-        for i, (slot, sy, sh) in enumerate(self._cached_slot_bounds):
-            if y_root < sy + sh // 2:
-                return i
-        return len(self.slots)
-
-    def _update_drop_indicator(self, y_root):
-        """Draw a thin colored line between slots at the drop position."""
-        if self._drop_indicator is None:
-            accent = getattr(self, "settings", {}).get("accent_color", T.ACCENT)
-            # Using tk.Frame for the indicator line as it renders sharper at 2px than CTkFrame
-            self._drop_indicator = tk.Frame(
-                self.slots_scroll, bg=accent, height=3, bd=0
-            )
-            
-        idx = self._get_drop_index(y_root)
+    def _add_dj_to_lineup(self, dj_name: str):
+        """Add a DJ from the roster directly into a new lineup slot."""
         try:
-            scroll_root_y = self.slots_scroll.winfo_rooty()
-            if idx < len(self._cached_slot_bounds):
-                _, sy, _ = self._cached_slot_bounds[idx]
-                ry = sy - scroll_root_y
-                self._drop_indicator.place(x=0, y=max(0, ry - 2), relwidth=1.0)
-            elif self._cached_slot_bounds:
-                _, sy, sh = self._cached_slot_bounds[-1]
-                ry = sy + sh - scroll_root_y
-                self._drop_indicator.place(x=0, y=ry, relwidth=1.0)
-            self._drop_indicator.lift()
-        except Exception:
-            pass
+            dur = int(self.master_duration.get())
+        except (ValueError, AttributeError):
+            dur = 60
+        self.add_slot(dj_name, "", dur)
 
-    # ── DJ roster → lineup drop ───────────────────────────────────────────
+    def _drop_dj_on_lineup(self, sender, app_data):
+        """Handle DJ card dropped onto the slots panel — creates a new slot."""
+        if app_data:
+            self._add_dj_to_lineup(str(app_data))
 
-    def _on_dj_drag(self, event, dj_name):
-        """Create or move the drag ghost on B1-Motion."""
-        if self._drag_ghost is None:
-            primary = getattr(self, "settings", {}).get("primary_color", T.PRIMARY)
-            self._drag_ghost = ctk.CTkFrame(
-                self, fg_color=primary, corner_radius=6,
-                border_width=1, border_color=T.BORDER
-            )
-            ctk.CTkLabel(
-                self._drag_ghost, text=f" ➕  {dj_name} ",
-                font=T.FONT_BODY_BOLD, text_color=T.WHITE
-            ).pack(padx=14, pady=8)
-            self._drag_ghost.lift()
-            
-        rx = event.x_root - self.winfo_rootx() + 14
-        ry = event.y_root - self.winfo_rooty() + 10
-        self._drag_ghost.place(x=rx, y=ry)
-        
-        # Highlight the slots panel if hovering over it
-        if self._is_over_slots_panel(event.x_root, event.y_root):
-            hover_bg = getattr(self, "settings", {}).get("hover_color", T.HOVER)
-            self.slots_scroll.configure(fg_color=hover_bg)
-        else:
-            self.slots_scroll.configure(fg_color="transparent")
+    def _drop_on_slot(self, sender, app_data):
+        """Unified drop handler for slot rows.
 
-    def _end_dj_drag(self, event, dj_name):
-        """Drop DJ into lineup if released over the slots panel."""
-        was_dragging = self._drag_ghost is not None
-        if self._drag_ghost is not None:
-            self._drag_ghost.place_forget()
-            self._drag_ghost.destroy()
-            self._drag_ghost = None
-            
-        self.slots_scroll.configure(fg_color="transparent")
-        
-        if was_dragging and self._is_over_slots_panel(event.x_root, event.y_root):
-            try:
-                dur = int(self.master_duration.get())
-            except ValueError:
-                dur = 60
-            self.add_slot(dj_name, "", dur)
+        Accepts two payload shapes:
+        - ("slot_reorder", slot_id)  — reorder slots
+        - str (DJ name)              — assign DJ to slot
+        """
+        if not app_data:
+            return
+        # Slot reorder
+        if isinstance(app_data, (tuple, list)) and len(app_data) == 2 and app_data[0] == "slot_reorder":
+            dragged_id = app_data[1]
+            self._reorder_slot_by_drop(sender, dragged_id)
+            return
+        # DJ card drop — assign name to existing slot
+        dj_name = str(app_data)
+        for slot in self.slots:
+            if slot.row_tag == sender:
+                slot.name_var.set(dj_name)
+                self._schedule_update()
+                from .slot_ui import _update_slot_info
+                _update_slot_info(slot, self)
+                self._flash_slot(slot)
+                return
 
-    def _is_over_slots_panel(self, x_root, y_root):
-        """Return True if screen coordinates are within self.slots_scroll."""
-        try:
-            sx = self.slots_scroll.winfo_rootx()
-            sy = self.slots_scroll.winfo_rooty()
-            sw = self.slots_scroll.winfo_width()
-            sh = self.slots_scroll.winfo_height()
-            return sx <= x_root <= sx + sw and sy <= y_root <= sy + sh
-        except Exception:
-            return False
+    def _reorder_slot_by_drop(self, target_row_tag: str, dragged_slot_id: int):
+        """Move the dragged slot to the position of the target slot."""
+        drag_idx = next((i for i, s in enumerate(self.slots) if s._id == dragged_slot_id), None)
+        drop_idx = next((i for i, s in enumerate(self.slots) if s.row_tag == target_row_tag), None)
+        if drag_idx is None or drop_idx is None or drag_idx == drop_idx:
+            return
+        slot = self.slots.pop(drag_idx)
+        self.slots.insert(drop_idx, slot)
+        self.refresh_slots()
+        self.update_output()
+        # Flash the moved slot briefly to confirm placement
+        self._flash_slot(slot)
+
+    def _flash_slot(self, slot):
+        """Briefly highlight a slot row with the accent theme, then revert."""
+        _ensure_flash_theme()
+        tag = slot.row_tag
+        if not tag or not dpg.does_item_exist(tag):
+            return
+        dpg.bind_item_theme(tag, _flash_theme_tag)
+        # Remove the highlight after 400 ms
+        self._timer("_flash_job", 0.4, lambda: self._clear_flash(tag))
+
+    @staticmethod
+    def _clear_flash(tag: str):
+        if dpg.does_item_exist(tag):
+            dpg.bind_item_theme(tag, 0)
+
+    def _refresh_slot_combos(self):
+        """Update suggestion list items on all existing slot rows after roster changes."""
+        import dearpygui.dearpygui as dpg
+        names = self.get_dj_names()
+        for slot in self.slots:
+            # The name field is now an input_text; just keep the current value as-is.
+            # Suggestion list will always use fresh get_dj_names() when opened.
+            tag = f"slot_name_{slot._id}"
+            if dpg.does_item_exist(tag):
+                current = dpg.get_value(tag)
+                # Keep current value — nothing to reconfigure for input_text
+
+
+

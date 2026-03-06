@@ -1,6 +1,6 @@
-import customtkinter as ctk
-from tkinter import messagebox, simpledialog
-from . import theme as T
+import dearpygui.dearpygui as dpg
+
+from .fonts import HEADER, MUTED, styled_text
 
 
 class GenreMixin:
@@ -27,14 +27,30 @@ class GenreMixin:
     def delete_saved_genre(self):
         val = self.genre_entry_var.get().strip()
         if val and val in self.saved_genres:
-            if messagebox.askyesno("Confirm Delete", f"Remove '{val}' from saved genres?"):
-                self.saved_genres.remove(val)
-                if val in self.active_genres:
-                    self.active_genres.remove(val)
+            win_tag = "del_genre_confirm"
+            if dpg.does_item_exist(win_tag):
+                dpg.delete_item(win_tag)
+            def _do_del(_g=val, _wt=win_tag):
+                self.saved_genres.remove(_g)
+                if _g in self.active_genres:
+                    self.active_genres.remove(_g)
                 self._save_library()
                 self.genre_entry_var.set("")
+                if dpg.does_item_exist("genre_entry"):
+                    dpg.set_value("genre_entry", "")
                 self.refresh_genre_tags()
                 self.update_output()
+                if dpg.does_item_exist(_wt):
+                    dpg.delete_item(_wt)
+            with dpg.window(tag=win_tag, label="Confirm Delete", modal=True,
+                            autosize=True, no_resize=True, no_scrollbar=True,
+                            pos=dpg.get_mouse_pos(local=False)):
+                dpg.add_text(f"Remove '{val}' from saved genres?")
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="Yes", width=140, callback=lambda s, a, u=None: _do_del())
+                    dpg.bind_item_theme(dpg.last_item(), self._danger_btn_theme)
+                    dpg.add_button(label="No", width=140, user_data=win_tag,
+                                   callback=lambda s, a, u: dpg.delete_item(u))
 
     def remove_genre(self, genre):
         if genre in self.active_genres:
@@ -52,204 +68,119 @@ class GenreMixin:
             self.update_output()
 
     def refresh_genre_tags(self):
-        for widget in self.genre_tags_frame.winfo_children():
-            widget.destroy()
-
+        if not dpg.does_item_exist("genre_tags_frame"):
+            return
+        dpg.delete_item("genre_tags_frame", children_only=True)
         if not self.saved_genres:
-            ctk.CTkLabel(
-                self.genre_tags_frame,
-                text="Type a genre above and press Enter to add it.",
-                text_color=T.TEXT_MUTED, font=T.FONT_SMALL,
-            ).grid(row=0, column=0, padx=2, pady=2)
+            styled_text("Type a genre above and press Enter to add it.",
+                         MUTED, parent="genre_tags_frame")
+            return
+        query = self.genre_search_var.get().strip().lower() if hasattr(self, 'genre_search_var') else ""
+        filtered = [g for g in self.saved_genres if not query or query in g.lower()]
+        if not filtered and query:
+            styled_text("No genres match your search.",
+                         MUTED, parent="genre_tags_frame")
             return
 
         active_lower = {g.lower() for g in self.active_genres}
-        primary = getattr(self, "settings", {}).get("primary_color", T.PRIMARY)
-        buttons = []
-        for genre in self.saved_genres:
-            is_active = genre.lower() in active_lower
-            btn = ctk.CTkButton(
-                self.genre_tags_frame,
-                text=genre,
-                command=lambda g=genre, a=is_active: self._toggle_genre(g, a),
-                fg_color=primary if is_active else T.PANEL_BG,
-                hover_color=T.PRIMARY_HOVER if is_active else T.BORDER,
-                text_color=T.WHITE if is_active else T.TEXT_SECONDARY,
-                border_width=T.BORDER_W,
-                border_color=primary if is_active else T.BORDER,
-                height=T.WIDGET_H_PILL, font=T.FONT_BODY, corner_radius=6,
-            )
-            buttons.append(btn)
+        # Intelligent greedy bin-packing: pack as many genre buttons per row to minimize empty space
+        container_w = 0
+        if dpg.does_item_exist("genre_tags_frame"):
+            container_w = dpg.get_item_rect_size("genre_tags_frame")[0]
+        if container_w <= 0:
+            container_w = dpg.get_item_width("genre_tags_frame")
+        if container_w is None or container_w <= 0:
+            container_w = self._LEFT_DEFAULT if hasattr(self, '_LEFT_DEFAULT') else 300
+        
+        # Compensate for padding/scrollbars inside the child window
+        usable_w = max(100, container_w - 20)
 
-        self._genre_buttons = buttons
+        frame_pad_x = 6   # mvStyleVar_FramePadding X (from theme)
+        item_gap = 6       # mvStyleVar_ItemSpacing X (from theme)
 
-        def _reflow(event=None):
-            frame_w = self.genre_tags_frame.winfo_width()
-            if frame_w <= 1:
-                frame_w = 400
-            cols = max(1, frame_w // 120)
-            for c in range(max(cols + 1, 10)):
-                self.genre_tags_frame.grid_columnconfigure(c, weight=0, minsize=0)
-            for c in range(cols):
-                self.genre_tags_frame.grid_columnconfigure(c, weight=1)
-            for i, btn in enumerate(self._genre_buttons):
-                r, c = divmod(i, cols)
-                btn.grid(row=r, column=c, padx=1, pady=1, sticky="ew")
+        # Precompute widths for all buttons
+        items = []
+        for genre in filtered:
+            text_size = dpg.get_text_size(genre)
+            btn_w = (text_size[0] if text_size else len(genre) * 8) + 2 * frame_pad_x
+            items.append((genre, btn_w))
 
-        self._genre_reflow = _reflow
-        _reflow()
-        # Single replacing bind — always calls current self._genre_reflow
-        self.genre_tags_frame.bind("<Configure>", lambda e: self._genre_reflow(e))
+        # Sort items descending by width for best-fit bin packing
+        items.sort(key=lambda x: x[1], reverse=True)
+
+        rows = []  # list of tuples: (used_width, [list of (genre, btn_w)])
+        
+        for item in items:
+            genre, btn_w = item
+            placed = False
+            # Find the first row that can fit this item
+            for i, row in enumerate(rows):
+                used_w, items_in_row = row
+                # The extra cost is the item width + an item gap
+                cost = btn_w
+                if len(items_in_row) > 0:
+                    cost += item_gap
+                
+                if used_w + cost <= usable_w:
+                    rows[i] = (used_w + cost, items_in_row + [item])
+                    placed = True
+                    break
+            
+            # If it doesn't fit in any existing row, create a new row
+            if not placed:
+                rows.append((btn_w, [item]))
+
+        # Render the grouped rows
+        for used_w, items_in_row in rows:
+            row_group = dpg.add_group(horizontal=True, parent="genre_tags_frame")
+            for genre, btn_w in items_in_row:
+                is_active = genre.lower() in active_lower
+                btn = dpg.add_button(
+                    label=genre, parent=row_group, height=20,
+                    user_data=(genre, is_active),
+                    callback=lambda s, a, u: self._toggle_genre(u[0], u[1]),
+                )
+                if is_active:
+                    dpg.bind_item_theme(btn, "success_btn_theme")
 
     # ── Genre editor popout ───────────────────────────────────────────────
 
     def open_genre_editor(self):
         """Open a floating window for managing the saved-genre library."""
-        # Prevent opening multiple copies
-        if hasattr(self, "_genre_editor_win") and self._genre_editor_win.winfo_exists():
-            self._genre_editor_win.focus()
+        win_tag = "genre_editor_win"
+        if dpg.does_item_exist(win_tag):
+            dpg.focus_item(win_tag)
             return
 
-        win = ctk.CTkToplevel(self)
-        self._genre_editor_win = win
-        win.title("Edit Genres")
-        win.geometry("340x480")
-        win.resizable(True, True)
-        win.configure(fg_color=T.CARD_BG)
-        win.grab_set()
-        win.focus()
-
-        # ── Header ────────────────────────────────────────────────────────
-        header = ctk.CTkFrame(win, fg_color=T.PANEL_BG, corner_radius=0)
-        header.pack(fill="x")
-        ctk.CTkLabel(
-            header, text="Genre Library",
-            font=("Arial", 14, "bold"), text_color=T.ACCENT,
-        ).pack(side="left", padx=14, pady=10)
-        ctk.CTkLabel(
-            header, text="Changes apply immediately",
-            font=T.FONT_SMALL, text_color=T.TEXT_MUTED,
-        ).pack(side="left")
-
-        # ── Add-new row ───────────────────────────────────────────────────
-        add_frame = ctk.CTkFrame(win, fg_color="transparent")
-        add_frame.pack(fill="x", padx=12, pady=(10, 4))
-        add_frame.grid_columnconfigure(0, weight=1)
-
-        new_var = ctk.StringVar()
-        add_entry = ctk.CTkEntry(
-            add_frame, textvariable=new_var,
-            placeholder_text="New genre name…",
-            fg_color=T.CARD_BG, border_color=T.BORDER, height=T.WIDGET_H_SM,
-        )
-        add_entry.grid(row=0, column=0, sticky="ew", padx=(0, 6))
-
-        def _add_new(event=None):
-            val = new_var.get().strip()
-            if not val:
+        def _rebuild(_wg=None):
+            if _wg is None:
+                _wg = "genre_editor_list"
+            if not dpg.does_item_exist(_wg):
                 return
-            new_var.set("")
-            self.add_genre(val)
-            _rebuild()
-
-        add_entry.bind("<Return>", _add_new)
-        ctk.CTkButton(
-            add_frame, text="Add", width=56, height=T.WIDGET_H_SM,
-            **T.BTN_PRIMARY,
-            font=T.FONT_BODY_BOLD,
-            command=_add_new,
-        ).grid(row=0, column=1)
-
-        # ── Scrollable genre list ─────────────────────────────────────────
-        scroll = ctk.CTkScrollableFrame(win, fg_color="transparent")
-        scroll.pack(fill="both", expand=True, padx=12, pady=(4, 12))
-        scroll.grid_columnconfigure(0, weight=1)
-
-        def _rebuild():
-            for w in scroll.winfo_children():
-                w.destroy()
+            dpg.delete_item(_wg, children_only=True)
             if not self.saved_genres:
-                ctk.CTkLabel(
-                    scroll, text="No genres saved yet.",
-                    text_color=T.TEXT_MUTED, font=T.FONT_BODY,
-                ).pack(pady=20)
+                styled_text("No genres saved yet.", MUTED, parent=_wg)
                 return
-
             for i, genre in enumerate(self.saved_genres):
-                row = ctk.CTkFrame(
-                    scroll, fg_color=T.PANEL_BG,
-                    corner_radius=8, border_width=T.BORDER_W, border_color=T.BORDER,
-                )
-                row.pack(fill="x", pady=(0, 5))
-                row.grid_columnconfigure(1, weight=1)
+                with dpg.group(parent=_wg, horizontal=True):
+                    dpg.add_text(genre)
+                    dpg.add_button(label="^", small=True, user_data=i,
+                                   callback=lambda s, a, u: _move(u, -1))
+                    dpg.add_button(label="v", small=True, user_data=i,
+                                   callback=lambda s, a, u: _move(u, 1))
+                    dpg.add_button(label="Del", small=True, user_data=genre,
+                                   callback=lambda s, a, u: _delete(u))
 
-                # ── Reorder buttons ────────────────────────────────────
-                btn_col = ctk.CTkFrame(row, fg_color="transparent")
-                btn_col.grid(row=0, column=0, padx=(8, 4), pady=8)
-                ctk.CTkButton(
-                    btn_col, text="", image=self.icon_arrow_up,
-                    width=26, height=24, **T.BTN_SECONDARY,
-                    command=lambda idx=i: _move(idx, -1),
-                ).pack(pady=(0, 2))
-                ctk.CTkButton(
-                    btn_col, text="", image=self.icon_arrow_down,
-                    width=26, height=24, **T.BTN_SECONDARY,
-                    command=lambda idx=i: _move(idx, 1),
-                ).pack()
+        def _move(idx, delta):
+            ni = idx + delta
+            if 0 <= ni < len(self.saved_genres):
+                self.saved_genres[idx], self.saved_genres[ni] = (
+                    self.saved_genres[ni], self.saved_genres[idx])
+                self._save_library()
+                self.refresh_genre_tags()
+                _rebuild()
 
-                # ── Inline rename entry ────────────────────────────────
-                name_var = ctk.StringVar(value=genre)
-                entry = ctk.CTkEntry(
-                    row, textvariable=name_var,
-                    fg_color=T.CARD_BG, border_color=T.BORDER, height=T.WIDGET_H_SM,
-                )
-                entry.grid(row=0, column=1, sticky="ew", padx=(0, 6), pady=8)
-
-                def _rename(event=None, old=genre, var=name_var, idx=i):
-                    new = var.get().strip()
-                    if not new or new == old:
-                        return
-                    if new.lower() in [g.lower() for g in self.saved_genres if g != old]:
-                        messagebox.showwarning("Duplicate", f"'{new}' already exists.", parent=win)
-                        var.set(old)
-                        return
-                    self.saved_genres[idx] = new
-                    if old in self.active_genres:
-                        pos = self.active_genres.index(old)
-                        self.active_genres[pos] = new
-                    self._save_library()
-                    self.refresh_genre_tags()
-                    self.update_output()
-                    _rebuild()
-
-                entry.bind("<Return>",   _rename)
-                entry.bind("<FocusOut>", _rename)
-
-                # ── Delete button ──────────────────────────────────────
-                danger = getattr(self, "settings", {}).get("danger_color", T.DANGER)
-                ctk.CTkButton(
-                    row, text="", image=self.icon_trash,
-                    width=30, height=30,
-                    fg_color=danger, hover_color=T.DANGER_HOVER,
-                    command=lambda g=genre: _delete(g),
-                ).grid(row=0, column=2, padx=(0, 8), pady=8)
-
-        def _move(idx: int, direction: int):
-            other = idx + direction
-            if other < 0 or other >= len(self.saved_genres):
-                return
-            self.saved_genres[idx], self.saved_genres[other] = (
-                self.saved_genres[other], self.saved_genres[idx],
-            )
-            self._save_library()
-            self.refresh_genre_tags()
-            _rebuild()
-
-        def _delete(genre: str):
-            if not messagebox.askyesno(
-                "Confirm Delete", f"Remove '{genre}' from your genre library?", parent=win
-            ):
-                return
+        def _delete(genre):
             if genre in self.saved_genres:
                 self.saved_genres.remove(genre)
             if genre in self.active_genres:
@@ -259,5 +190,20 @@ class GenreMixin:
             self.update_output()
             _rebuild()
 
-        _rebuild()
-        add_entry.focus()
+        with dpg.window(tag=win_tag, label="Edit Genres", width=340, height=480):
+            styled_text("GENRE LIBRARY", HEADER)
+            new_input = dpg.add_input_text(hint="New genre name...", width=-11)
+
+            def _add_new(s, a, _ni=new_input):
+                val = dpg.get_value(_ni).strip()
+                if not val:
+                    return
+                dpg.set_value(_ni, "")
+                self.add_genre(val)
+                _rebuild()
+
+            add_btn = dpg.add_button(label="+ Add", callback=_add_new, width=-1)
+            dpg.bind_item_theme(add_btn, "primary_btn_theme")
+            dpg.add_separator()
+            dpg.add_group(tag="genre_editor_list")
+            _rebuild()

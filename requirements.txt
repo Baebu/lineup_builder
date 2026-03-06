@@ -1,5 +1,4 @@
-customtkinter
-tkcalendar
+dearpygui
 pyyaml
-iconipy
 watchdog
+Pillow

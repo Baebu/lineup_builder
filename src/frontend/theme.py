@@ -2,8 +2,10 @@
 Module: theme.py
 Purpose: Single source of truth for all visual constants.
 Dependencies: None
-Architecture: Provides default styling dicts. SettingsManager overrides colors at runtime.
+Architecture: Provides default colors and styles. SettingsManager overrides colors at runtime.
 """
+
+import dearpygui.dearpygui as dpg
 
 # ─────────────────────────────────────────────────────────────────
 # Colors
@@ -12,7 +14,7 @@ Architecture: Provides default styling dicts. SettingsManager overrides colors a
 # Background layers
 APP_BG          = "#000000"   # root window
 PANEL_BG        = "#1E293B"   # panels, tabviews, cards in foreground
-CARD_BG         = "#0F172A"   # input fields, deep cards
+CARD_BG         = "#090E1A"   # input fields, deep cards
 
 # Borders & hover
 BORDER          = "#334155"   # all borders, secondary button backgrounds
@@ -28,10 +30,10 @@ TEXT_MUTED      = "#475569"   # disabled / very muted
 ACCENT          = "#818CF8"   # section headers / highlights
 PRIMARY         = "#4F46E5"   # main action buttons
 PRIMARY_HOVER   = "#4338CA"
-DANGER          = "#7F1D1D"   # delete / destructive
-DANGER_HOVER    = "#991B1B"
-SUCCESS         = "#059669"   # save / confirm
-SUCCESS_HOVER   = "#047857"
+DANGER          = "#B91C1C"   # delete / destructive
+DANGER_HOVER    = "#DC2626"
+SUCCESS         = "#0B6E4F"   # save / confirm
+SUCCESS_HOVER   = "#00533C"
 ERROR           = "#EF4444"   # validation errors
 WHITE           = "#FFFFFF"   # checkmarks, active text on filled buttons
 DRAG_HINT       = "#B9B9B9"   # subtle secondary hint text ("drag to add →")
@@ -43,10 +45,10 @@ IMPORT_SUCCESS  = "#34D399"   # green preview-success feedback text
 # Dimensions
 # ─────────────────────────────────────────────────────────────────
 
-WIDGET_H        = 35    # standard input / button height
-WIDGET_H_SM     = 32    # compact buttons
-WIDGET_H_XS     = 28    # tiny buttons (edit popups, pill rows)
-WIDGET_H_PILL   = 26    # header action pills
+WIDGET_H        = 20    # standard input / button height
+WIDGET_H_SM     = 20    # compact buttons
+WIDGET_H_XS     = 20    # tiny buttons (edit popups, pill rows)
+WIDGET_H_PILL   = 20    # header action pills
 
 ICON_BTN_W      = 34    # width of square icon-only buttons
 
@@ -57,116 +59,83 @@ BORDER_W        = 1     # standard border width
 SCROLL_PAD_X    = 6     # horizontal padding: scroll container ↔ card edge
 CARD_PAD_INNER  = 10    # internal card padding (content from card edge)
 
-
 # ─────────────────────────────────────────────────────────────────
-# Fonts
-# ─────────────────────────────────────────────────────────────────
-
-FONT_TINY       = ("Arial", 12)           # very small text (genre pills, timestamps)
-FONT_LABEL      = ("Arial", 14, "bold")   # section field labels (all-caps)
-FONT_SMALL      = ("Arial", 12)           # secondary text (field values, pill text)
-FONT_SMALL_BOLD = ("Arial", 12, "bold")   # emphasized secondary text (pill text when active)
-FONT_BODY       = ("Arial", 14)           # main text (DJ names, event titles, tab labels)
-FONT_BODY_BOLD  = ("Arial", 14, "bold")   # emphasized main text (section headers, active tab labels)
-FONT_VALUE      = ("Arial", 12, "bold")   # prominent values (DJ name, event title)
-FONT_MONO       = ("Consolas", 14)        # output preview
-
-
-# ─────────────────────────────────────────────────────────────────
-# Reusable widget-style dicts
+# Standardized UI Style — single source of truth for all DPG sizing
 # ─────────────────────────────────────────────────────────────────
 
-# Text inputs
-ENTRY = dict(
-    fg_color=CARD_BG,
-    border_width=BORDER_W,
-    border_color=BORDER,
-    height=WIDGET_H,
-    corner_radius=6,
-)
+class Style:
+    """Fixed style constants applied to the global DPG theme.
 
-# Drop-down combo boxes (name entry, title, etc.)
-COMBO = dict(
-    fg_color=CARD_BG,
-    border_width=BORDER_W,
-    border_color=BORDER,
-    height=WIDGET_H,
-    button_color=BORDER,
-    button_hover_color=HOVER,
-    dropdown_fg_color=PANEL_BG,
-    dropdown_text_color=TEXT_PRIMARY,
-    dropdown_hover_color=BORDER,
-    corner_radius=6,
-)
+    All values are in pixels. Nothing here scales with ui_scale —
+    font_scale handles perceived size; these stay crisp and tight.
+    """
 
-# OptionMenu (duration, OD count, etc.)
-OPTION_MENU = dict(
-    fg_color=CARD_BG,
-    button_color=BORDER,
-    button_hover_color=HOVER,
-    text_color=TEXT_PRIMARY,
-    dropdown_fg_color=PANEL_BG,
-    dropdown_text_color=TEXT_PRIMARY,
-    dropdown_hover_color=BORDER,
-    corner_radius=6,
-)
+    # Padding inside frames (buttons, inputs, combos)
+    FRAME_PAD_X     = 6
+    FRAME_PAD_Y     = 2
 
-# OptionMenu when disabled (muted appearance)
-OPTION_MENU_DISABLED = dict(
-    fg_color=CARD_BG,
-    button_color=PANEL_BG,
-    button_hover_color=BORDER,
-    text_color=TEXT_MUTED,
-    dropdown_fg_color=PANEL_BG,
-    dropdown_text_color=TEXT_PRIMARY,
-    dropdown_hover_color=BORDER,
-    corner_radius=6,
-)
+    # Spacing between consecutive items
+    ITEM_SPACING_X  = 6
+    ITEM_SPACING_Y  = 4
 
-# Standard buttons
-BTN_PRIMARY   = dict(fg_color=PRIMARY,   hover_color=PRIMARY_HOVER, corner_radius=6)
-BTN_SECONDARY = dict(fg_color=BORDER,    hover_color=HOVER, corner_radius=6)
-BTN_DANGER    = dict(fg_color=DANGER,    hover_color=DANGER_HOVER, corner_radius=6)
-BTN_SUCCESS   = dict(fg_color=SUCCESS,   hover_color=SUCCESS_HOVER, corner_radius=6)
+    # Spacing inside compound widgets (label↔checkbox, etc.)
+    INNER_SPACING_X = 4
+    INNER_SPACING_Y = 4
 
-# Icon-only square button (secondary style)
-BTN_ICON = dict(
-    fg_color=BORDER,
-    hover_color=HOVER,
-    width=ICON_BTN_W,
-    height=WIDGET_H_SM,
-    corner_radius=6,
-)
+    # Padding inside child_windows / popups / panels
+    WINDOW_PAD_X    = 5
+    WINDOW_PAD_Y    = 5
 
-# Icon-only square button (danger style)
-BTN_ICON_DANGER = dict(
-    fg_color=DANGER,
-    hover_color=DANGER_HOVER,
-    width=ICON_BTN_W,
-    height=WIDGET_H_SM,
-    corner_radius=6,
-)
+    # Rounding
+    FRAME_ROUNDING    = CARD_RADIUS    # inputs, buttons, combos
+    CHILD_ROUNDING    = PANEL_RADIUS   # child_window panels
+    WINDOW_ROUNDING   = PANEL_RADIUS   # top-level / popup windows
+    POPUP_ROUNDING    = CARD_RADIUS
+    SCROLLBAR_ROUNDING = CARD_RADIUS
+    GRAB_ROUNDING     = CARD_RADIUS
+    TAB_ROUNDING      = PANEL_RADIUS
 
-# Card frame (slot cards, event cards, DJ cards)
-CARD = dict(
-    fg_color=CARD_BG,
-    border_width=BORDER_W,
-    border_color=BORDER,
-    corner_radius=CARD_RADIUS,
-)
+    # Scrollbar & grab
+    SCROLLBAR_SIZE  = 12
+    GRAB_MIN_SIZE   = 10
 
-# Panel / tabview frame
-PANEL = dict(
-    fg_color=PANEL_BG,
-    border_width=BORDER_W,
-    border_color=BORDER,
-    corner_radius=PANEL_RADIUS,
-)
+    # Borders
+    WINDOW_BORDER   = 1
+    FRAME_BORDER    = 1
 
-# Scrollbar inside genre drawer
-SCROLLBAR_STYLE = dict(
-    orientation="vertical",
-    button_color=BORDER,
-    button_hover_color=HOVER,
-    width=10,
-)
+    # Button text alignment (centered)
+    BTN_ALIGN_X     = 0.5
+    BTN_ALIGN_Y     = 0.5
+
+# ─────────────────────────────────────────────────────────────────
+# Dear PyGui helpers
+# ─────────────────────────────────────────────────────────────────
+
+def hex_to_dpg(hex_color: str, alpha: int = 255) -> tuple:
+    """Convert a CSS hex color string to a DearPyGui (R, G, B, A) tuple."""
+    h = hex_color.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), alpha)
+
+
+# Pre-converted DPG color tuples (used by DPG theme and widget calls)
+DPG_APP_BG         = hex_to_dpg(APP_BG)
+DPG_PANEL_BG       = hex_to_dpg(PANEL_BG)
+DPG_CARD_BG        = hex_to_dpg(CARD_BG)
+DPG_BORDER         = hex_to_dpg(BORDER)
+DPG_HOVER          = hex_to_dpg(HOVER)
+DPG_SCROLLBAR      = hex_to_dpg(SCROLLBAR)
+DPG_TEXT_PRIMARY   = hex_to_dpg(TEXT_PRIMARY)
+DPG_TEXT_SECONDARY = hex_to_dpg(TEXT_SECONDARY)
+DPG_TEXT_MUTED     = hex_to_dpg(TEXT_MUTED)
+DPG_ACCENT         = hex_to_dpg(ACCENT)
+DPG_PRIMARY        = hex_to_dpg(PRIMARY)
+DPG_PRIMARY_HOVER  = hex_to_dpg(PRIMARY_HOVER)
+DPG_DANGER         = hex_to_dpg(DANGER)
+DPG_DANGER_HOVER   = hex_to_dpg(DANGER_HOVER)
+DPG_SUCCESS        = hex_to_dpg(SUCCESS)
+DPG_SUCCESS_HOVER  = hex_to_dpg(SUCCESS_HOVER)
+DPG_ERROR          = hex_to_dpg(ERROR)
+DPG_WHITE          = hex_to_dpg(WHITE)
+DPG_DRAG_HINT      = hex_to_dpg(DRAG_HINT)
+DPG_LOAD_BTN       = hex_to_dpg(LOAD_BTN)
+DPG_IMPORT_SUCCESS = hex_to_dpg(IMPORT_SUCCESS)
