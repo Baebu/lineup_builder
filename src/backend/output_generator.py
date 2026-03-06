@@ -121,6 +121,17 @@ class OutputGenerator:
                 lines.append(f"<t:{ts}:t> | **{name}**{genre_str}")
             ptr += datetime.timedelta(minutes=slot.duration)
 
+        # Social links (bottom of lineup)
+        _LINK_ORDER = ["TIMELINE", "VRCPOP", "X", "IG", "DISCORD", "VRC GROUP"]
+        if snap.social_links:
+            parts = [
+                f"[{label}]({snap.social_links[label]})"
+                for label in _LINK_ORDER
+                if snap.social_links.get(label, "").strip()
+            ]
+            if parts:
+                lines.append(" | ".join(parts))
+
         return "\n".join(lines)
 
     @staticmethod

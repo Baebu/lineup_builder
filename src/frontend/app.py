@@ -43,8 +43,14 @@ class App(
     def _data_path(filename: str) -> str:
         return os.path.join(get_data_dir(), filename)
 
-    LIBRARY_FILE      = property(lambda self: self._data_path("lineup_library.yaml"))
-    EVENTS_FILE       = property(lambda self: self._data_path("lineup_events.yaml"))
+    def _sync_path(self, filename: str) -> str:
+        """Like _data_path but uses the user-configured sync directory when set."""
+        sync_dir = getattr(self, "sync_data_dir", "").strip()
+        base = sync_dir if (sync_dir and os.path.isdir(sync_dir)) else get_data_dir()
+        return os.path.join(base, filename)
+
+    LIBRARY_FILE      = property(lambda self: self._sync_path("lineup_library.yaml"))
+    EVENTS_FILE       = property(lambda self: self._sync_path("lineup_events.yaml"))
     WINDOW_STATE_FILE = property(lambda self: self._data_path("window_state.json"))
     AUTO_SAVE_FILE    = property(lambda self: self._data_path("auto_save.json"))
 
@@ -68,14 +74,15 @@ class App(
         self.genre_search_var = DPGVar(default="")
         self.dj_search_var   = DPGVar(default="")
         self.slots           = []
+        self.social_links: dict[str, str] = {}
 
         # ── Debounce state ────────────────────────────────────────────────
         self._init_debounce()
         self._current_event_key = None
 
         # ── Load data & settings ─────────────────────────────────────────
+        self.load_settings()  # must run first so sync_data_dir is available
         self.load_data()
-        self.load_settings()
 
         # ── DPG viewport ─────────────────────────────────────────────────
         _icon = get_icon_path() or ""

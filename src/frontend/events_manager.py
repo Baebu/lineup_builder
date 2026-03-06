@@ -34,6 +34,7 @@ class EventsMixin:
             "master_duration": self.master_duration.get(),
             "genres": self.active_genres.copy(),
             "names_only": self.names_only.get(),
+            "social_links": dict(getattr(self, "social_links", {})),
             "slots": []
         }
 
@@ -97,6 +98,7 @@ class EventsMixin:
             self.active_genres = []
             self.refresh_genre_tags()
             self.names_only.set(False)
+            self.social_links = {}
             for slot in self.slots:
                 slot.destroy()
             self.slots.clear()
@@ -134,6 +136,7 @@ class EventsMixin:
         self.refresh_genre_tags()
 
         self.names_only.set(event_data.get("names_only", False))
+        self.social_links = event_data.get("social_links", {}).copy()
 
         for slot in self.slots:
             slot.destroy()
@@ -188,6 +191,7 @@ class EventsMixin:
             "master_duration": self.master_duration.get(),
             "genres": self.active_genres.copy(),
             "names_only": self.names_only.get(),
+            "social_links": dict(getattr(self, "social_links", {})),
             "slots": [
                 {"name": s.name_var.get().strip(), "genre": s.genre_var.get().strip(), "duration": s.duration_var.get()}
                 for s in self.slots

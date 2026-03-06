@@ -79,6 +79,15 @@ class UISetupMixin:
                     add_primary_button("Save", width=-1, callback=lambda: self.save_event_lineup())
             dpg.add_separator()
 
+            # ── Social links shortcut ────────────────────────────────────
+            dpg.add_button(
+                label="Social Links",
+                tag="social_links_btn",
+                width=-1,
+                callback=lambda: self._open_social_links_popup(),
+            )
+            dpg.add_separator()
+
             # ── Event title + vol ─────────────────────────────────────────────
             styled_text("   EVENT TITLE", LABEL)
             with dpg.group(horizontal=True):
@@ -161,6 +170,94 @@ class UISetupMixin:
                               border=False, autosize_x=True):
             pass  # populated by refresh_dj_roster_ui()
         self.refresh_dj_roster_ui()
+
+    # ── Social links popup ──────────────────────────────────────────
+
+    _SOCIAL_FIELDS = [
+        ("TIMELINE",   "https://vrc.tl/event/"),
+        ("VRCPOP",     "https://vrcpop.com/event/"),
+        ("X",          "https://x.com/"),
+        ("IG",         "https://www.instagram.com/p/"),
+        ("DISCORD",    "https://discord.gg/"),
+        ("VRC GROUP",  "https://vrc.group/"),
+    ]
+
+    def _open_social_links_popup(self):
+        win_tag = "social_links_win"
+        if dpg.does_item_exist(win_tag):
+            dpg.focus_item(win_tag)
+            return
+
+        links = getattr(self, "social_links", {})
+        persistent = getattr(self, "persistent_links", {})
+        _PERSISTENT_KEYS = {"DISCORD", "VRC GROUP"}
+
+        with dpg.window(
+            tag=win_tag, label="Social Links", modal=True,
+            no_resize=True, no_scrollbar=True, autosize=True,
+        ):
+            styled_text("  Links included in the Discord output below the genres.",
+                        MUTED, wrap=340)
+            dpg.add_spacer(height=4)
+
+            input_tags = {}
+            checkbox_tags = {}
+            for label, hint in self._SOCIAL_FIELDS:
+                styled_text(f"  {label}", LABEL)
+                tag = f"social_input_{label.replace(' ', '_')}"
+                # Pre-fill: use persistent link when enabled, otherwise event-specific
+                p = persistent.get(label, {})
+                default_val = (p.get("link", "") if p.get("enabled") else "") or links.get(label, "")
+                dpg.add_input_text(
+                    tag=tag,
+                    default_value=default_val,
+                    hint=hint,
+                    width=340,
+                )
+                input_tags[label] = tag
+                if label in _PERSISTENT_KEYS:
+                    cb_tag = f"social_persist_{label.replace(' ', '_')}"
+                    dpg.add_checkbox(
+                        tag=cb_tag,
+                        label="Use for all events",
+                        default_value=bool(p.get("enabled", False)),
+                    )
+                    checkbox_tags[label] = cb_tag
+
+            dpg.add_spacer(height=6)
+
+            def _save_and_close():
+                self.social_links = {
+                    label: dpg.get_value(input_tags[label]).strip()
+                    for label in input_tags
+                }
+                for key, cb_tag in checkbox_tags.items():
+                    self.persistent_links[key] = {
+                        "link": dpg.get_value(input_tags[key]).strip(),
+                        "enabled": dpg.get_value(cb_tag),
+                    }
+                self.save_settings()
+                self._schedule_update()
+                if dpg.does_item_exist(win_tag):
+                    dpg.delete_item(win_tag)
+
+            def _clear_all():
+                for t in input_tags.values():
+                    dpg.set_value(t, "")
+
+            with dpg.group(horizontal=True):
+                _apply_btn = dpg.add_button(
+                    label="Apply", width=160, callback=lambda: _save_and_close()
+                )
+                dpg.bind_item_theme(_apply_btn, "primary_btn_theme")
+                dpg.add_button(
+                    label="Clear All", width=80,
+                    callback=lambda: _clear_all(),
+                )
+                dpg.add_button(
+                    label="Cancel", width=80,
+                    callback=lambda: dpg.delete_item(win_tag),
+                )
 
     # ── Right panel ───────────────────────────────────────────────────────
 
