@@ -13,7 +13,7 @@ from src.backend.event_bus import EventBus
 from src.backend.lineup_model import LineupModel
 from src.backend.output_builder import OutputMixin
 
-from .dj_roster import DJRosterMixin
+from .roster import RosterMixin
 from .drag_drop import DragDropMixin
 from .events_manager import EventsMixin
 from .fonts import setup_fonts
@@ -28,7 +28,7 @@ from .utils import get_data_dir, get_icon_path
 
 class App(
     UISetupMixin,
-    DJRosterMixin,
+    RosterMixin,
     DragDropMixin,
     EventsMixin,
     GenreMixin,

@@ -6,6 +6,14 @@ Built on **DearPyGui** with a mixin-composition architecture — the entire back
 
 ---
 
+## Screenshots
+
+![Lineup Builder screenshot 1](assets/Screenshots/Screenshot%202026-03-06%20072533.png)
+![Lineup Builder screenshot 2](assets/Screenshots/Screenshot%202026-03-06%20072539.png)
+![Lineup Builder screenshot 3](assets/Screenshots/Screenshot%202026-03-06%20072544.png)
+
+---
+
 ## Features
 
 ### Event Orchestration
@@ -122,7 +130,7 @@ src/
     ├── settings_manager.py SettingsMixin: settings.json + apply_theme()
     ├── slot_ui.py          DPGVar, DPGBoolVar, SlotState, build_slot_row()
     ├── slot_manager.py     SlotMixin: add/delete/reorder slots
-    ├── dj_roster.py        DJRosterMixin: roster CRUD + drag payloads
+    ├── roster.py           RosterMixin: roster CRUD + drag payloads
     ├── genre_manager.py    GenreMixin: genre tag management
     ├── events_manager.py   EventsMixin: save/load/delete event lineups
     ├── drag_drop.py        DragDropMixin: slot reordering + DJ drop targets
@@ -168,7 +176,7 @@ Cross-module communication uses `EventBus` pub/sub. `LineupModel` publishes `"mo
 | `settings_manager.py` | `SettingsMixin` | `load_settings()`, `apply_theme()`, `apply_preset()`, `save_current_as_preset()` |
 | `slot_ui.py` | `DPGVar`, `DPGBoolVar`, `SlotState` | Per-slot widget state; `build_slot_row()` creates the slot UI row |
 | `slot_manager.py` | `SlotMixin` | `add_slot()`, `delete_slot()`, `move_slot()`, apply master duration |
-| `dj_roster.py` | `DJRosterMixin` | Roster display + CRUD; bulk link import; drag payload creation |
+| `roster.py` | `RosterMixin` | Roster display + CRUD; bulk link import; drag payload creation |
 | `genre_manager.py` | `GenreMixin` | Genre tag add/delete/toggle; filtered genre lists |
 | `events_manager.py` | `EventsMixin` | YAML-backed event save/load/delete/duplicate + confirmation dialogs |
 | `drag_drop.py` | `DragDropMixin` | Slot reorder drag handles; DJ-card drop targets; "flash" highlight |

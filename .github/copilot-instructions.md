@@ -7,7 +7,7 @@ Mixin-composition desktop app. A single `App` class (`src/frontend/app.py`) inhe
 | # | Mixin | File | Responsibility |
 |---|-------|------|----------------|
 | 1 | `UISetupMixin` | `src/frontend/ui_builder.py` | DPG viewport, left/right panels, all widget construction, scroll/arrow-key handlers |
-| 2 | `DJRosterMixin` | `src/frontend/dj_roster.py` | DJ roster CRUD, bulk link import, drag payload creation |
+| 2 | `RosterMixin` | `src/frontend/roster.py` | DJ roster CRUD, bulk link import, drag payload creation |
 | 3 | `DragDropMixin` | `src/frontend/drag_drop.py` | Slot reordering, DJ-card→slot drop targets, flash highlight |
 | 4 | `EventsMixin` | `src/frontend/events_manager.py` | Save/load/delete/duplicate event lineups (YAML-backed) |
 | 5 | `GenreMixin` | `src/frontend/genre_manager.py` | Genre tag add/delete/toggle, active-genre filtering |
