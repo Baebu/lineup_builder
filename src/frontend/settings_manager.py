@@ -4,182 +4,65 @@ import os
 import dearpygui.dearpygui as dpg
 
 from . import theme as T
-from .fonts import Icon
+from .fonts import HEADER, LABEL, styled_text
 from .utils import get_data_dir
 
 SETTINGS_FILE = os.path.join(get_data_dir(), "settings.json")
 DEFAULT_SETTINGS = {
     # Layout
-    "left_panel_width": 380,
-    # Output preview
-    "output_font_size": 14,
-    # Interactive colors
-    "accent_color":    T.ACCENT,          # section headers / highlights
-    "primary_color":   T.PRIMARY,         # main action buttons
-    "danger_color":    T.DANGER,          # delete / destructive buttons
-    "success_color":   T.SUCCESS,         # save / confirm buttons
-    # Text colors
-    "text_primary":    T.TEXT_PRIMARY,    # main text / values
-    "text_secondary":  T.TEXT_SECONDARY,  # labels / muted text
-    # Interactive Hovers
-    "primary_hover_color": T.PRIMARY_HOVER,
-    "danger_hover_color":  T.DANGER_HOVER,
-    "success_hover_color": T.SUCCESS_HOVER,
-    # Structural colors
-    "panel_bg":        T.PANEL_BG,        # panels, tabviews, cards in foreground
-    "card_bg":         T.CARD_BG,         # deep cards, input field backgrounds
-    "border_color":    T.BORDER,          # all borders, secondary button backgrounds
-    "hover_color":     T.HOVER,           # general hover state
-    "scrollbar_color": T.SCROLLBAR,       # scrollbar thumb
-    # Scaling
-    "ui_scale":        1.0,               # global font/UI scale multiplier
-}
+    "left_panel_width": 325,
+    "ui_scale": 1.0,
 
-# (unused in DPG version)
-_COLOR_ATTRS: list = []
+    # Fixed Button Colors (Theme independent)
+    "primary_color":   "#4F46E5",
+    "primary_hover":   "#4338CA",
+    "secondary_color": "#334155",
+    "secondary_hover": "#475569",
+    "success_color":   "#059669",
+    "success_hover":   "#047857",
+    "danger_color":    "#DC2626",
+    "danger_hover":    "#B91C1C",
+    "accent_color":    "#818CF8",
+
+    # Structural Colors (Vary by theme)
+    "panel_bg":        "#1E293B",
+    "card_bg":         "#0F172A",
+    "border_color":    "#334155",
+    "hover_color":     "#475569",
+    "scrollbar_color": "#475569",
+    "text_primary":    "#CBD5E1",
+    "text_secondary":  "#94A3B8",
+}
 
 BUILTIN_PRESETS = [
     {
-        "name": "Default (Indigo)",
+        "name": "Slate (Default)",
         "settings": dict(DEFAULT_SETTINGS),
     },
     {
-        "name": "Emerald",
+        "name": "Midnight",
         "settings": {
             **DEFAULT_SETTINGS,
-            "accent_color":  "#34D399",
-            "primary_color": "#059669",
-            "success_color": "#047857",
-            "danger_color":  "#7F1D1D",
-            "panel_bg":      "#1A2E24",
-            "card_bg":       "#0D1F18",
-            "border_color":  "#1F4D36",
-            "hover_color":   "#2D6E4E",
-            "scrollbar_color": "#2D6E4E",
-            # New Theme
-            "text_primary":    "#D1FAE5", # Emerald-100
-            "text_secondary":  "#6EE7B7", # Emerald-300
-            "primary_hover_color": "#047857",
-            "danger_hover_color":  "#991B1B",
-            "success_hover_color": "#064E3B",
+            "panel_bg":      "#0A1128",
+            "card_bg":       "#040814",
+            "border_color":  "#1C2A4A",
+            "hover_color":   "#2A3B61",
+            "scrollbar_color": "#1C2A4A",
+            "text_primary":  "#E2E8F0",
+            "text_secondary": "#94A3B8",
         },
     },
     {
-        "name": "Rose",
+        "name": "OLED Black",
         "settings": {
             **DEFAULT_SETTINGS,
-            "accent_color":  "#FB7185",
-            "primary_color": "#E11D48",
-            "success_color": "#059669",
-            "danger_color":  "#7F1D1D",
-            "panel_bg":      "#2D1B22",
-            "card_bg":       "#1A0F14",
-            "border_color":  "#4C1D30",
-            "hover_color":   "#6D2840",
-            "scrollbar_color": "#6D2840",
-            # New Theme
-            "text_primary":    "#FFE4E6",
-            "text_secondary":  "#FDA4AF",
-            "primary_hover_color": "#BE123C",
-            "danger_hover_color":  "#991B1B",
-            "success_hover_color": "#047857",
-        },
-    },
-    {
-        "name": "Slate (Mono)",
-        "settings": {
-            **DEFAULT_SETTINGS,
-            "accent_color":  "#94A3B8",
-            "primary_color": "#475569",
-            "success_color": "#64748B",
-            "danger_color":  "#7F1D1D",
-            "panel_bg":      "#1E293B",
-            "card_bg":       "#0F172A",
-            "border_color":  "#334155",
-            "hover_color":   "#475569",
-            "scrollbar_color": "#475569",
-            # New Theme
-            "text_primary":    "#CBD5E1",
-            "text_secondary":  "#94A3B8",
-            "primary_hover_color": "#334155",
-            "danger_hover_color":  "#991B1B",
-            "success_hover_color": "#475569",
-        },
-    },
-    {
-        "name": "Ocean (Blue)",
-        "settings": {
-            **DEFAULT_SETTINGS,
-            "accent_color":  "#38BDF8",  # Sky 400
-            "primary_color": "#0284C7",  # Sky 600
-            "success_color": "#059669",
-            "danger_color":  "#9F1239",  # Rose 800
-            "panel_bg":      "#0C4A6E",  # Sky 900
-            "card_bg":       "#082F49",  # Sky 950
-            "border_color":  "#0369A1",  # Sky 700
-            "hover_color":   "#075985",  # Sky 800
-            "scrollbar_color": "#075985",
-            "text_primary":    "#E0F2FE", # Sky 100
-            "text_secondary":  "#7DD3FC", # Sky 300
-            "primary_hover_color": "#0369A1",
-            "danger_hover_color":  "#881337",
-        },
-    },
-    {
-        "name": "Amber (Orange)",
-        "settings": {
-            **DEFAULT_SETTINGS,
-            "accent_color":  "#F59E0B",  # Amber 500
-            "primary_color": "#D97706",  # Amber 600
-            "success_color": "#059669",
-            "danger_color":  "#7F1D1D",
-            "panel_bg":      "#451A03",  # Amber 950 (shifted to brown)
-            "card_bg":       "#270E01",  # Deep brown
-            "border_color":  "#78350F",  # Amber 900
-            "hover_color":   "#92400E",  # Amber 800
-            "scrollbar_color": "#92400E",
-            "text_primary":    "#FEF3C7", # Amber 100
-            "text_secondary":  "#FCD34D", # Amber 300
-            "primary_hover_color": "#B45309",
-            "danger_hover_color":  "#991B1B",
-        },
-    },
-    {
-        "name": "Violet (Deep)",
-        "settings": {
-            **DEFAULT_SETTINGS,
-            "accent_color":  "#A78BFA",  # Violet 400
-            "primary_color": "#7C3AED",  # Violet 600
-            "success_color": "#059669",
-            "danger_color":  "#831843",  # Pink 900
-            "panel_bg":      "#2E1065",  # Violet 950
-            "card_bg":       "#170536",  # Deep violet
-            "border_color":  "#5B21B6",  # Violet 800
-            "hover_color":   "#6D28D9",  # Violet 700
-            "scrollbar_color": "#6D28D9",
-            "text_primary":    "#EDE9FE", # Violet 100
-            "text_secondary":  "#C4B5FD", # Violet 300
-            "primary_hover_color": "#6D28D9",
-            "danger_hover_color":  "#831843",
-        },
-    },
-    {
-        "name": "Crimson (Red)",
-        "settings": {
-            **DEFAULT_SETTINGS,
-            "accent_color":  "#F87171",  # Red 400
-            "primary_color": "#DC2626",  # Red 600
-            "success_color": "#059669",
-            "danger_color":  "#450A0A",  # Red 950
-            "panel_bg":      "#450A0A",  # Red 950
-            "card_bg":       "#280505",  # Deep red
-            "border_color":  "#7F1D1D",  # Red 900
-            "hover_color":   "#991B1B",  # Red 800
-            "scrollbar_color": "#991B1B",
-            "text_primary":    "#FEE2E2", # Red 100
-            "text_secondary":  "#FCA5A5", # Red 300
-            "primary_hover_color": "#B91C1C",
-            "danger_hover_color":  "#450A0A",
+            "panel_bg":      "#121212",
+            "card_bg":       "#000000",
+            "border_color":  "#27272A",
+            "hover_color":   "#3F3F46",
+            "scrollbar_color": "#27272A",
+            "text_primary":  "#F4F4F5",
+            "text_secondary": "#A1A1AA",
         },
     },
 ]
@@ -208,6 +91,7 @@ class SettingsMixin:
         # Tracks the last-applied color for each key
         self._applied_settings: dict = dict(self.settings)
         self._global_theme = None
+        self._danger_btn_theme = None
 
     def save_settings(self):
         try:
@@ -228,18 +112,18 @@ class SettingsMixin:
         s = self.settings
         with dpg.theme() as global_theme:
             with dpg.theme_component(dpg.mvAll):
-                dpg.add_theme_color(dpg.mvThemeCol_WindowBg,           _c(s.get("card_bg",             "#0F172A")))
+                dpg.add_theme_color(dpg.mvThemeCol_WindowBg,           _c(s.get("panel_bg",             "#1E293B")))
                 dpg.add_theme_color(dpg.mvThemeCol_ChildBg,             _c(s.get("panel_bg",            "#1E293B")))
                 dpg.add_theme_color(dpg.mvThemeCol_FrameBg,             _c(s.get("card_bg",             "#0F172A")))
                 dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered,      _c(s.get("hover_color",         "#334155")))
                 dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive,       _c(s.get("primary_color",       "#4F46E5")))
-                dpg.add_theme_color(dpg.mvThemeCol_Button,              _c(s.get("primary_color",       "#4F46E5")))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered,       _c(s.get("primary_hover_color", "#4338CA")))
-                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,        _c(s.get("primary_color",       "#4F46E5")))
+                dpg.add_theme_color(dpg.mvThemeCol_Button,              _c(s.get("secondary_color",     "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered,       _c(s.get("secondary_hover",     "#475569")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,        _c(s.get("secondary_color",     "#334155")))
                 dpg.add_theme_color(dpg.mvThemeCol_Text,                _c(s.get("text_primary",        "#CBD5E1")))
                 dpg.add_theme_color(dpg.mvThemeCol_TextDisabled,        _c(s.get("text_secondary",      "#94A3B8")))
                 dpg.add_theme_color(dpg.mvThemeCol_Border,              _c(s.get("border_color",        "#334155")))
-                dpg.add_theme_color(dpg.mvThemeCol_ScrollbarBg,         _c(s.get("card_bg",             "#0F172A")))
+                dpg.add_theme_color(dpg.mvThemeCol_ScrollbarBg,         (0, 0, 0, 0))
                 dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrab,       _c(s.get("scrollbar_color",     "#334155")))
                 dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrabHovered,_c(s.get("hover_color",         "#475569")))
                 dpg.add_theme_color(dpg.mvThemeCol_ScrollbarGrabActive, _c(s.get("primary_color",       "#4F46E5")))
@@ -250,36 +134,79 @@ class SettingsMixin:
                 dpg.add_theme_color(dpg.mvThemeCol_TabActive,           _c(s.get("primary_color",       "#4F46E5")))
                 dpg.add_theme_color(dpg.mvThemeCol_TitleBg,             _c(s.get("panel_bg",            "#1E293B")))
                 dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive,       _c(s.get("primary_color",       "#4F46E5")))
-                dpg.add_theme_color(dpg.mvThemeCol_PopupBg,             _c(s.get("card_bg",             "#0F172A")))
+                dpg.add_theme_color(dpg.mvThemeCol_PopupBg,             _c(s.get("panel_bg",            "#1E293B")))
                 dpg.add_theme_color(dpg.mvThemeCol_Separator,           _c(s.get("border_color",        "#334155")))
                 dpg.add_theme_color(dpg.mvThemeCol_CheckMark,           _c(s.get("accent_color",        "#818CF8")))
                 dpg.add_theme_color(dpg.mvThemeCol_SliderGrab,          _c(s.get("primary_color",       "#4F46E5")))
                 dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive,    _c(s.get("primary_hover_color", "#4338CA")))
-                # Rounding
-                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding,    T.CARD_RADIUS)
-                dpg.add_theme_style(dpg.mvStyleVar_ChildRounding,     T.PANEL_RADIUS)
-                dpg.add_theme_style(dpg.mvStyleVar_WindowRounding,    T.PANEL_RADIUS)
-                dpg.add_theme_style(dpg.mvStyleVar_PopupRounding,     T.CARD_RADIUS)
-                dpg.add_theme_style(dpg.mvStyleVar_ScrollbarRounding, T.CARD_RADIUS)
-                dpg.add_theme_style(dpg.mvStyleVar_GrabRounding,      T.CARD_RADIUS)
-                dpg.add_theme_style(dpg.mvStyleVar_TabRounding,       T.PANEL_RADIUS)
-                dpg.add_theme_style(dpg.mvStyleVar_ButtonTextAlign,   0.5, 0.5)
-                # Sizing (scales with ui_scale)
-                sc = float(s.get("ui_scale", 1.0))
-                dpg.add_theme_style(dpg.mvStyleVar_FramePadding,     int(8 * sc), int(6 * sc))
-                dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing,      int(8 * sc), int(6 * sc))
-                dpg.add_theme_style(dpg.mvStyleVar_ItemInnerSpacing, int(4 * sc), int(4 * sc))
-                dpg.add_theme_style(dpg.mvStyleVar_ScrollbarSize,    int(14 * sc))
-                dpg.add_theme_style(dpg.mvStyleVar_GrabMinSize,      int(12 * sc))
+                # Rounding  (from Style)
+                S = T.Style
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding,    S.FRAME_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_ChildRounding,     S.CHILD_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_WindowRounding,    S.WINDOW_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_PopupRounding,     S.POPUP_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_ScrollbarRounding, S.SCROLLBAR_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_GrabRounding,      S.GRAB_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_TabRounding,       S.TAB_ROUNDING)
+                dpg.add_theme_style(dpg.mvStyleVar_ButtonTextAlign,   S.BTN_ALIGN_X, S.BTN_ALIGN_Y)
+                # Sizing  (fixed — font_scale handles perceived size)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding,     S.FRAME_PAD_X, S.FRAME_PAD_Y)
+                dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing,      S.ITEM_SPACING_X, S.ITEM_SPACING_Y)
+                dpg.add_theme_style(dpg.mvStyleVar_ItemInnerSpacing, S.INNER_SPACING_X, S.INNER_SPACING_Y)
+                dpg.add_theme_style(dpg.mvStyleVar_ScrollbarSize,    S.SCROLLBAR_SIZE)
+                dpg.add_theme_style(dpg.mvStyleVar_GrabMinSize,      S.GRAB_MIN_SIZE)
+                dpg.add_theme_style(dpg.mvStyleVar_WindowPadding,    S.WINDOW_PAD_X, S.WINDOW_PAD_Y)
+                dpg.add_theme_style(dpg.mvStyleVar_WindowBorderSize, S.WINDOW_BORDER)
+                dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize,  S.FRAME_BORDER)
+        # ── Explicit Button Themes ──────────────────────────────────────
+        _btn_tags = ["primary_btn_theme", "secondary_btn_theme",
+                     "success_btn_theme", "danger_btn_theme"]
+        for t in _btn_tags:
+            try:
+                if dpg.does_item_exist(t):
+                    dpg.delete_item(t)
+                if dpg.does_alias_exist(t):
+                    dpg.remove_alias(t)
+            except Exception:
+                pass
+
+        with dpg.theme(tag="primary_btn_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("primary_color", "#4F46E5")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("primary_hover", "#4338CA")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("primary_color", "#4F46E5")))
+
+        with dpg.theme(tag="secondary_btn_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("secondary_color", "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("secondary_hover", "#475569")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("secondary_color", "#334155")))
+
+        with dpg.theme(tag="success_btn_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("success_color", "#059669")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("success_hover", "#047857")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("success_color", "#059669")))
+                dpg.add_theme_color(dpg.mvThemeCol_Text,          (10, 10, 10, 255))
+
+        with dpg.theme(tag="danger_btn_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("danger_color", "#DC2626")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("danger_hover", "#B91C1C")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("danger_color", "#DC2626")))
+
         if self._global_theme is not None:
             try:
                 dpg.delete_item(self._global_theme)
             except Exception:
                 pass
+
         self._global_theme = global_theme
+        self._danger_btn_theme = "danger_btn_theme"
         dpg.bind_theme(global_theme)
+
         self._applied_settings = dict(self.settings)
-        dpg.set_global_font_scale(float(s.get("ui_scale", 1.0)))
+        dpg.set_global_font_scale(float(s.get("ui_scale", 0.75)))
         self._set_titlebar_color(
             bg=s.get("panel_bg",      "#1E293B"),
             text=s.get("text_primary",  "#CBD5E1"),
@@ -349,56 +276,37 @@ class SettingsMixin:
         dpg.delete_item(container, children_only=True)
 
         # ── Theme Selection ───────────────────────────────────────────────
-        dpg.add_text("THEME SELECTION", parent=container,
-                     color=T.DPG_ACCENT)
+        styled_text("   THEME SELECTION", HEADER, parent=container)
         preset_names = [p["name"] for p in BUILTIN_PRESETS]
         current_selection = preset_names[0]
         for p in BUILTIN_PRESETS:
-            if p["settings"]["primary_color"] == self.settings["primary_color"]:
+            if p["settings"].get("panel_bg") == self.settings.get("panel_bg"):
                 current_selection = p["name"]
                 break
-        dpg.add_text("Color Theme:", parent=container,
-                     color=T.DPG_TEXT_SECONDARY)
 
         def _on_theme_change(s, a):
             choice = dpg.get_value(s)
             preset = next((p for p in BUILTIN_PRESETS if p["name"] == choice), None)
             if not preset:
                 return
-            old_font = self.settings.get("output_font_size", 14)
             self.settings.update(preset["settings"])
-            self.settings["output_font_size"] = old_font
             self.save_settings()
             self.apply_theme()
             self._build_settings_tab()
 
-        dpg.add_combo(items=preset_names, default_value=current_selection,
+        _theme_combo = dpg.add_combo(items=preset_names, default_value=current_selection,
                       parent=container, width=-1, callback=_on_theme_change)
-        dpg.add_separator(parent=container)
-
-        # ── Output Preview ────────────────────────────────────────────────
-        dpg.add_text("OUTPUT PREVIEW", parent=container,
-                     color=T.DPG_ACCENT)
-        dpg.add_text("Output Font Size:", parent=container,
-                     color=T.DPG_TEXT_SECONDARY)
-
-        def _on_font_size(s, a):
-            size = int(dpg.get_value(s))
-            self.settings["output_font_size"] = size
-            self.save_settings()
-
-        dpg.add_slider_int(
-            min_value=10, max_value=24,
-            default_value=self.settings.get("output_font_size", 14),
-            parent=container, width=-1, callback=_on_font_size,
-        )
+        with dpg.theme() as _center_theme:
+            with dpg.theme_component(dpg.mvCombo):
+                dpg.add_theme_style(dpg.mvStyleVar_ButtonTextAlign, 0.5, 0.5)
+        dpg.bind_item_theme(_theme_combo, _center_theme)
         dpg.add_separator(parent=container)
 
         # ── UI Scale ──────────────────────────────────────────────────────
-        dpg.add_text("UI SCALE", parent=container, color=T.DPG_ACCENT)
+        styled_text("   UI SCALE", HEADER, parent=container)
         current_scale = float(self.settings.get("ui_scale", 1.0))
-        dpg.add_text(f"Scale: {current_scale:.2f}×", parent=container,
-                     tag="ui_scale_label", color=T.DPG_TEXT_SECONDARY)
+        styled_text(f"{current_scale:.2f}\u00d7", LABEL, parent=container,
+                     tag="ui_scale_label")
 
         def _on_scale(s, a):
             # slider gives int steps 75..200 representing 0.75..2.00
@@ -411,14 +319,13 @@ class SettingsMixin:
                 dpg.set_value("ui_scale_label", f"Scale: {scale:.2f}×")
 
         dpg.add_slider_int(
-            min_value=75, max_value=200,
+            min_value=75, max_value=125,
             default_value=int(current_scale * 100),
             parent=container, width=-1, callback=_on_scale,
             format="",
         )
-        dpg.add_separator(parent=container)
         dpg.add_button(
-            label=Icon.REFRESH + " Reset to Defaults", parent=container, width=-1,
+            label="Reset to Defaults", parent=container, width=-1,
             callback=lambda: self._reset_to_defaults(),
         )
 

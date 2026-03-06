@@ -16,6 +16,7 @@ from src.backend.output_builder import OutputMixin
 from .dj_roster import DJRosterMixin
 from .drag_drop import DragDropMixin
 from .events_manager import EventsMixin
+from .fonts import setup_fonts
 from .genre_manager import GenreMixin
 from .import_parser import ImportMixin
 from .settings_manager import SettingsMixin
@@ -23,7 +24,6 @@ from .slot_manager import SlotMixin
 from .slot_ui import DPGBoolVar, DPGVar
 from .ui_builder import UISetupMixin
 from .utils import get_data_dir, get_icon_path
-from .fonts import Icon, setup_fonts
 
 
 class App(
@@ -64,10 +64,8 @@ class App(
         self.active_genres   = []
         self.names_only      = DPGBoolVar(default=False)
         self.output_format   = DPGVar(default="discord")
-        self.include_od      = DPGBoolVar(default=False)
-        self.od_duration     = DPGVar(default="30")
-        self.od_count        = DPGVar(default="4")
-        self.genre_entry_var = DPGVar(default="")
+        self.genre_entry_var  = DPGVar(default="")
+        self.genre_search_var = DPGVar(default="")
         self.dj_search_var   = DPGVar(default="")
         self.slots           = []
 
@@ -83,8 +81,8 @@ class App(
         _icon = get_icon_path() or ""
         dpg.create_viewport(
             title="Lineup Builder",
-            width=1280,
-            height=960,
+            width=800,
+            height=600,
             min_width=800,
             min_height=600,
             small_icon=_icon,
@@ -109,6 +107,9 @@ class App(
 
         # Check for unclean-exit auto-save on the first frame
         self._work_queue.put(self._check_auto_save)
+        
+        # Give DPG a few frames to calculate real widget sizes before packing genres
+        dpg.set_frame_callback(3, lambda: self._schedule_genre_refresh())
 
     def run(self):
         """Main DPG render loop — processes the work queue every frame."""
@@ -117,3 +118,42 @@ class App(
             dpg.render_dearpygui_frame()
         self._on_close()
         dpg.destroy_context()
+
+    def _save_window_state(self):
+        try:
+            state = {
+                "pos":          list(dpg.get_viewport_pos()),
+                "width":        dpg.get_viewport_width(),
+                "height":       dpg.get_viewport_height(),
+                "slots_height": dpg.get_item_height("slots_scroll") if dpg.does_item_exist("slots_scroll") else 320,
+            }
+            with open(self.WINDOW_STATE_FILE, "w") as f:
+                import json
+                json.dump(state, f, indent=2)
+        except Exception as e:
+            print(f"[app] _save_window_state error: {e}")
+
+    def _restore_window_state(self):
+        try:
+            import json
+            if not os.path.exists(self.WINDOW_STATE_FILE):
+                return
+            with open(self.WINDOW_STATE_FILE) as f:
+                state = json.load(f)
+            if "pos" in state:
+                dpg.set_viewport_pos(state["pos"])
+            if "width" in state and "height" in state:
+                dpg.set_viewport_width(state["width"])
+                dpg.set_viewport_height(state["height"])
+            if "slots_height" in state and dpg.does_item_exist("slots_scroll"):
+                dpg.configure_item("slots_scroll", height=int(state["slots_height"]))
+        except Exception as e:
+            print(f"[app] _restore_window_state error: {e}")
+
+    def _on_close(self):
+        self._save_window_state()
+        # Cancel any pending debounce timers then flush a final library save
+        for attr in ("_update_job", "_roster_job", "_save_lib_job",
+                     "_auto_save_job", "_auto_event_save_job"):
+            self._cancel(attr)
+        self._save_library()

@@ -5,7 +5,6 @@
 **/__pycache__
 *.pyc
 /.vscode
-/.github
 /.venv
 /window_state.json
 /auto_save.json

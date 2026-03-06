@@ -1,64 +1,136 @@
 """
 Module: fonts.py
-Purpose: Load system font with extended Unicode ranges for icons.
-         Provides Icon constants (standard Unicode symbols in Segoe UI / common system fonts).
+Purpose: Central text style configuration and font management.
+         Single source of truth for all text styling (colors, fonts).
+         Provides Icon constants, text style presets, and a styled_text() helper.
 """
 import os
 import sys
 
 import dearpygui.dearpygui as dpg
 
+from . import theme as T
 
-# ── Icon constants ─────────────────────────────────────────────────────────────
-# All codepoints exist in Segoe UI (Windows), San Francisco (macOS),
-# and DejaVu Sans (Linux) — no icon font needed.
+
+# ── Icon constants (plain text labels) ────────────────────────────────────────
 class Icon:
-    UP       = "\u2191"  # ↑
-    DOWN     = "\u2193"  # ↓
-    CLOSE    = "\u00D7"  # ×
-    CHECK    = "\u2713"  # ✓
-    ADD      = "+"
-    EDIT     = "\u270E"  # ✎
-    DELETE   = "\u2715"  # ✕
-    SAVE     = "\u2714"  # ✔
-    REFRESH  = "\u21BA"  # ↺
-    RESTORE  = "\u21BB"  # ↻
-    SEARCH   = "\u2315"  # ⌕
-    DOWNLOAD = "\u2B07"  # ⬇
-    UPLOAD   = "\u2B06"  # ⬆
-    COPY     = "\u2398"  # ⎘
-    FOLDER   = "\u2302"  # ⌂
-    PREVIEW  = "\u25CE"  # ◎
-    LINK     = "\u2197"  # ↗
-    NOTES    = "\u2630"  # ☰
-    COMPUTER = "\u2395"  # ⎕
-    CHAT     = "\u2709"  # ✉
-    CODE     = "\u2039"  # ‹ (used as </>)
-    HEADSET  = "\u2641"  # ♁
-    VR       = "\u29BE"  # ⦾
-    SCHEDULE = "\u29D6"  # ⧖ hourglass
-    TUNE     = "\u2261"  # ≡ (menu/tune)
-    PASTE    = "\u2398"  # ⎘ clipboard
+    DRAG     = "\ue945"   # drag_indicator
+    UP       = "\ue5ce"   # expand_less
+    DOWN     = "\ue5cf"   # expand_more
+    DROPDOWN = "\ue5c5"   # arrow_drop_down
+    CLOSE    = "\ue5cd"   # close
+    CHECK    = "\ue5ca"   # check
+    ADD      = "\ue145"   # add
+    EDIT     = "\ue3c9"   # edit
+    DELETE   = "\ue872"   # delete
+    SAVE     = "\ue161"   # save
+    REFRESH  = "\ue5d5"   # refresh
+    RESTORE  = "\ue8ba"   # restore
+    SEARCH   = "\ue8b6"   # search
+    DOWNLOAD = "\uf090"   # download
+    UPLOAD   = "\ue2c6"   # upload
+    COPY     = "\ue14d"   # content_copy
+    FOLDER   = "\ue2c7"   # folder
+    PREVIEW  = "\ue8f4"   # visibility
+    LINK     = "\ue157"   # link
+    NOTES    = "\ue873"   # description
+    COMPUTER = "\ue30a"   # computer
+    CHAT     = "\ue0b7"   # chat
+    CODE     = "\ue86f"   # code
+    HEADSET  = "\ue310"   # headset
+    VR       = "\ue3c7"   # vrpano
+    SCHEDULE = "\ue8b5"   # schedule
+    TUNE     = "\ue429"   # tune
+    PASTE    = "\ue14f"   # content_paste
 
 
-def setup_fonts(size: int = 14) -> int | None:
+# ── Font configuration ───────────────────────────────────────────────────────
+FONT_SIZE_DEFAULT = 14    # base UI font size
+
+
+# ── Text styles ──────────────────────────────────────────────────────────────
+# Each style is a dict of kwargs forwarded to dpg.add_text().
+# To change how any text category looks app-wide, edit its dict here.
+
+HEADER  = {"color": T.DPG_ACCENT}           # section headers: "EVENT CONFIGURATION", "DJ ROSTER", etc.
+LABEL   = {"color": T.DPG_TEXT_SECONDARY}    # field labels: "EVENT TITLE", "GENRES", etc.
+BODY    = {"color": T.DPG_TEXT_PRIMARY}      # primary body text: event titles, DJ names
+MUTED   = {"color": T.DPG_TEXT_MUTED}        # hints, disabled text, secondary info
+ERROR   = {"color": T.DPG_ERROR}             # validation / error messages
+HINT    = {"color": T.DPG_DRAG_HINT}         # subtle drag-hint text
+SUCCESS = {"color": T.DPG_IMPORT_SUCCESS}    # success feedback messages
+
+
+def styled_text(label: str, style: dict = None, **kwargs) -> int:
+    """Create a dpg.add_text() with centralized styling.
+
+    Usage::
+
+        styled_text("EVENT CONFIG", HEADER)
+        styled_text("field label", LABEL, tag="my_tag")
+        styled_text("plain text")  # no style — uses DPG theme default
     """
-    Load a system sans-serif font with extended Unicode symbol ranges.
+    if style:
+        merged = {**style, **kwargs}
+    else:
+        merged = kwargs
+    return dpg.add_text(label, **merged)
+
+
+# ── Font loading ─────────────────────────────────────────────────────────────
+
+def _find_system_font() -> str | None:
+    """Return path to a suitable system sans-serif TTF."""
+    if sys.platform == "win32":
+        candidates = ["C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/arial.ttf"]
+    elif sys.platform == "darwin":
+        candidates = ["/System/Library/Fonts/SFNS.ttf", "/Library/Fonts/Arial.ttf"]
+    else:
+        candidates = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        ]
+    for c in candidates:
+        if os.path.exists(c):
+            return c
+    return None
+
+
+def _find_icon_font() -> str | None:
+    """Return path to the Material Symbols Rounded TTF bundled in assets/."""
+    if getattr(sys, "frozen", False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    path = os.path.join(base, "assets", "Material_Symbols_Rounded", "static",
+                        "MaterialSymbolsRounded-Regular.ttf")
+    return path if os.path.exists(path) else None
+
+
+# Module-level reference to the icon font (set by setup_fonts)
+icon_font = None
+
+
+def setup_fonts(size: int = FONT_SIZE_DEFAULT) -> int | None:
+    """Load a system sans-serif font and a Material Symbols icon font.
+
     Call once after dpg.create_context() and before any widget creation.
-    Returns the DPG font id (or None if no custom font was loaded).
     """
-    sys_font = _find_system_font()
-    if not sys_font:
+    global icon_font
+    font_path = _find_system_font()
+    if not font_path:
         return None
+
+    icon_path = _find_icon_font()
 
     main_font = None
     with dpg.font_registry():
-        with dpg.font(sys_font, size) as main_font:
+        with dpg.font(font_path, size) as main_font:
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Default)
-            # Arrows & math operators (↑ ↓ ← → ↩ ↺ ↻ ⬆ ⬇ ✓ ✕ ✎ ⎘ ⌕ ☰ ≡ …)
-            dpg.add_font_range(0x00A0, 0x02FF)  # Latin Extended + IPA
-            dpg.add_font_range(0x2000, 0x27BF)  # General Punct → Dingbats
-            dpg.add_font_range(0x2900, 0x2BFF)  # Supp Arrows B + Misc Symbols & Arrows
+            dpg.add_font_range(0x00A0, 0x02FF)   # Latin Extended
+        if icon_path:
+            with dpg.font(icon_path, size) as icon_font:
+                dpg.add_font_range(0xE000, 0xF8FF)  # PUA icon range
 
     if main_font is not None:
         dpg.bind_font(main_font)
@@ -66,27 +138,7 @@ def setup_fonts(size: int = 14) -> int | None:
     return main_font
 
 
-def _find_system_font() -> str | None:
-    """Return path to a suitable system sans-serif TTF, or None."""
-    if sys.platform == "win32":
-        for candidate in [
-            "C:/Windows/Fonts/segoeui.ttf",
-            "C:/Windows/Fonts/arial.ttf",
-        ]:
-            if os.path.exists(candidate):
-                return candidate
-    elif sys.platform == "darwin":
-        for candidate in [
-            "/System/Library/Fonts/SFNS.ttf",
-            "/Library/Fonts/Arial.ttf",
-        ]:
-            if os.path.exists(candidate):
-                return candidate
-    else:
-        for candidate in [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        ]:
-            if os.path.exists(candidate):
-                return candidate
-    return None
+def bind_icon_font(item_id: int):
+    """Bind the icon font to a specific widget. No-op if icon font not loaded."""
+    if icon_font is not None:
+        dpg.bind_item_font(item_id, icon_font)

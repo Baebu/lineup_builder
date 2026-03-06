@@ -57,11 +57,3 @@ class SlotMixin:
             slot_state.destroy()
             self.slots.remove(slot_state)
             self.update_output()
-
-    def toggle_od(self):
-        enabled = self.include_od.get()
-        if dpg.does_item_exist("od_count_combo"):
-            dpg.configure_item("od_count_combo", enabled=enabled)
-        if dpg.does_item_exist("od_dur_combo"):
-            dpg.configure_item("od_dur_combo", enabled=enabled)
-        self.update_output()

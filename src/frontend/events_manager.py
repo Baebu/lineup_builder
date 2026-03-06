@@ -3,8 +3,8 @@ import datetime
 
 import dearpygui.dearpygui as dpg
 
-from . import theme as T
-from .fonts import Icon
+from .fonts import BODY, LABEL, MUTED, Icon, bind_icon_font, styled_text
+from .widgets import add_icon_button
 
 
 class EventsMixin:
@@ -17,9 +17,11 @@ class EventsMixin:
             _warn_win = "save_warn_win"
             if not dpg.does_item_exist(_warn_win):
                 with dpg.window(tag=_warn_win, label="Warning", modal=True,
-                                width=380, height=80, no_resize=True):
+                                autosize=True, no_resize=True, no_scrollbar=True,
+                                pos=dpg.get_mouse_pos(local=False)):
                     dpg.add_text("Please set an Event Title before saving the lineup.")
-                    dpg.add_button(label=Icon.CHECK + " OK", callback=lambda s, a, wt=_warn_win: dpg.delete_item(wt))
+                    dpg.add_button(label="OK", width=-1, user_data=_warn_win,
+                                   callback=lambda s, a, u: dpg.delete_item(u))
             return
 
         full_title = f"{title} VOL.{vol}" if vol.isdigit() else title
@@ -32,9 +34,6 @@ class EventsMixin:
             "master_duration": self.master_duration.get(),
             "genres": self.active_genres.copy(),
             "names_only": self.names_only.get(),
-            "include_od": self.include_od.get(),
-            "od_duration": self.od_duration.get(),
-            "od_count": self.od_count.get(),
             "slots": []
         }
 
@@ -71,11 +70,15 @@ class EventsMixin:
             if dpg.does_item_exist(wt):
                 dpg.delete_item(wt)
             with dpg.window(tag=wt, label="Update Event", modal=True,
-                            width=320, height=90, no_resize=True):
+                            autosize=True, no_resize=True, no_scrollbar=True,
+                            pos=dpg.get_mouse_pos(local=False)):
                 dpg.add_text(f"'{full_title}' already exists. Overwrite?")
                 with dpg.group(horizontal=True):
-                    dpg.add_button(label=Icon.CHECK + " Yes", callback=lambda s, a, _wt=wt: _do_save(_wt))
-                    dpg.add_button(label=Icon.CLOSE + " No",  callback=lambda s, a, _wt=wt: dpg.delete_item(_wt))
+                    yes_btn = dpg.add_button(label="Yes", width=140, user_data=wt,
+                                   callback=lambda s, a, u: _do_save(u))
+                    dpg.bind_item_theme(yes_btn, "primary_btn_theme")
+                    dpg.add_button(label="No", width=140, user_data=wt,
+                                   callback=lambda s, a, u: dpg.delete_item(u))
         else:
             _do_save()
 
@@ -94,10 +97,6 @@ class EventsMixin:
             self.active_genres = []
             self.refresh_genre_tags()
             self.names_only.set(False)
-            self.include_od.set(False)
-            self.od_count.set("4")
-            self.od_duration.set("30")
-            self.toggle_od()
             for slot in self.slots:
                 slot.destroy()
             self.slots.clear()
@@ -113,11 +112,15 @@ class EventsMixin:
             if dpg.does_item_exist(wt):
                 dpg.delete_item(wt)
             with dpg.window(tag=wt, label="New Event", modal=True,
-                            width=300, height=90, no_resize=True):
+                            autosize=True, no_resize=True, no_scrollbar=True,
+                            pos=dpg.get_mouse_pos(local=False)):
                 dpg.add_text("Clear the current lineup and start fresh?")
                 with dpg.group(horizontal=True):
-                    dpg.add_button(label=Icon.CHECK + " Yes", callback=lambda s, a, _wt=wt: _do_new(_wt))
-                    dpg.add_button(label=Icon.CLOSE + " No",  callback=lambda s, a, _wt=wt: dpg.delete_item(_wt))
+                    yes_btn = dpg.add_button(label="Yes", width=140, user_data=wt,
+                                   callback=lambda s, a, u: _do_new(u))
+                    dpg.bind_item_theme(yes_btn, "primary_btn_theme")
+                    dpg.add_button(label="No", width=140, user_data=wt,
+                                   callback=lambda s, a, u: dpg.delete_item(u))
         else:
             _do_new()
 
@@ -131,10 +134,6 @@ class EventsMixin:
         self.refresh_genre_tags()
 
         self.names_only.set(event_data.get("names_only", False))
-        self.include_od.set(event_data.get("include_od", False))
-        self.od_duration.set(event_data.get("od_duration", "30"))
-        self.od_count.set(event_data.get("od_count", "4"))
-        self.toggle_od()
 
         for slot in self.slots:
             slot.destroy()
@@ -189,9 +188,6 @@ class EventsMixin:
             "master_duration": self.master_duration.get(),
             "genres": self.active_genres.copy(),
             "names_only": self.names_only.get(),
-            "include_od": self.include_od.get(),
-            "od_duration": self.od_duration.get(),
-            "od_count": self.od_count.get(),
             "slots": [
                 {"name": s.name_var.get().strip(), "genre": s.genre_var.get().strip(), "duration": s.duration_var.get()}
                 for s in self.slots
@@ -230,11 +226,14 @@ class EventsMixin:
             if dpg.does_item_exist(_wt):
                 dpg.delete_item(_wt)
         with dpg.window(tag=wt, label="Confirm Delete", modal=True,
-                        width=300, height=90, no_resize=True):
+                        autosize=True, no_resize=True, no_scrollbar=True,
+                        pos=dpg.get_mouse_pos(local=False)):
             dpg.add_text(f"Delete saved event '{full_title}'?")
             with dpg.group(horizontal=True):
-                dpg.add_button(label=Icon.CHECK + " Yes", callback=lambda s, a: _do_delete())
-                dpg.add_button(label=Icon.CLOSE + " No",  callback=lambda s, a, _wt=wt: dpg.delete_item(_wt))
+                _yes = dpg.add_button(label="Yes", width=140, callback=lambda s, a, u=None: _do_delete())
+                dpg.bind_item_theme(_yes, self._danger_btn_theme)
+                dpg.add_button(label="No", width=140, user_data=wt,
+                               callback=lambda s, a, u: dpg.delete_item(u))
 
     def duplicate_event_lineup(self, event_data):
         dupe = copy.deepcopy(event_data)
@@ -253,8 +252,8 @@ class EventsMixin:
             return
         dpg.delete_item("saved_events_scroll", children_only=True)
         if not self.saved_events:
-            dpg.add_text("No saved events yet.",
-                         parent="saved_events_scroll", color=T.DPG_TEXT_SECONDARY)
+            styled_text("No saved events yet.",
+                         LABEL, parent="saved_events_scroll")
             return
         for ev in self.saved_events:
             full_title = (
@@ -266,16 +265,16 @@ class EventsMixin:
             timestamp = ev.get("timestamp", "")
             saved_at = ev.get("created_at", "")[:16]
             with dpg.group(parent="saved_events_scroll"):
-                with dpg.group(horizontal=True):
-                    dpg.add_text(full_title, color=T.DPG_TEXT_PRIMARY)
-                    dpg.add_button(label=Icon.FOLDER, small=True,
-                                   callback=lambda s, a, e=ev: self.load_event_lineup(e))
-                    dpg.add_button(label=Icon.COPY, small=True,
-                                   callback=lambda s, a, e=ev: self.duplicate_event_lineup(e))
-                    dpg.add_button(label=Icon.DELETE, small=True,
-                                   callback=lambda s, a, e=ev: self.delete_event_lineup(e))
-                dpg.add_text(f"{timestamp}  \u2022  {slots_count} slots",
-                             color=T.DPG_TEXT_SECONDARY)
-                if saved_at:
-                    dpg.add_text(f"saved {saved_at}", color=T.DPG_TEXT_MUTED)
+                with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False, borders_outerH=False, borders_outerV=False, pad_outerX=False):
+                    dpg.add_table_column(width_stretch=True)
+                    dpg.add_table_column(width_fixed=True)
+                    with dpg.table_row():
+                        with dpg.group():
+                            styled_text(full_title, BODY)
+                            styled_text(f"{timestamp}  |  {slots_count} slots", MUTED)
+                        with dpg.group(horizontal=True):
+                            add_icon_button(Icon.DOWNLOAD, width=28, height=20, user_data=ev, callback=lambda s, a, u: self.load_event_lineup(u))
+                            add_icon_button(Icon.COPY, width=28, height=20, user_data=ev, callback=lambda s, a, u: self.duplicate_event_lineup(u))
+                            add_icon_button(Icon.DELETE, width=28, height=20, is_danger=True, user_data=ev, callback=lambda s, a, u: self.delete_event_lineup(u))
+                            dpg.add_spacer(width=10)
                 dpg.add_separator()

@@ -3,14 +3,13 @@
 Development script that monitors code changes and auto-restarts the app.
 """
 
-import os
+import subprocess
 import sys
 import time
-import subprocess
-import signal
 from pathlib import Path
-from watchdog.observers import Observer
+
 from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 
 class RestartHandler(FileSystemEventHandler):
@@ -27,7 +26,7 @@ class RestartHandler(FileSystemEventHandler):
         self.process = subprocess.Popen([sys.executable, self.script_path])
 
     def on_modified(self, event):
-        if event.src_path.endswith('.py'):
+        if str(event.src_path).endswith('.py'):
             print(f"Detected change in {event.src_path}, restarting...")
             self.start_process()
 

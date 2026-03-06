@@ -3,33 +3,53 @@ Module: ui_builder.py
 Purpose: Builds the entire application UI layout (Dear PyGui).
 Architecture: Mixin for App class.
 """
+from datetime import datetime, timedelta
+
 import dearpygui.dearpygui as dpg
 
 from . import theme as T
 from .date_time_picker import add_datetime_row
-from .fonts import Icon
+from .fonts import styled_text, bind_icon_font, Icon, HEADER, LABEL, BODY, MUTED, HINT
+from .widgets import add_icon_button, add_primary_button
+
 
 
 class UISetupMixin:
     """Builds the entire application UI and provides helpers."""
 
+    _LEFT_MIN = 300
+    _LEFT_MAX = 350
+    _LEFT_DEFAULT = 325
+
     def setup_ui(self):
         with dpg.window(tag="primary_window", no_title_bar=True, no_resize=True,
                         no_move=True, no_scrollbar=True,
                         no_scroll_with_mouse=True):
-            with dpg.table(header_row=False, resizable=True, borders_innerV=True,
-                           scrollX=False, scrollY=False):
-                dpg.add_table_column(init_width_or_weight=380.0, width_fixed=True)
-                dpg.add_table_column()
+            with dpg.table(header_row=False, resizable=False,
+                           scrollX=False, scrollY=False,
+                           policy=dpg.mvTable_SizingFixedFit):
+                dpg.add_table_column(init_width_or_weight=self._LEFT_DEFAULT,
+                                     width_fixed=True)
+                dpg.add_table_column(init_width_or_weight=1, width_fixed=True)
+                dpg.add_table_column(width_stretch=True)
                 with dpg.table_row():
-                    with dpg.child_window(border=False, no_scrollbar=True):
+                    with dpg.child_window(tag="left_panel", border=False,
+                                          no_scrollbar=True):
                         self._build_left_panel()
-                    with dpg.child_window(border=False, no_scrollbar=True):
+                    with dpg.child_window(tag="panel_divider", border=False,
+                                          no_scrollbar=True, width=1):
+                        with dpg.theme() as _div_theme:
+                            with dpg.theme_component(dpg.mvChildWindow):
+                                dpg.add_theme_color(dpg.mvThemeCol_ChildBg, T.DPG_BORDER)
+                        dpg.bind_item_theme("panel_divider", _div_theme)
+                    with dpg.child_window(tag="right_panel", border=False,
+                                          no_scrollbar=True):
                         self._build_right_panel()
 
         dpg.set_primary_window("primary_window", True)
         self._build_settings_tab()
         self.apply_theme()
+        self._setup_wheel_handler()
 
     # ── Left panel ────────────────────────────────────────────────────────
 
@@ -37,7 +57,7 @@ class UISetupMixin:
         with dpg.tab_bar(tag="left_tabs"):
             with dpg.tab(label="Event", tag="Event"):
                 self._build_event_tab()
-            with dpg.tab(label="DJ Roster", tag="DJ Roster"):
+            with dpg.tab(label="Roster", tag="Roster"):
                 self._build_dj_roster_tab()
             with dpg.tab(label="Settings", tag="Settings"):
                 with dpg.child_window(tag="settings_scroll", height=-1,
@@ -45,105 +65,98 @@ class UISetupMixin:
                     pass  # populated by _build_settings_tab()
 
     def _build_event_tab(self):
-        # ── Header row ────────────────────────────────────────────────────
-        dpg.add_text("EVENT CONFIGURATION", color=T.DPG_ACCENT)
-        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
-                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
-            dpg.add_table_column()
-            dpg.add_table_column()
-            dpg.add_table_column()
-            with dpg.table_row():
-                dpg.add_button(label=Icon.PASTE + " Import", width=-1,
-                               callback=lambda: self.open_import_dialog())
-                dpg.add_button(label=Icon.SAVE + " Save", width=-1,
-                               callback=lambda: self.save_event_lineup())
-                dpg.add_button(label=Icon.ADD + " New", width=-1,
-                               callback=lambda: self.new_event())
-        dpg.add_separator()
+        with dpg.child_window(tag="event_tab_inner", border=False,
+                              autosize_x=True, height=-1):
+            # ── Header row ────────────────────────────────────────────────────
+            styled_text("   EVENT CONFIGURATION", HEADER)
+            with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
+                           borders_outerH=False, borders_outerV=False, pad_outerX=False):
+                dpg.add_table_column()
+                dpg.add_table_column()
+                with dpg.table_row():
+                    dpg.add_button(label="+ New", width=-1,
+                                   callback=lambda: self.new_event())
+                    add_primary_button("Save", width=-1, callback=lambda: self.save_event_lineup())
+            dpg.add_separator()
 
-        # ── Event title + vol ─────────────────────────────────────────────
-        dpg.add_text("EVENT TITLE", color=T.DPG_TEXT_SECONDARY)
-        with dpg.group(horizontal=True):
-            dpg.add_input_text(
-                tag="event_title_input",
-                default_value=self.event_title_var.get(),
-                hint="Event title...", width=-70,
-                callback=lambda s, a: self._schedule_update(),
+            # ── Event title + vol ─────────────────────────────────────────────
+            styled_text("   EVENT TITLE", LABEL)
+            with dpg.group(horizontal=True):
+                dpg.add_input_text(
+                    tag="event_title_input",
+                    default_value=self.event_title_var.get(),
+                    hint="Event title...", width=-50,
+                    callback=lambda s, a, u=None: self._schedule_update(),
+                )
+                dpg.add_input_text(
+                    tag="event_vol_input",
+                    default_value=self.event_vol_var.get(),
+                    hint="Vol",
+                    width=38,
+                    callback=lambda s, a, u=None: self._schedule_update(),
+                )
+                with dpg.theme() as _pill_theme:
+                    with dpg.theme_component(dpg.mvInputText):
+                        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 999)
+                dpg.bind_item_theme("event_vol_input", _pill_theme)
+            self.event_title_var._tag = "event_title_input"
+            self.event_vol_var._tag   = "event_vol_input"
+            self._register_scroll_int("event_vol_input", min_val=1,
+                                      on_change=lambda: self._schedule_update())
+
+            # ── Timestamp ─────────────────────────────────────────────────────
+            styled_text("   START", LABEL)
+            add_datetime_row(
+                "event_timestamp_input", self.event_timestamp,
+                callback=lambda s, a, u=None: self._schedule_update(),
             )
-            dpg.add_text("Vol.")
-            dpg.add_input_text(
-                tag="event_vol_input",
-                default_value=self.event_vol_var.get(),
-                width=55,
-                callback=lambda s, a: self._schedule_update(),
-            )
-        self.event_title_var._tag = "event_title_input"
-        self.event_vol_var._tag   = "event_vol_input"
 
-        # ── Timestamp ─────────────────────────────────────────────────────
-        dpg.add_text("EVENT START TIMESTAMP", color=T.DPG_TEXT_SECONDARY)
-        add_datetime_row(
-            "event_timestamp_input", self.event_timestamp,
-            callback=lambda s, a: self._schedule_update(),
-        )
-        dpg.add_separator()
+            # ── Genres ────────────────────────────────────────────────────────
+            styled_text("   GENRES", LABEL)
+            with dpg.group(horizontal=True):
+                dpg.add_input_text(
+                    tag="genre_entry",
+                    default_value=self.genre_entry_var.get(),
+                    hint="Search or press Enter to add...", width=-50,
+                    on_enter=True,
+                    callback=lambda s, a, u=None: self.add_genre_from_entry(),
+                    user_data=None,
+                )
+                add_icon_button(Icon.EDIT, callback=lambda: self.open_genre_editor())
+                dpg.add_spacer(width=10)
+            self.genre_entry_var._tag = "genre_entry"
+            self.genre_search_var._tag = "genre_entry"
+            with dpg.item_handler_registry(tag="genre_entry_hr"):
+                dpg.add_item_edited_handler(
+                    callback=lambda s, a, u=None: self._schedule_genre_refresh()
+                )
+            dpg.add_separator()
+            dpg.bind_item_handler_registry("genre_entry", "genre_entry_hr")
+            with dpg.child_window(tag="genre_tags_frame", height=90,
+                                  border=False, autosize_x=True):
+                pass  # populated by refresh_genre_tags()
+            dpg.add_separator()
 
-        # ── Genres ────────────────────────────────────────────────────────
-        dpg.add_text("GENRES (Press Enter to add)", color=T.DPG_TEXT_SECONDARY)
-        with dpg.group(horizontal=True):
-            dpg.add_input_text(
-                tag="genre_entry",
-                default_value=self.genre_entry_var.get(),
-                hint="Type and press Enter...", width=-85,
-                on_enter=True,
-                callback=lambda s, a: self.add_genre_from_entry(),
-            )
-        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
-                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
-            dpg.add_table_column()
-            dpg.add_table_column()
-            with dpg.table_row():
-                dpg.add_button(label=Icon.EDIT + " Edit Genres", width=-1,
-                               callback=lambda: self.open_genre_editor())
-                dpg.add_button(label=Icon.DELETE + " Delete Genre", width=-1,
-                               callback=lambda: self.delete_saved_genre())
-        self.genre_entry_var._tag = "genre_entry"
-
-        dpg.add_text("SAVED GENRES", color=T.DPG_TEXT_MUTED)
-        with dpg.child_window(tag="genre_tags_frame", height=90,
-                              border=False, autosize_x=True):
-            pass  # populated by refresh_genre_tags()
-        dpg.add_separator()
-
-        # ── Saved Events ──────────────────────────────────────────────────
-        dpg.add_text("Saved Events", color=T.DPG_TEXT_PRIMARY)
-        with dpg.child_window(tag="saved_events_scroll", height=-1,
-                              border=False, autosize_x=True):
-            pass  # populated by refresh_saved_events_ui()
+            # ── Saved Events ──────────────────────────────────────────────────
+            styled_text("   SAVED EVENTS", HEADER)
+            with dpg.child_window(tag="saved_events_scroll", height=-1,
+                                  border=False, autosize_x=True):
+                pass  # populated by refresh_saved_events_ui()
 
         self.refresh_genre_tags()
         self.refresh_saved_events_ui()
 
     def _build_dj_roster_tab(self):
         with dpg.group(horizontal=True):
-            dpg.add_text("DJ ROSTER", color=T.DPG_ACCENT)
-            dpg.add_text(" drag to add →", color=T.DPG_DRAG_HINT)
+            styled_text("   DJS", HEADER)
+        add_primary_button("+ New DJ", width=-1, callback=lambda: self.add_new_dj_to_roster())
         dpg.add_input_text(
             tag="dj_search_input",
             default_value=self.dj_search_var.get(),
-            hint="Search...", width=-1,
-            callback=lambda s, a: self._schedule_roster_refresh(),
+            hint="Search...", width=-11,
+            callback=lambda s, a, u=None: self._schedule_roster_refresh(),
         )
         self.dj_search_var._tag = "dj_search_input"
-        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
-                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
-            dpg.add_table_column()
-            dpg.add_table_column()
-            with dpg.table_row():
-                dpg.add_button(label=Icon.ADD + " New DJ", width=-1,
-                               callback=lambda: self.add_new_dj_to_roster())
-                dpg.add_button(label=Icon.DOWNLOAD + " Links", width=-1,
-                               callback=lambda: self.open_dj_link_import())
         with dpg.child_window(tag="dj_roster_scroll", height=-1,
                               border=False, autosize_x=True):
             pass  # populated by refresh_dj_roster_ui()
@@ -153,86 +166,183 @@ class UISetupMixin:
 
     def _build_right_panel(self):
         # ── Lineup header ─────────────────────────────────────────────────
-        with dpg.group(horizontal=True):
-            dpg.add_text("Lineup", color=T.DPG_TEXT_PRIMARY)
-            dpg.add_text("Default length:", color=T.DPG_TEXT_SECONDARY)
-            dur_values = [str(x) for x in range(15, 121, 15)]
-            dpg.add_combo(
-                tag="master_dur_combo",
-                items=dur_values,
-                default_value=self.master_duration.get(),
-                width=80,
-                callback=lambda s, a: self.apply_master_duration(),
-            )
-            self.master_duration._tag = "master_dur_combo"
-            dpg.add_button(label=Icon.ADD + " Add DJ", width=90,
-                           callback=lambda: self.add_slot())
+        with dpg.tab_bar():
+            with dpg.tab(label="Lineup"):
+                # ── Row 1: default length + add DJ ────────────────────
+                with dpg.group(horizontal=True):
+                    dur_values = [str(x) for x in range(15, 121, 15)]
+                    styled_text("   CONTROLS  ", HEADER)
+                    dpg.add_combo(
+                        tag="master_dur_combo",
+                        items=dur_values,
+                        default_value=self.master_duration.get(),
+                        width=50,
+                        callback=lambda s, a, u=None: self.apply_master_duration(),
+                    )
+                    self.master_duration._tag = "master_dur_combo"
+                    self._register_scroll_combo("master_dur_combo", dur_values,
+                                                on_change=lambda: self.apply_master_duration())
+                    add_primary_button("+ Add DJ", width=90, callback=lambda: self.add_slot())
+                    dpg.add_spacer(width=10)
 
-        # ── Slots scroll area ─────────────────────────────────────────────
-        with dpg.child_window(tag="slots_scroll", height=320,
-                              border=True, autosize_x=True):
-            pass  # populated by slot_manager
+                # ── Slots scroll area ─────────────────────────────────────
+                with dpg.child_window(tag="slots_scroll", height=320,
+                                      border=True, autosize_x=True,
+                                      payload_type="DJ_CARD",
+                                      drop_callback=lambda s, a, u=None: self._drop_dj_on_lineup(s, a)):
+                    pass  # populated by slot_manager
 
-        # ── Open Decks row ────────────────────────────────────────────────
-        with dpg.group(horizontal=True):
-            dpg.add_checkbox(
-                tag="od_toggle", label="OPEN DECKS",
-                default_value=self.include_od.get(),
-                callback=lambda s, a: self.toggle_od(),
-            )
-            self.include_od._tag = "od_toggle"
-            dpg.add_text("  Amount:", color=T.DPG_TEXT_MUTED)
-            dpg.add_combo(
-                tag="od_count_combo",
-                items=[str(x) for x in range(1, 11)],
-                default_value=self.od_count.get(),
-                width=75, enabled=False,
-                callback=lambda s, a: self.update_output(),
-            )
-            self.od_count._tag = "od_count_combo"
-            dpg.add_text("  Slot length:", color=T.DPG_TEXT_MUTED)
-            dpg.add_combo(
-                tag="od_dur_combo",
-                items=[str(x) for x in range(15, 121, 15)],
-                default_value=self.od_duration.get(),
-                width=85, enabled=False,
-                callback=lambda s, a: self.update_output(),
-            )
-            self.od_duration._tag = "od_dur_combo"
-        dpg.add_separator()
+                # ── Draggable resize handle ───────────────────────────────
+                dpg.add_button(tag="resize_handle", label="", width=-1, height=4)
+                with dpg.theme() as _rh_theme:
+                    with dpg.theme_component(dpg.mvButton):
+                        dpg.add_theme_color(dpg.mvThemeCol_Button,       T.DPG_BORDER)
+                        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, T.DPG_ACCENT)
+                        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  T.DPG_ACCENT)
+                        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 0)
+                        dpg.add_theme_style(dpg.mvStyleVar_FramePadding,  0, 0)
+                dpg.bind_item_theme("resize_handle", _rh_theme)
+                with dpg.item_handler_registry(tag="resize_handle_hr"):
+                    dpg.add_item_clicked_handler(button=dpg.mvMouseButton_Left,
+                                                 callback=self._resize_handle_click)
+                dpg.bind_item_handler_registry("resize_handle", "resize_handle_hr")
+                with dpg.handler_registry(tag="resize_global_hr"):
+                    dpg.add_mouse_drag_handler(button=dpg.mvMouseButton_Left,
+                                               callback=self._resize_handle_drag)
+                    dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left,
+                                                  callback=self._resize_handle_release)
 
-        # ── Output preview ────────────────────────────────────────────────
-        dpg.add_text("Output", color=T.DPG_TEXT_PRIMARY)
-        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
-                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
-            for _ in range(5):
-                dpg.add_table_column()
-            with dpg.table_row():
-                dpg.add_button(tag="fmt_discord", label=Icon.CHAT + " Discord", width=-1,
-                               callback=lambda: self.toggle_format())
-                dpg.add_button(tag="fmt_plain",   label=Icon.NOTES + " Plain",   width=-1,
-                               callback=lambda: self.set_plain_text())
-                dpg.add_button(tag="fmt_quest",   label=Icon.VR + " Quest",      width=-1,
-                               callback=lambda: self.set_quest_view())
-                dpg.add_button(tag="fmt_pc",      label=Icon.COMPUTER + " PC",   width=-1,
-                               callback=lambda: self.set_pc_view())
-                dpg.add_button(tag="fmt_times",   label=Icon.SCHEDULE + " Times on", width=-1,
-                               callback=lambda: self._toggle_times())
+                # ── Output preview ────────────────────────────────────────
+                styled_text("   OUTPUT", HEADER)
+                with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
+                               borders_outerH=False, borders_outerV=False, pad_outerX=False):
+                    for _ in range(6):
+                        dpg.add_table_column()
+                    with dpg.table_row():
+                        dpg.add_button(tag="fmt_discord", label="Discord", width=-1,
+                                       callback=lambda: self.toggle_format())
+                        dpg.add_button(tag="fmt_plain",   label="Plain",   width=-1,
+                                       callback=lambda: self.set_plain_text())
+                        dpg.add_button(tag="fmt_quest",   label="Quest",   width=-1,
+                                       callback=lambda: self.set_quest_view())
+                        dpg.add_button(tag="fmt_pc",      label="PC",      width=-1,
+                                       callback=lambda: self.set_pc_view())
+                        dpg.add_button(tag="fmt_times",   label="Times on", width=-1,
+                                       callback=lambda: self._toggle_times())
+                        add_icon_button(Icon.COPY, width=-1, height=20, is_primary=True, callback=lambda: self._copy_output())
 
-        dpg.add_input_text(
-            tag="output_text",
-            multiline=True, readonly=True,
-            width=-1, height=-1,
-        )
+                dpg.add_input_text(
+                    tag="output_text",
+                    multiline=True, readonly=True,
+                    width=-11, height=-1,
+                )
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
     def _toggle_times(self):
         self.names_only.set(not self.names_only.get())
-        label = Icon.SCHEDULE + " Times off" if self.names_only.get() else Icon.SCHEDULE + " Times on"
-        if dpg.does_item_exist("fmt_times"):
-            dpg.configure_item("fmt_times", label=label)
         self.update_output()
+
+    def _copy_output(self):
+        """Copy the output text to the system clipboard."""
+        if dpg.does_item_exist("output_text"):
+            text = dpg.get_value("output_text")
+            if text:
+                dpg.set_clipboard_text(text)
+
+    # ── Scroll-wheel helpers ─────────────────────────────────────────
+    # One global handler checks is_item_hovered for every registered item.
+
+    def _shift_timestamp(self, delta_mins: int):
+        """Shift the event timestamp by *delta_mins* minutes."""
+        raw = self.event_timestamp.get()
+        try:
+            dt = datetime.strptime(raw, "%Y-%m-%d %H:%M")
+        except ValueError:
+            return
+        dt += timedelta(minutes=delta_mins)
+        new_str = dt.strftime("%Y-%m-%d %H:%M")
+        self.event_timestamp.set(new_str)
+        if dpg.does_item_exist("event_timestamp_input"):
+            dpg.set_value("event_timestamp_input", new_str)
+        self._schedule_update()
+
+    def _setup_wheel_handler(self):
+        if not hasattr(self, '_scroll_combos'):
+            self._scroll_combos = {}
+        if not hasattr(self, '_scroll_ints'):
+            self._scroll_ints = {}
+        if not dpg.does_item_exist("global_wheel_hr"):
+            with dpg.handler_registry(tag="global_wheel_hr"):
+                dpg.add_mouse_wheel_handler(callback=self._on_mouse_wheel)
+                dpg.add_key_press_handler(dpg.mvKey_Up, callback=self._on_arrow_key)
+                dpg.add_key_press_handler(dpg.mvKey_Down, callback=self._on_arrow_key)
+
+    def _register_scroll_combo(self, tag: str, items: list, on_change):
+        if not hasattr(self, '_scroll_combos'):
+            self._scroll_combos = {}
+        self._scroll_combos[tag] = (list(items), on_change)
+
+    def _register_scroll_int(self, tag: str, min_val: int = 0,
+                             max_val: int = 9999, on_change=None):
+        if not hasattr(self, '_scroll_ints'):
+            self._scroll_ints = {}
+        self._scroll_ints[tag] = (min_val, max_val, on_change)
+
+    def _on_arrow_key(self, sender, app_data):
+        """Arrow Up/Down on the timestamp input shifts time."""
+        if not (dpg.does_item_exist("event_timestamp_input")
+                and dpg.is_item_hovered("event_timestamp_input")):
+            return
+        shift = dpg.is_key_down(dpg.mvKey_LShift) or dpg.is_key_down(dpg.mvKey_RShift)
+        step = 1440 if shift else 15
+        if app_data == dpg.mvKey_Up:
+            self._shift_timestamp(step)
+        else:
+            self._shift_timestamp(-step)
+
+    def _on_mouse_wheel(self, sender, app_data):
+        # app_data is positive when scrolling up, negative when down.
+        # We invert so scroll-up = higher value.
+        delta = 1 if app_data > 0 else -1
+
+        # ── Timestamp scroll ──────────────────────────────────────────
+        if (dpg.does_item_exist("event_timestamp_input")
+                and dpg.is_item_hovered("event_timestamp_input")):
+            shift = dpg.is_key_down(dpg.mvKey_LShift) or dpg.is_key_down(dpg.mvKey_RShift)
+            step = 1440 if shift else 15
+            self._shift_timestamp(delta * step)
+            return
+
+        for tag, (items, cb) in list(getattr(self, '_scroll_combos', {}).items()):
+            if dpg.does_item_exist(tag) and dpg.is_item_hovered(tag):
+                itype = dpg.get_item_info(tag).get("type", "")
+                if "Button" in itype:
+                    cur = dpg.get_item_configuration(tag).get("label")
+                else:
+                    cur = str(dpg.get_value(tag))
+                try:
+                    idx = items.index(str(cur))
+                except ValueError:
+                    idx = 0
+                new_idx = max(0, min(len(items) - 1, idx - delta))
+                if "Button" in itype:
+                    dpg.configure_item(tag, label=items[new_idx])
+                else:
+                    dpg.set_value(tag, items[new_idx])
+                cb()
+                return
+        for tag, (mn, mx, cb) in list(getattr(self, '_scroll_ints', {}).items()):
+            if dpg.does_item_exist(tag) and dpg.is_item_hovered(tag):
+                try:
+                    cur = int(dpg.get_value(tag))
+                except (ValueError, TypeError):
+                    cur = mn
+                new_val = max(mn, min(mx, cur + delta))
+                dpg.set_value(tag, str(new_val))
+                if cb:
+                    cb()
+                return
 
     def _is_over_slots_panel(self, x_root: int, y_root: int) -> bool:
         try:
@@ -242,230 +352,29 @@ class UISetupMixin:
             return False
         return mn[0] <= x_root <= mx[0] and mn[1] <= y_root <= mx[1]
 
+    # ── Resize handle logic ───────────────────────────────────────────
 
+    _resize_dragging = False
+    _resize_start_y = 0
+    _resize_start_h = 320
 
-        # ── DJ Roster tab ──────────────────────────────────────────────────
-        dj_roster_tab = self.left_tabs.tab("DJ Roster")
-        dj_roster_hdr = ctk.CTkFrame(dj_roster_tab, fg_color="transparent")
-        dj_roster_hdr.grid(row=0, column=0, sticky="ew", padx=8, pady=(4, 0))
-        _lbl = ctk.CTkLabel(dj_roster_hdr, text="DJ ROSTER", font=T.FONT_BODY_BOLD, text_color=T.ACCENT)
-        _lbl.pack(side="left")
-        self._accent_labels.append(_lbl)
-        ctk.CTkLabel(dj_roster_hdr, text="drag to add →", font=T.FONT_BODY_BOLD, text_color=T.DRAG_HINT).pack(side="left", padx=(8, 0))
-        _btn = ctk.CTkButton(
-            dj_roster_hdr, text="+ NEW DJ", width=80, height=T.WIDGET_H_SM,
-            **T.BTN_PRIMARY, font=T.FONT_BODY_BOLD,
-            command=self.add_new_dj_to_roster
-        )
-        _btn.pack(side="right")
-        self._primary_buttons.append(_btn)
-        ctk.CTkButton(
-            dj_roster_hdr, text="⬇ LINKS", width=80, height=T.WIDGET_H_SM,
-            **T.BTN_SECONDARY, font=T.FONT_BODY_BOLD,
-            command=self.open_dj_link_import
-        ).pack(side="right", padx=(0, 6))
-        ctk.CTkEntry(
-            dj_roster_hdr, textvariable=self.dj_search_var,
-            placeholder_text="Search…", height=T.WIDGET_H_SM, width=130,
-            fg_color=T.CARD_BG, border_color=T.BORDER, corner_radius=6
-        ).pack(side="right", padx=(0, 6))
-        self.dj_search_var.trace_add("write", lambda *_: self._schedule_roster_refresh())
+    def _resize_handle_click(self, sender, app_data):
+        self._resize_dragging = True
+        self._resize_start_y = dpg.get_mouse_pos(local=False)[1]
+        try:
+            self._resize_start_h = dpg.get_item_height("slots_scroll")
+        except Exception:
+            self._resize_start_h = 320
 
-        self.dj_roster_scroll = self._create_scrollable_frame(
-            dj_roster_tab, row=1, column=0, padx=8, pady=(4, 6), sticky="nsew"
-        )
-        self.refresh_dj_roster_ui()
+    def _resize_handle_drag(self, sender, app_data):
+        if not self._resize_dragging:
+            return
+        current_y = dpg.get_mouse_pos(local=False)[1]
+        delta = current_y - self._resize_start_y
+        new_h = max(80, self._resize_start_h + int(delta))
+        max_h = dpg.get_viewport_height() - 200
+        new_h = min(new_h, max_h)
+        dpg.configure_item("slots_scroll", height=new_h)
 
-        # ── Settings tab ───────────────────────────────────────────────────
-        settings_tab = self.left_tabs.tab("Settings")
-        # Settings UI is built in _build_settings_tab() called at the end
-
-        slots_container_frame = ctk.CTkFrame(self.right_panel, fg_color="transparent")
-        slots_container_frame.grid(row=0, column=0, sticky="nsew")
-        slots_container_frame.grid_rowconfigure(1, weight=1)
-        slots_container_frame.grid_columnconfigure(0, weight=1)
-
-        slots_header = ctk.CTkFrame(slots_container_frame, fg_color="transparent")
-        slots_header.grid(row=0, column=0, sticky="ew", padx=15, pady=(10, 5))
-
-        ctk.CTkLabel(
-            slots_header, text="Lineup", 
-            font=T.FONT_BODY_BOLD, text_color=self.settings.get("text_primary", T.TEXT_PRIMARY)
-        ).pack(side="left")
-
-        _btn = ctk.CTkButton(
-            slots_header, text="+ ADD DJ", command=self.add_slot,
-            width=80, height=T.WIDGET_H_SM, **T.BTN_PRIMARY,
-            font=T.FONT_BODY_BOLD
-        )
-        _btn.pack(side="right", padx=(5, 0))
-        self._primary_buttons.append(_btn)
-
-        dur_values =[str(x) for x in range(15, 121, 15)]
-        self.master_dur_menu = ctk.CTkOptionMenu(
-            slots_header,
-            values=dur_values,
-            variable=self.master_duration,
-            height=T.WIDGET_H, width=90,
-            **T.OPTION_MENU,
-        )
-        self.master_dur_menu.pack(side="right", padx=(0, 5))
-        ctk.CTkLabel(slots_header, text="Default length:", font=T.FONT_BODY, text_color=T.TEXT_SECONDARY).pack(side="right", padx=(10, 5))
-        self.master_duration.trace_add("write", lambda *args: self.apply_master_duration())
-
-        self.slots_scroll = self._create_scrollable_frame(
-            slots_container_frame, row=1, column=0, padx=10, pady=(0, 0), sticky="nsew"
-        )
-
-        # Open Decks row
-        self._od_row = ctk.CTkFrame(
-            slots_container_frame, 
-            fg_color=self.settings.get("card_bg", T.CARD_BG), 
-            corner_radius=T.CARD_RADIUS,
-            border_width=T.BORDER_W,
-            border_color=self.settings.get("border_color", T.BORDER)
-        )
-        self._od_row.grid(row=2, column=0, sticky="ew", padx=15, pady=(6, 6))
-        od_row = self._od_row
-
-        self.od_toggle_btn = ctk.CTkCheckBox(
-            od_row, text="OPEN DECKS", variable=self.include_od,
-            command=self.toggle_od,
-            font=T.FONT_BODY_BOLD, text_color=T.TEXT_SECONDARY,
-            fg_color=T.PRIMARY, hover_color=T.PRIMARY_HOVER,
-            checkmark_color=T.WHITE, border_color=T.BORDER, corner_radius=6
-        )
-        self.od_toggle_btn.pack(side="left", padx=(16, 16), pady=12)
-
-        self.od_count_label = ctk.CTkLabel(od_row, text="Amount:", font=T.FONT_BODY, text_color=T.TEXT_MUTED)
-        self.od_count_label.pack(side="left", padx=(0, 6))
-        self.od_count_menu = ctk.CTkOptionMenu(
-            od_row,
-            values=[str(x) for x in range(1, 11)],
-            variable=self.od_count,
-            command=lambda _: self.update_output(),
-            width=75, height=30, state="disabled",
-            **T.OPTION_MENU_DISABLED,
-        )
-        self.od_count_menu.pack(side="left", padx=(0, 20))
-
-        self.od_dur_label = ctk.CTkLabel(od_row, text="Slot length:", font=T.FONT_BODY, text_color=T.TEXT_MUTED)
-        self.od_dur_label.pack(side="left", padx=(0, 6))
-        self.od_dur_menu = ctk.CTkOptionMenu(
-            od_row,
-            values=[str(x) for x in range(15, 121, 15)],
-            variable=self.od_duration,
-            command=lambda _: self.update_output(),
-            width=85, height=30, state="disabled",
-            **T.OPTION_MENU_DISABLED,
-        )
-        self.od_dur_menu.pack(side="left", padx=(0, 16))
-
-        # ==========================================
-        # LINEUP TAB (BOTTOM): Output Preview
-        # ==========================================
-        _lineup_tab = self.right_panel
-
-        self._preview_header = ctk.CTkFrame(
-            _lineup_tab,
-            fg_color="transparent",
-            corner_radius=0,
-        )
-        preview_header = self._preview_header
-        preview_header.grid(row=1, column=0, sticky="ew")
-
-        out_lbl = ctk.CTkLabel(
-            preview_header, text="Output", 
-            font=T.FONT_BODY_BOLD, text_color=self.settings.get("text_primary", T.TEXT_PRIMARY)
-        )
-        out_lbl.pack(anchor="w", padx=10, pady=(0, 0))
-
-        buttons_row = ctk.CTkFrame(preview_header, fg_color="transparent", corner_radius=0)
-        buttons_row.pack(fill="x", padx=0, pady=(0, 4))
-
-        self.format_btn = ctk.CTkButton(
-            buttons_row, text="Discord", image=self.icon_discord, compound="left",
-            command=self.toggle_format, corner_radius=6,
-            fg_color="transparent", hover_color=T.BORDER, border_width=T.BORDER_W, border_color=T.BORDER,
-            text_color=T.ACCENT, width=105, height=T.WIDGET_H, font=T.FONT_BODY_BOLD
-        )
-        self.format_btn.pack(side="left", padx=(15, 4))
-
-        self.plain_btn = ctk.CTkButton(
-            buttons_row, text="Plain Text", image=self.icon_text, compound="left",
-            command=self.set_plain_text, corner_radius=6,
-            fg_color="transparent", hover_color=T.BORDER, border_width=T.BORDER_W, border_color=T.BORDER,
-            text_color=T.TEXT_SECONDARY, width=105, height=T.WIDGET_H, font=T.FONT_BODY_BOLD
-        )
-        self.plain_btn.pack(side="left", padx=(0, 4))
-
-        self.quest_btn = ctk.CTkButton(
-            buttons_row, text="Quest", image=self.icon_quest, compound="left",
-            command=self.set_quest_view, corner_radius=6,
-            fg_color="transparent", hover_color=T.BORDER, border_width=T.BORDER_W, border_color=T.BORDER,
-            text_color=T.TEXT_SECONDARY, width=105, height=T.WIDGET_H, font=T.FONT_BODY_BOLD
-        )
-        self.quest_btn.pack(side="left", padx=(0, 4))
-
-        self.pc_btn = ctk.CTkButton(
-            buttons_row, text="PC", image=self.icon_pc, compound="left",
-            command=self.set_pc_view, corner_radius=6,
-            fg_color="transparent", hover_color=T.BORDER, border_width=T.BORDER_W, border_color=T.BORDER,
-            text_color=T.TEXT_SECONDARY, width=80, height=T.WIDGET_H, font=T.FONT_BODY_BOLD
-        )
-        self.pc_btn.pack(side="left")
-
-        def _toggle_times():
-            self.names_only.set(not self.names_only.get())
-            self.update_output()
-
-        self._times_toggle_btn = ctk.CTkButton(
-            buttons_row, text="Times on",
-            command=_toggle_times, corner_radius=6,
-            fg_color="transparent", hover_color=T.BORDER,
-            text_color=T.TEXT_SECONDARY, width=76, height=T.WIDGET_H,
-            font=T.FONT_SMALL_BOLD, border_width=T.BORDER_W, border_color=T.BORDER
-        )
-        self._times_toggle_btn.pack(side="right", padx=(0, 15))
-
-        def _sync_times_btn(*_):
-            if self.names_only.get():
-                self._times_toggle_btn.configure(text="Times off", text_color=T.ERROR)
-            else:
-                self._times_toggle_btn.configure(text="Times on", text_color=T.TEXT_SECONDARY)
-        self.names_only.trace_add("write", _sync_times_btn)
-
-        output_container = ctk.CTkFrame(_lineup_tab, fg_color="transparent")
-        output_container.grid(row=2, column=0, sticky="nsew", padx=12, pady=(0, 12))
-        output_container.grid_columnconfigure(0, weight=1)
-        output_container.grid_rowconfigure(0, weight=1)
-        _lineup_tab.grid_rowconfigure(2, weight=1)
-
-        self.output_text = ctk.CTkTextbox(
-            output_container,
-            text_color=self.settings.get("text_primary", T.TEXT_PRIMARY),
-            font=("Consolas", self.settings.get("output_font_size", 14)),
-            wrap="word", border_width=T.BORDER_W,
-            border_color=self.settings.get("border_color", T.BORDER),
-            corner_radius=T.CARD_RADIUS,
-            scrollbar_button_color=self.settings.get("scrollbar_color", T.SCROLLBAR),
-            scrollbar_button_hover_color=self.settings.get("scrollbar_color", T.SCROLLBAR)
-        )
-        self.output_text.grid(row=0, column=0, sticky="nsew")
-
-        self.copy_icon_btn = ctk.CTkButton(
-            output_container, text="⎘", command=self.copy_template,
-            width=32, height=32, corner_radius=6,
-            fg_color=self.settings.get("border_color", T.BORDER),
-            hover_color=self.settings.get("primary_color", T.PRIMARY),
-            text_color=self.settings.get("text_secondary", T.TEXT_SECONDARY), font=("Arial", 15)
-        )
-        self.copy_icon_btn.place_forget()
-        self.output_text.bind("<Enter>", lambda e: self.copy_icon_btn.place(relx=1.0, rely=0.0, x=-10, y=10, anchor="ne"))
-        self.output_text.bind("<Leave>", self._on_output_leave)
-        self.copy_icon_btn.bind("<Enter>", lambda e: self.copy_icon_btn.place(relx=1.0, rely=0.0, x=-10, y=10, anchor="ne"))
-        self.copy_icon_btn.bind("<Leave>", self._on_output_leave)
-
-        self._build_settings_tab()
-        self.apply_theme()
-
+    def _resize_handle_release(self, sender, app_data):
+        self._resize_dragging = False

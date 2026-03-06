@@ -8,10 +8,9 @@ version = "0.1.0"
 description = "Desktop GUI app for building DJ event lineups and generating formatted Discord/plain-text output"
 requires-python = ">=3.11"
 dependencies = [
-    "customtkinter",
-    "tkcalendar",
+    "dearpygui",
     "pyyaml",
-    "iconipy",
+    "Pillow",
 ]
 
 [project.scripts]
@@ -21,6 +20,7 @@ lineup-builder = "main:main"
 dev = [
     "pytest",
     "pytest-cov",
+    "watchdog",
 ]
 
 [tool.setuptools.packages.find]

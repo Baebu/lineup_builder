@@ -12,7 +12,7 @@ without ever instantiating a Tkinter root window.
 
 Example
 -------
-    from src.backend.lineup_model import EventSnapshot, SlotData
+    from src.backend.types import EventSnapshot, SlotData
     from src.backend.output_generator import OutputGenerator
 
     snap = EventSnapshot(
@@ -32,7 +32,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .lineup_model import EventSnapshot
+    from .types import EventSnapshot
 
 
 class OutputGenerator:
@@ -121,14 +121,6 @@ class OutputGenerator:
                 lines.append(f"<t:{ts}:t> | **{name}**{genre_str}")
             ptr += datetime.timedelta(minutes=slot.duration)
 
-        # Open Decks
-        if snap.open_decks.enabled:
-            lines.append("\n### OPEN DECKS")
-            for i in range(snap.open_decks.count):
-                ts = int(ptr.timestamp())
-                lines.append(f"<t:{ts}:t> | Slot {i + 1}: [Available]")
-                ptr += datetime.timedelta(minutes=snap.open_decks.duration)
-
         return "\n".join(lines)
 
     @staticmethod
@@ -162,13 +154,6 @@ class OutputGenerator:
                 genre_str = f" ({slot.genre})" if slot.genre else ""
                 lines.append(f"{ptr.strftime('%H:%M')} | {name}{genre_str}")
             ptr += datetime.timedelta(minutes=slot.duration)
-
-        # Open Decks
-        if snap.open_decks.enabled:
-            lines.append("\nOPEN DECKS")
-            for i in range(snap.open_decks.count):
-                lines.append(f"{ptr.strftime('%H:%M')} | Slot {i + 1}: [Available]")
-                ptr += datetime.timedelta(minutes=snap.open_decks.duration)
 
         return "\n".join(lines)
 

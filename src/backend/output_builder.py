@@ -1,6 +1,6 @@
 import dearpygui.dearpygui as dpg
 
-from .lineup_model import DJInfo, EventSnapshot, OpenDecksConfig, SlotData
+from .types import DJInfo, EventSnapshot, SlotData
 from .output_generator import OutputGenerator
 
 
@@ -36,15 +36,6 @@ class OutputMixin:
                 duration=dur,
             ))
 
-        try:
-            od_count = int(self.od_count.get())
-        except (ValueError, AttributeError):
-            od_count = 0
-        try:
-            od_dur = int(self.od_duration.get())
-        except (ValueError, AttributeError):
-            od_dur = 0
-
         dj_list = [
             DJInfo(
                 name=d.get("name", ""),
@@ -62,11 +53,6 @@ class OutputMixin:
             slots=slots,
             names_only=self.names_only.get(),
             output_format=self.output_format.get(),
-            open_decks=OpenDecksConfig(
-                enabled=self.include_od.get(),
-                count=od_count,
-                duration=od_dur,
-            ),
             saved_djs=dj_list,
         )
 
@@ -81,6 +67,23 @@ class OutputMixin:
             tag = f"slot_time_{_slot._id}"
             if dpg.does_item_exist(tag):
                 dpg.set_value(tag, time_str)
+
+        # Sync button themes for formats and times toggle
+        if hasattr(self, "output_format") and hasattr(self, "names_only"):
+            fmt = self.output_format.get()
+            if dpg.does_item_exist("fmt_discord"):
+                dpg.bind_item_theme("fmt_discord", "success_btn_theme" if fmt == "discord" else "secondary_btn_theme")
+            if dpg.does_item_exist("fmt_plain"):
+                dpg.bind_item_theme("fmt_plain", "success_btn_theme" if fmt == "local" else "secondary_btn_theme")
+            if dpg.does_item_exist("fmt_quest"):
+                dpg.bind_item_theme("fmt_quest", "success_btn_theme" if fmt == "quest" else "secondary_btn_theme")
+            if dpg.does_item_exist("fmt_pc"):
+                dpg.bind_item_theme("fmt_pc", "success_btn_theme" if fmt == "pc" else "secondary_btn_theme")
+                
+            if dpg.does_item_exist("fmt_times"):
+                times_on = not self.names_only.get()
+                dpg.configure_item("fmt_times", label="Times on" if times_on else "Times off")
+                dpg.bind_item_theme("fmt_times", "success_btn_theme" if times_on else "secondary_btn_theme")
 
         # Delegate the heavy lifting to the pure-Python generator
         body = OutputGenerator.generate(snap)

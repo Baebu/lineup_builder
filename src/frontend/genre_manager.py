@@ -1,7 +1,6 @@
 import dearpygui.dearpygui as dpg
 
-from . import theme as T
-from .fonts import Icon
+from .fonts import HEADER, MUTED, styled_text
 
 
 class GenreMixin:
@@ -44,11 +43,14 @@ class GenreMixin:
                 if dpg.does_item_exist(_wt):
                     dpg.delete_item(_wt)
             with dpg.window(tag=win_tag, label="Confirm Delete", modal=True,
-                            width=280, height=80, no_resize=True):
+                            autosize=True, no_resize=True, no_scrollbar=True,
+                            pos=dpg.get_mouse_pos(local=False)):
                 dpg.add_text(f"Remove '{val}' from saved genres?")
                 with dpg.group(horizontal=True):
-                    dpg.add_button(label=Icon.CHECK + " Yes", callback=lambda s, a: _do_del())
-                    dpg.add_button(label=Icon.CLOSE + " No", callback=lambda s, a, wt=win_tag: dpg.delete_item(wt))
+                    dpg.add_button(label="Yes", width=140, callback=lambda s, a, u=None: _do_del())
+                    dpg.bind_item_theme(dpg.last_item(), self._danger_btn_theme)
+                    dpg.add_button(label="No", width=140, user_data=win_tag,
+                                   callback=lambda s, a, u: dpg.delete_item(u))
 
     def remove_genre(self, genre):
         if genre in self.active_genres:
@@ -70,16 +72,76 @@ class GenreMixin:
             return
         dpg.delete_item("genre_tags_frame", children_only=True)
         if not self.saved_genres:
-            dpg.add_text("Type a genre above and press Enter to add it.",
-                         parent="genre_tags_frame", color=T.DPG_TEXT_MUTED)
+            styled_text("Type a genre above and press Enter to add it.",
+                         MUTED, parent="genre_tags_frame")
             return
+        query = self.genre_search_var.get().strip().lower() if hasattr(self, 'genre_search_var') else ""
+        filtered = [g for g in self.saved_genres if not query or query in g.lower()]
+        if not filtered and query:
+            styled_text("No genres match your search.",
+                         MUTED, parent="genre_tags_frame")
+            return
+
         active_lower = {g.lower() for g in self.active_genres}
-        for genre in self.saved_genres:
-            is_active = genre.lower() in active_lower
-            dpg.add_button(
-                label=genre, parent="genre_tags_frame", small=True,
-                callback=lambda s, a, g=genre, ia=is_active: self._toggle_genre(g, ia),
-            )
+        # Intelligent greedy bin-packing: pack as many genre buttons per row to minimize empty space
+        container_w = 0
+        if dpg.does_item_exist("genre_tags_frame"):
+            container_w = dpg.get_item_rect_size("genre_tags_frame")[0]
+        if container_w <= 0:
+            container_w = dpg.get_item_width("genre_tags_frame")
+        if container_w is None or container_w <= 0:
+            container_w = self._LEFT_DEFAULT if hasattr(self, '_LEFT_DEFAULT') else 300
+        
+        # Compensate for padding/scrollbars inside the child window
+        usable_w = max(100, container_w - 20)
+
+        frame_pad_x = 6   # mvStyleVar_FramePadding X (from theme)
+        item_gap = 6       # mvStyleVar_ItemSpacing X (from theme)
+
+        # Precompute widths for all buttons
+        items = []
+        for genre in filtered:
+            text_size = dpg.get_text_size(genre)
+            btn_w = (text_size[0] if text_size else len(genre) * 8) + 2 * frame_pad_x
+            items.append((genre, btn_w))
+
+        # Sort items descending by width for best-fit bin packing
+        items.sort(key=lambda x: x[1], reverse=True)
+
+        rows = []  # list of tuples: (used_width, [list of (genre, btn_w)])
+        
+        for item in items:
+            genre, btn_w = item
+            placed = False
+            # Find the first row that can fit this item
+            for i, row in enumerate(rows):
+                used_w, items_in_row = row
+                # The extra cost is the item width + an item gap
+                cost = btn_w
+                if len(items_in_row) > 0:
+                    cost += item_gap
+                
+                if used_w + cost <= usable_w:
+                    rows[i] = (used_w + cost, items_in_row + [item])
+                    placed = True
+                    break
+            
+            # If it doesn't fit in any existing row, create a new row
+            if not placed:
+                rows.append((btn_w, [item]))
+
+        # Render the grouped rows
+        for used_w, items_in_row in rows:
+            row_group = dpg.add_group(horizontal=True, parent="genre_tags_frame")
+            for genre, btn_w in items_in_row:
+                is_active = genre.lower() in active_lower
+                btn = dpg.add_button(
+                    label=genre, parent=row_group, height=20,
+                    user_data=(genre, is_active),
+                    callback=lambda s, a, u: self._toggle_genre(u[0], u[1]),
+                )
+                if is_active:
+                    dpg.bind_item_theme(btn, "success_btn_theme")
 
     # ── Genre editor popout ───────────────────────────────────────────────
 
@@ -97,17 +159,17 @@ class GenreMixin:
                 return
             dpg.delete_item(_wg, children_only=True)
             if not self.saved_genres:
-                dpg.add_text("No genres saved yet.", parent=_wg, color=T.DPG_TEXT_MUTED)
+                styled_text("No genres saved yet.", MUTED, parent=_wg)
                 return
             for i, genre in enumerate(self.saved_genres):
                 with dpg.group(parent=_wg, horizontal=True):
                     dpg.add_text(genre)
-                    dpg.add_button(label=Icon.UP, small=True,
-                                   callback=lambda s, a, idx=i: _move(idx, -1))
-                    dpg.add_button(label=Icon.DOWN, small=True,
-                                   callback=lambda s, a, idx=i: _move(idx, 1))
-                    dpg.add_button(label=Icon.DELETE, small=True,
-                                   callback=lambda s, a, g=genre: _delete(g))
+                    dpg.add_button(label="^", small=True, user_data=i,
+                                   callback=lambda s, a, u: _move(u, -1))
+                    dpg.add_button(label="v", small=True, user_data=i,
+                                   callback=lambda s, a, u: _move(u, 1))
+                    dpg.add_button(label="Del", small=True, user_data=genre,
+                                   callback=lambda s, a, u: _delete(u))
 
         def _move(idx, delta):
             ni = idx + delta
@@ -129,8 +191,8 @@ class GenreMixin:
             _rebuild()
 
         with dpg.window(tag=win_tag, label="Edit Genres", width=340, height=480):
-            dpg.add_text("GENRE LIBRARY", color=T.DPG_ACCENT)
-            new_input = dpg.add_input_text(hint="New genre name...", width=-1)
+            styled_text("GENRE LIBRARY", HEADER)
+            new_input = dpg.add_input_text(hint="New genre name...", width=-11)
 
             def _add_new(s, a, _ni=new_input):
                 val = dpg.get_value(_ni).strip()
@@ -140,7 +202,8 @@ class GenreMixin:
                 self.add_genre(val)
                 _rebuild()
 
-            dpg.add_button(label=Icon.ADD + " Add", callback=_add_new, width=-1)
+            add_btn = dpg.add_button(label="+ Add", callback=_add_new, width=-1)
+            dpg.bind_item_theme(add_btn, "primary_btn_theme")
             dpg.add_separator()
             dpg.add_group(tag="genre_editor_list")
             _rebuild()

@@ -63,6 +63,13 @@ class DebounceMixin:
         self._roster_job = None
         self.refresh_dj_roster_ui()
 
+    def _schedule_genre_refresh(self, delay: int = 120):
+        self._timer("_genre_refresh_job", delay / 1000, self._run_scheduled_genre_refresh)
+
+    def _run_scheduled_genre_refresh(self):
+        self._genre_refresh_job = None
+        self.refresh_genre_tags()
+
     def _schedule_save_library(self, delay: int = 500):
         self._timer("_save_lib_job", delay / 1000, self._run_scheduled_save_library)
 

@@ -97,9 +97,6 @@ class DataMixin:
             "master_duration": self.master_duration.get(),
             "genres":          list(self.active_genres),
             "names_only":      self.names_only.get(),
-            "include_od":      self.include_od.get(),
-            "od_duration":     self.od_duration.get(),
-            "od_count":        self.od_count.get(),
             "slots": [
                 {
                     "name":     s.name_var.get().strip(),
