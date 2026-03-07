@@ -69,7 +69,7 @@ class UISetupMixin:
                               autosize_x=True, height=-1):
             # ── Header row ────────────────────────────────────────────────────
             styled_text("   EVENT CONFIGURATION", HEADER)
-            with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
+            with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
                            borders_outerH=False, borders_outerV=False, pad_outerX=False):
                 dpg.add_table_column()
                 dpg.add_table_column()
@@ -79,17 +79,8 @@ class UISetupMixin:
                     add_primary_button("Save", tag="save_event_btn", width=-1, callback=lambda: self.save_event_lineup())
             dpg.add_separator()
 
-            # ── Social links shortcut ────────────────────────────────────
-            dpg.add_button(
-                label="Social Links",
-                tag="social_links_btn",
-                width=-1,
-                callback=lambda: self._open_social_links_popup(),
-            )
-            dpg.add_separator()
-
             # ── Event title + vol ─────────────────────────────────────────────
-            styled_text("   EVENT TITLE", LABEL)
+            styled_text("   TITLE", LABEL)
             with dpg.group(horizontal=True):
                 dpg.add_input_text(
                     tag="event_title_input",
@@ -195,6 +186,7 @@ class UISetupMixin:
         with dpg.window(
             tag=win_tag, label="Social Links", modal=True,
             no_resize=True, no_scrollbar=True, autosize=True,
+            on_close=lambda: dpg.delete_item(win_tag),
         ):
             styled_text("  Links included in the Discord output below the genres.",
                         MUTED, wrap=340)
@@ -304,9 +296,9 @@ class UISetupMixin:
 
                 # ── Output preview ────────────────────────────────────────
                 styled_text("   OUTPUT", HEADER)
-                with dpg.table(header_row=False, borders_innerH=False, borders_innerV=True,
+                with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
                                borders_outerH=False, borders_outerV=False, pad_outerX=False):
-                    for _ in range(6):
+                    for _ in range(4):
                         dpg.add_table_column()
                     with dpg.table_row():
                         dpg.add_button(tag="fmt_discord", label="Discord", width=-1,
@@ -317,15 +309,23 @@ class UISetupMixin:
                                        callback=lambda: self.set_quest_view())
                         dpg.add_button(tag="fmt_pc",      label="PC",      width=-1,
                                        callback=lambda: self.set_pc_view())
-                        dpg.add_button(tag="fmt_times",   label="Times on", width=-1,
-                                       callback=lambda: self._toggle_times())
-                        add_icon_button(Icon.COPY, tag="copy_output_btn", width=-1, height=20, is_primary=True, callback=lambda: self._copy_output())
+                dpg.add_button(tag="fmt_times", label="Times on", width=-1,
+                               callback=lambda: self._toggle_times())
 
                 dpg.add_input_text(
                     tag="output_text",
                     multiline=True, readonly=True,
-                    width=-11, height=-1,
+                    width=-11, height=-30,
                 )
+
+                with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
+                               borders_outerH=False, borders_outerV=False, pad_outerX=False):
+                    for _ in range(2):
+                        dpg.add_table_column()
+                    with dpg.table_row():
+                        dpg.add_button(tag="social_links_btn", label="Social Links", width=-1,
+                                       callback=lambda: self._open_social_links_popup())
+                        add_icon_button(Icon.COPY, tag="copy_output_btn", width=-1, height=20, is_primary=True, callback=lambda: self._copy_output())
 
     # ── Helpers ───────────────────────────────────────────────────────────
 

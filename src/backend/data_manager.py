@@ -103,9 +103,6 @@ class DataMixin:
             "master_duration": self.master_duration.get(),
             "genres": list(self.active_genres),
             "names_only": self.names_only.get(),
-            "include_od": self.include_od.get(),
-            "od_duration": self.od_duration.get(),
-            "od_count": self.od_count.get(),
             "social_links": dict(getattr(self, "social_links", {})),
             "slots": [
                 {
@@ -151,17 +148,21 @@ class DataMixin:
         title = state.get("title", "").strip()
         label = f"An unsaved lineup was found{(' — ' + title) if title else ''}.\nRestore it?"
         with dpg.window(tag=win_tag, label="Restore Unsaved Session", modal=True,
-                        width=360, height=110, no_resize=True):
+                        autosize=True, no_resize=True, no_scrollbar=True):
             dpg.add_text(label, wrap=340)
             with dpg.group(horizontal=True):
-                dpg.add_button(
-                    label="\u21BB Restore",
-                    callback=lambda s, a, _st=state, _wt=win_tag: (
-                        self.load_event_lineup(_st), dpg.delete_item(_wt)
+                restore_btn = dpg.add_button(
+                    label="\u21BB Restore", width=140,
+                    user_data=state,
+                    callback=lambda s, a, u: (
+                        self.load_event_lineup(u),
+                        dpg.delete_item(win_tag) if dpg.does_item_exist(win_tag) else None,
                     ))
+                dpg.bind_item_theme(restore_btn, "primary_btn_theme")
                 dpg.add_button(
-                    label="\u00D7 Discard",
-                    callback=lambda s, a, _wt=win_tag: dpg.delete_item(_wt))
+                    label="\u00D7 Discard", width=140,
+                    user_data=win_tag,
+                    callback=lambda s, a, u: dpg.delete_item(u) if dpg.does_item_exist(u) else None)
 
     # ── Window state ──────────────────────────────────────────────────────
 

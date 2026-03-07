@@ -130,6 +130,7 @@ class OutputGenerator:
                 if snap.social_links.get(label, "").strip()
             ]
             if parts:
+                lines.append("")
                 lines.append(" | ".join(parts))
 
         return "\n".join(lines)
