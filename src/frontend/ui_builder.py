@@ -76,7 +76,7 @@ class UISetupMixin:
                 with dpg.table_row():
                     dpg.add_button(label="+ New", width=-1,
                                    callback=lambda: self.new_event())
-                    add_primary_button("Save", width=-1, callback=lambda: self.save_event_lineup())
+                    add_primary_button("Save", tag="save_event_btn", width=-1, callback=lambda: self.save_event_lineup())
             dpg.add_separator()
 
             # ── Social links shortcut ────────────────────────────────────
@@ -158,7 +158,7 @@ class UISetupMixin:
     def _build_dj_roster_tab(self):
         with dpg.group(horizontal=True):
             styled_text("   DJS", HEADER)
-        add_primary_button("+ New DJ", width=-1, callback=lambda: self.add_new_dj_to_roster())
+        add_primary_button("+ New DJ", tag="new_dj_btn", width=-1, callback=lambda: self.add_new_dj_to_roster())
         dpg.add_input_text(
             tag="dj_search_input",
             default_value=self.dj_search_var.get(),
@@ -279,7 +279,7 @@ class UISetupMixin:
                     self.master_duration._tag = "master_dur_combo"
                     self._register_scroll_combo("master_dur_combo", dur_values,
                                                 on_change=lambda: self.apply_master_duration())
-                    add_primary_button("+ Add DJ", width=90, callback=lambda: self.add_slot())
+                    add_primary_button("+ Add DJ", tag="add_dj_slot_btn", width=90, callback=lambda: self.add_slot())
                     dpg.add_spacer(width=10)
 
                 # ── Slots scroll area ─────────────────────────────────────
@@ -291,14 +291,7 @@ class UISetupMixin:
 
                 # ── Draggable resize handle ───────────────────────────────
                 dpg.add_button(tag="resize_handle", label="", width=-1, height=4)
-                with dpg.theme() as _rh_theme:
-                    with dpg.theme_component(dpg.mvButton):
-                        dpg.add_theme_color(dpg.mvThemeCol_Button,       T.DPG_BORDER)
-                        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, T.DPG_ACCENT)
-                        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  T.DPG_ACCENT)
-                        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 0)
-                        dpg.add_theme_style(dpg.mvStyleVar_FramePadding,  0, 0)
-                dpg.bind_item_theme("resize_handle", _rh_theme)
+                dpg.bind_item_theme("resize_handle", "resize_handle_theme")
                 with dpg.item_handler_registry(tag="resize_handle_hr"):
                     dpg.add_item_clicked_handler(button=dpg.mvMouseButton_Left,
                                                  callback=self._resize_handle_click)
@@ -326,7 +319,7 @@ class UISetupMixin:
                                        callback=lambda: self.set_pc_view())
                         dpg.add_button(tag="fmt_times",   label="Times on", width=-1,
                                        callback=lambda: self._toggle_times())
-                        add_icon_button(Icon.COPY, width=-1, height=20, is_primary=True, callback=lambda: self._copy_output())
+                        add_icon_button(Icon.COPY, tag="copy_output_btn", width=-1, height=20, is_primary=True, callback=lambda: self._copy_output())
 
                 dpg.add_input_text(
                     tag="output_text",

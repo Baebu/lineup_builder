@@ -117,6 +117,8 @@ BUILTIN_PRESETS = [
             **DEFAULT_SETTINGS,
             "primary_color":   "#059669",
             "primary_hover":   "#047857",
+            "success_color":   "#D97706",
+            "success_hover":   "#B45309",
             "accent_color":    "#6EE7B7",
             "secondary_color": "#0D2B1F",
             "secondary_hover": "#163D2C",
@@ -276,7 +278,8 @@ class SettingsMixin:
                 dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize,  S.FRAME_BORDER)
         # ── Explicit Button Themes ──────────────────────────────────────
         _btn_tags = ["primary_btn_theme", "secondary_btn_theme",
-                     "success_btn_theme", "danger_btn_theme"]
+                     "success_btn_theme", "danger_btn_theme",
+                     "resize_handle_theme"]
         for t in _btn_tags:
             try:
                 if dpg.does_item_exist(t):
@@ -311,6 +314,14 @@ class SettingsMixin:
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("danger_hover", "#B91C1C")))
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("danger_color", "#DC2626")))
 
+        with dpg.theme(tag="resize_handle_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("border_color", "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("accent_color", "#818CF8")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("accent_color", "#818CF8")))
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 0)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding,  0, 0)
+
         if self._global_theme is not None:
             try:
                 dpg.delete_item(self._global_theme)
@@ -320,6 +331,17 @@ class SettingsMixin:
         self._global_theme = global_theme
         self._danger_btn_theme = "danger_btn_theme"
         dpg.bind_theme(global_theme)
+
+        # Rebind persistent buttons whose item-theme binding was invalidated
+        _primary_persistent = ["save_event_btn", "new_dj_btn", "add_dj_slot_btn", "copy_output_btn"]
+        for tag in _primary_persistent:
+            if dpg.does_item_exist(tag):
+                dpg.bind_item_theme(tag, "primary_btn_theme")
+        if dpg.does_item_exist("resize_handle"):
+            dpg.bind_item_theme("resize_handle", "resize_handle_theme")
+        # Reschedule output update so format buttons get their themes rebound too
+        if dpg.does_item_exist("fmt_discord"):
+            self._schedule_update()
 
         self._applied_settings = dict(self.settings)
         dpg.set_global_font_scale(float(s.get("ui_scale", 0.75)))
