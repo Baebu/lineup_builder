@@ -254,24 +254,13 @@ class UISetupMixin:
     # ── Right panel ───────────────────────────────────────────────────────
 
     def _build_right_panel(self):
-        # ── Lineup header ─────────────────────────────────────────────────
-        with dpg.tab_bar():
+        # ── Tab bar (only controls the top section) ───────────────────────
+        with dpg.tab_bar(tag="right_tabs"):
             with dpg.tab(label="Lineup"):
                 # ── Row 1: default length + add DJ ────────────────────
                 with dpg.group(horizontal=True):
                     dur_values = [str(x) for x in range(15, 121, 15)]
-                    styled_text("   CONTROLS  ", HEADER)
-                    dpg.add_combo(
-                        tag="master_dur_combo",
-                        items=dur_values,
-                        default_value=self.master_duration.get(),
-                        width=50,
-                        callback=lambda s, a, u=None: self.apply_master_duration(),
-                    )
-                    self.master_duration._tag = "master_dur_combo"
-                    self._register_scroll_combo("master_dur_combo", dur_values,
-                                                on_change=lambda: self.apply_master_duration())
-                    add_primary_button("+ Add DJ", tag="add_dj_slot_btn", width=90, callback=lambda: self.add_slot())
+                    styled_text("   TIMESLOTS  ", HEADER)
                     dpg.add_spacer(width=10)
 
                 # ── Slots scroll area ─────────────────────────────────────
@@ -294,40 +283,231 @@ class UISetupMixin:
                     dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left,
                                                   callback=self._resize_handle_release)
 
-                # ── Output preview ────────────────────────────────────────
-                styled_text("   OUTPUT", HEADER)
-                with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
-                               borders_outerH=False, borders_outerV=False, pad_outerX=False):
-                    for _ in range(4):
-                        dpg.add_table_column()
-                    with dpg.table_row():
-                        dpg.add_button(tag="fmt_discord", label="Discord", width=-1,
-                                       callback=lambda: self.toggle_format())
-                        dpg.add_button(tag="fmt_plain",   label="Plain",   width=-1,
-                                       callback=lambda: self.set_plain_text())
-                        dpg.add_button(tag="fmt_quest",   label="Quest",   width=-1,
-                                       callback=lambda: self.set_quest_view())
-                        dpg.add_button(tag="fmt_pc",      label="PC",      width=-1,
-                                       callback=lambda: self.set_pc_view())
-                dpg.add_button(tag="fmt_times", label="Times on", width=-1,
-                               callback=lambda: self._toggle_times())
+            with dpg.tab(label="Discord"):
+                dpg.add_spacer(height=4)
 
+                # ── Bot invite ─────────────────────────────────────────────
+                styled_text("  DISCORD BOT", HEADER)
+                styled_text("  Client ID", LABEL)
                 dpg.add_input_text(
-                    tag="output_text",
-                    multiline=True, readonly=True,
-                    width=-11, height=-30,
+                    tag="discord_client_id",
+                    default_value=getattr(self, "discord_client_id", ""),
+                    hint="Application Client ID...",
+                    width=-1,
+                    callback=lambda s, a, u=None: self._save_discord_credentials(),
+                )
+                dpg.add_spacer(height=4)
+                add_primary_button(
+                    "Invite Bot to Server",
+                    tag="discord_invite_btn", width=-1,
+                    callback=lambda: self._invite_discord_bot(),
                 )
 
-                with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
-                               borders_outerH=False, borders_outerV=False, pad_outerX=False):
-                    for _ in range(2):
-                        dpg.add_table_column()
-                    with dpg.table_row():
-                        dpg.add_button(tag="social_links_btn", label="Social Links", width=-1,
-                                       callback=lambda: self._open_social_links_popup())
-                        add_icon_button(Icon.COPY, tag="copy_output_btn", width=-1, height=20, is_primary=True, callback=lambda: self._copy_output())
+                dpg.add_spacer(height=8)
+
+                # ── Bot connection ─────────────────────────────────────────
+                styled_text("  BOT CONNECTION", HEADER)
+                styled_text("  Bot Token", LABEL)
+                dpg.add_input_text(
+                    tag="discord_bot_token",
+                    default_value=getattr(self, "discord_bot_token", ""),
+                    hint="Paste bot token here...",
+                    password=True,
+                    width=-1,
+                    callback=lambda s, a, u=None: self._save_bot_token(),
+                )
+                with dpg.group(horizontal=True):
+                    add_primary_button(
+                        "Connect", tag="discord_connect_btn", width=120,
+                        callback=lambda: self._connect_discord_bot(),
+                    )
+                    dpg.add_button(
+                        tag="discord_disconnect_btn", label="Disconnect", width=120,
+                        callback=lambda: self._disconnect_discord_bot(),
+                    )
+                styled_text("  Not connected", MUTED, tag="discord_status_text")
+
+                dpg.add_spacer(height=8)
+                styled_text("  DISCORD CHANNELS", HEADER)
+                styled_text("  Enter channel IDs (right-click channel → Copy Channel ID).",
+                            MUTED)
+                dpg.add_spacer(height=4)
+
+                channels = getattr(self, "discord_channels", {})
+
+                styled_text("  Events Channel", LABEL)
+                dpg.add_input_text(
+                    tag="discord_events_channel",
+                    default_value=channels.get("events", ""),
+                    hint="Channel ID...",
+                    width=-1,
+                    callback=lambda s, a, u=None: self._save_discord_channels(),
+                )
+                styled_text("  Popup Channel", LABEL)
+                dpg.add_input_text(
+                    tag="discord_popup_channel",
+                    default_value=channels.get("popup", ""),
+                    hint="Channel ID...",
+                    width=-1,
+                    callback=lambda s, a, u=None: self._save_discord_channels(),
+                )
+                styled_text("  Signups Channel", LABEL)
+                dpg.add_input_text(
+                    tag="discord_signups_channel",
+                    default_value=channels.get("signups", ""),
+                    hint="Channel ID...",
+                    width=-1,
+                    callback=lambda s, a, u=None: self._save_discord_channels(),
+                )
+
+                dpg.add_spacer(height=8)
+                styled_text("  POST OUTPUT", HEADER)
+                with dpg.group(horizontal=True):
+                    add_primary_button(
+                        "Post to Events", tag="discord_post_events_btn", width=-1,
+                        callback=lambda: self._post_to_discord("events"),
+                    )
+                with dpg.group(horizontal=True):
+                    add_primary_button(
+                        "Post to Popup", tag="discord_post_popup_btn", width=-1,
+                        callback=lambda: self._post_to_discord("popup"),
+                    )
+                with dpg.group(horizontal=True):
+                    add_primary_button(
+                        "Post to Signups", tag="discord_post_signups_btn", width=-1,
+                        callback=lambda: self._post_to_discord("signups"),
+                    )
+
+        # ── Output preview (always visible, below tabs) ───────────────────
+        styled_text("   OUTPUT", HEADER)
+        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
+                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
+            for _ in range(4):
+                dpg.add_table_column()
+            with dpg.table_row():
+                dpg.add_button(tag="fmt_discord", label="Discord", width=-1,
+                               callback=lambda: self.toggle_format())
+                dpg.add_button(tag="fmt_plain",   label="Plain",   width=-1,
+                               callback=lambda: self.set_plain_text())
+                dpg.add_button(tag="fmt_quest",   label="Quest",   width=-1,
+                               callback=lambda: self.set_quest_view())
+                dpg.add_button(tag="fmt_pc",      label="PC",      width=-1,
+                               callback=lambda: self.set_pc_view())
+        dpg.add_button(tag="fmt_times", label="Times on", width=-1,
+                       callback=lambda: self._toggle_times())
+
+        dpg.add_input_text(
+            tag="output_text",
+            multiline=True, readonly=True,
+            width=-11, height=-30,
+        )
+
+        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
+                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
+            for _ in range(2):
+                dpg.add_table_column()
+            with dpg.table_row():
+                dpg.add_button(tag="social_links_btn", label="Social Links", width=-1,
+                               callback=lambda: self._open_social_links_popup())
+                add_icon_button(Icon.COPY, tag="copy_output_btn", width=-1, height=20, is_primary=True, callback=lambda: self._copy_output())
 
     # ── Helpers ───────────────────────────────────────────────────────────
+
+    def _save_discord_credentials(self):
+        """Persist client ID from the input field."""
+        if dpg.does_item_exist("discord_client_id"):
+            self.discord_client_id = dpg.get_value("discord_client_id").strip()
+        self.save_settings()
+
+    def _invite_discord_bot(self):
+        """Open the bot invite URL in the browser."""
+        client_id = getattr(self, "discord_client_id", "")
+        if dpg.does_item_exist("discord_client_id"):
+            client_id = dpg.get_value("discord_client_id").strip()
+        if not client_id:
+            self._set_discord_status("No Client ID provided.")
+            return
+        # Send Messages (2048) + Read Message History (65536)
+        invite_url = (
+            f"https://discord.com/oauth2/authorize"
+            f"?client_id={client_id}&permissions=67584&scope=bot"
+        )
+        import webbrowser
+        webbrowser.open(invite_url)
+
+    def _save_discord_channels(self):
+        """Read Discord channel inputs and persist to settings."""
+        self.discord_channels = {
+            "events": dpg.get_value("discord_events_channel").strip()
+                      if dpg.does_item_exist("discord_events_channel") else "",
+            "popup": dpg.get_value("discord_popup_channel").strip()
+                     if dpg.does_item_exist("discord_popup_channel") else "",
+            "signups": dpg.get_value("discord_signups_channel").strip()
+                       if dpg.does_item_exist("discord_signups_channel") else "",
+        }
+        self.save_settings()
+
+    def _save_bot_token(self):
+        """Persist the bot token from the input field."""
+        if dpg.does_item_exist("discord_bot_token"):
+            self.discord_bot_token = dpg.get_value("discord_bot_token").strip()
+            self.save_settings()
+
+    def _set_discord_status(self, text: str):
+        """Update the Discord status label (thread-safe via work queue)."""
+        def _update():
+            if dpg.does_item_exist("discord_status_text"):
+                dpg.set_value("discord_status_text", f"  {text}")
+        self._queue_on_main(_update)
+
+    def _connect_discord_bot(self):
+        """Start the Discord bot with the saved token."""
+        token = getattr(self, "discord_bot_token", "")
+        if dpg.does_item_exist("discord_bot_token"):
+            token = dpg.get_value("discord_bot_token").strip()
+            self.discord_bot_token = token
+            self.save_settings()
+        if not token:
+            self._set_discord_status("No bot token provided.")
+            return
+        self._set_discord_status("Connecting...")
+        self._discord_service.start(token, on_status=self._set_discord_status)
+
+    def _disconnect_discord_bot(self):
+        """Stop the Discord bot."""
+        self._discord_service.stop()
+        self._set_discord_status("Disconnected")
+
+    def _post_to_discord(self, channel_key: str):
+        """Post the current output text to the specified Discord channel."""
+        if not self._discord_service.is_running:
+            self._set_discord_status("Bot is not connected.")
+            return
+
+        channel_id_str = self.discord_channels.get(channel_key, "").strip()
+        if not channel_id_str:
+            self._set_discord_status(f"No channel ID set for '{channel_key}'.")
+            return
+        try:
+            channel_id = int(channel_id_str)
+        except ValueError:
+            self._set_discord_status(f"Invalid channel ID for '{channel_key}'.")
+            return
+
+        text = ""
+        if dpg.does_item_exist("output_text"):
+            text = dpg.get_value("output_text")
+        if not text.strip():
+            self._set_discord_status("Output is empty — nothing to post.")
+            return
+
+        self._set_discord_status(f"Posting to {channel_key}...")
+        self._discord_service.send_message(
+            channel_id, text,
+            on_success=lambda: self._set_discord_status(
+                f"Posted to {channel_key} channel."),
+            on_error=lambda e: self._set_discord_status(f"Error: {e}"),
+        )
 
     def _toggle_times(self):
         self.names_only.set(not self.names_only.get())

@@ -6,6 +6,7 @@
 *.pyc
 /.vscode
 /.venv
+/.env
 /window_state.json
 /auto_save.json
 /build

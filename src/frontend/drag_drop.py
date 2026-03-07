@@ -26,11 +26,7 @@ class DragDropMixin:
 
     def _add_dj_to_lineup(self, dj_name: str):
         """Add a DJ from the roster directly into a new lineup slot."""
-        try:
-            dur = int(self.master_duration.get())
-        except (ValueError, AttributeError):
-            dur = 60
-        self.add_slot(dj_name, "", dur)
+        self.add_slot(dj_name, "")
 
     def _drop_dj_on_lineup(self, sender, app_data):
         """Handle DJ card dropped onto the slots panel — creates a new slot."""

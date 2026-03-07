@@ -45,7 +45,7 @@ class Icon:
 
 
 # ── Font configuration ───────────────────────────────────────────────────────
-FONT_SIZE_DEFAULT = 14    # base UI font size
+FONT_SIZE_DEFAULT = 16    # base UI font size
 
 
 # ── Text styles ──────────────────────────────────────────────────────────────

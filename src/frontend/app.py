@@ -9,16 +9,17 @@ import dearpygui.dearpygui as dpg
 
 from src.backend.data_manager import DataMixin
 from src.backend.debounce import DebounceMixin
+from src.backend.discord_service import DiscordService
 from src.backend.event_bus import EventBus
 from src.backend.lineup_model import LineupModel
 from src.backend.output_builder import OutputMixin
 
-from .roster import RosterMixin
 from .drag_drop import DragDropMixin
 from .events_manager import EventsMixin
 from .fonts import setup_fonts
 from .genre_manager import GenreMixin
 from .import_parser import ImportMixin
+from .roster import RosterMixin
 from .settings_manager import SettingsMixin
 from .slot_manager import SlotMixin
 from .slot_ui import DPGBoolVar, DPGVar
@@ -60,6 +61,7 @@ class App(
         # Core architecture
         self.bus   = EventBus()
         self.model = LineupModel(self.bus)
+        self._discord_service = DiscordService()
 
         # ── State variables (DPGVar — tk.StringVar replacements) ─────────
         now = datetime.datetime.now()

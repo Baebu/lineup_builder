@@ -9,6 +9,27 @@ from .utils import get_data_dir
 from .widgets import add_icon_button
 
 SETTINGS_FILE = os.path.join(get_data_dir(), "settings.json")
+
+
+def _load_dotenv() -> dict[str, str]:
+    """Read key=value pairs from .env in the data directory (no third-party dep)."""
+    env: dict[str, str] = {}
+    env_path = os.path.join(get_data_dir(), ".env")
+    if not os.path.isfile(env_path):
+        return env
+    try:
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                env[key.strip()] = value.strip()
+    except Exception:
+        pass
+    return env
+
+
 DEFAULT_SETTINGS = {
     # Layout
     "left_panel_width": 325,
@@ -185,6 +206,25 @@ class SettingsMixin:
             "DISCORD":   {"link": "", "enabled": False},
             "VRC GROUP": {"link": "", "enabled": False},
         }
+        self.discord_channels: dict = {
+            "events": "",
+            "popup": "",
+            "signups": "",
+        }
+        self.discord_bot_token: str = ""
+        self.discord_client_id: str = ""
+        self.discord_client_secret: str = ""
+        self.discord_oauth: dict = {}
+
+        # Load .env defaults
+        env = _load_dotenv()
+        if env.get("DISCORD_BOT_TOKEN"):
+            self.discord_bot_token = env["DISCORD_BOT_TOKEN"]
+        if env.get("DISCORD_CLIENT_ID"):
+            self.discord_client_id = env["DISCORD_CLIENT_ID"]
+        if env.get("DISCORD_CLIENT_SECRET"):
+            self.discord_client_secret = env["DISCORD_CLIENT_SECRET"]
+
         if os.path.exists(SETTINGS_FILE):
             try:
                 with open(SETTINGS_FILE) as f:
@@ -198,6 +238,13 @@ class SettingsMixin:
                     saved = data.get("persistent_links", {}).get(key)
                     if isinstance(saved, dict):
                         self.persistent_links[key] = saved
+                saved_channels = data.get("discord_channels", {})
+                if isinstance(saved_channels, dict):
+                    self.discord_channels.update(saved_channels)
+                self.discord_bot_token = data.get("discord_bot_token", "")
+                self.discord_client_id = data.get("discord_client_id", "")
+                self.discord_client_secret = data.get("discord_client_secret", "")
+                self.discord_oauth = data.get("discord_oauth", {})
             except Exception:
                 pass
 
@@ -212,7 +259,12 @@ class SettingsMixin:
                 json.dump(
                     {**self.settings, "user_presets": self.user_presets,
                      "sync_data_dir": getattr(self, "sync_data_dir", ""),
-                     "persistent_links": getattr(self, "persistent_links", {})},
+                     "persistent_links": getattr(self, "persistent_links", {}),
+                     "discord_channels": getattr(self, "discord_channels", {}),
+                     "discord_bot_token": getattr(self, "discord_bot_token", ""),
+                     "discord_client_id": getattr(self, "discord_client_id", ""),
+                     "discord_client_secret": getattr(self, "discord_client_secret", ""),
+                     "discord_oauth": getattr(self, "discord_oauth", {})},
                     f, indent=2,
                 )
         except Exception as e:
@@ -313,6 +365,7 @@ class SettingsMixin:
                 dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("danger_color", "#DC2626")))
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("danger_hover", "#B91C1C")))
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("danger_color", "#DC2626")))
+                dpg.add_theme_color(dpg.mvThemeCol_Text,          (10, 10, 10, 255))
 
         with dpg.theme(tag="resize_handle_theme"):
             with dpg.theme_component(dpg.mvButton):
