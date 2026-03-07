@@ -31,6 +31,8 @@ a = Analysis(
         'src.backend.output_builder',
         'src.backend.output_generator',
         'src.backend.types',
+        'src.backend.discord_service',
+        'src.backend.discord_oauth',
         'src.frontend',
         'src.frontend.app',
         'src.frontend.date_time_picker',
