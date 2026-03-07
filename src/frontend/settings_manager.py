@@ -214,6 +214,8 @@ class SettingsMixin:
         self.discord_bot_token: str = ""
         self.discord_client_id: str = ""
         self.discord_client_secret: str = ""
+        self.discord_embed_image: str = ""
+        self.discord_scheduled_posts: list = []
         self.discord_oauth: dict = {}
 
         # Load .env defaults
@@ -244,6 +246,8 @@ class SettingsMixin:
                 self.discord_bot_token = data.get("discord_bot_token", "")
                 self.discord_client_id = data.get("discord_client_id", "")
                 self.discord_client_secret = data.get("discord_client_secret", "")
+                self.discord_embed_image = data.get("discord_embed_image", "")
+                self.discord_scheduled_posts = data.get("discord_scheduled_posts", [])
                 self.discord_oauth = data.get("discord_oauth", {})
             except Exception:
                 pass
@@ -264,7 +268,10 @@ class SettingsMixin:
                      "discord_bot_token": getattr(self, "discord_bot_token", ""),
                      "discord_client_id": getattr(self, "discord_client_id", ""),
                      "discord_client_secret": getattr(self, "discord_client_secret", ""),
+                     "discord_embed_image": getattr(self, "discord_embed_image", ""),
+                     "discord_scheduled_posts": getattr(self, "discord_scheduled_posts", []),
                      "discord_oauth": getattr(self, "discord_oauth", {})},
+
                     f, indent=2,
                 )
         except Exception as e:

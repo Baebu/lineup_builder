@@ -38,10 +38,12 @@ class Icon:
     CHAT     = "\ue0b7"   # chat
     CODE     = "\ue86f"   # code
     HEADSET  = "\ue310"   # headset
+    SETTINGS = "\ue8b8"   # settings
     VR       = "\ue3c7"   # vrpano
     SCHEDULE = "\ue8b5"   # schedule
     TUNE     = "\ue429"   # tune
     PASTE    = "\ue14f"   # content_paste
+    IMAGE    = "\ue3f4"   # image
 
 
 # ── Font configuration ───────────────────────────────────────────────────────

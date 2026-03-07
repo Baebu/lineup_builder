@@ -120,10 +120,15 @@ class App(
         # Give DPG a few frames to calculate real widget sizes before packing genres
         dpg.set_frame_callback(3, lambda: self._schedule_genre_refresh())
 
+        # Load persisted scheduled posts and refresh the UI list
+        self._load_scheduled_posts()
+        dpg.set_frame_callback(5, lambda: self._refresh_schedule_list_ui())
+
     def run(self):
         """Main DPG render loop — processes the work queue every frame."""
         while dpg.is_dearpygui_running():
             self.process_queue()
+            self.check_scheduled_posts()
             dpg.render_dearpygui_frame()
         self._on_close()
         dpg.destroy_context()

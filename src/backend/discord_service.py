@@ -61,6 +61,37 @@ class DiscordService:
 
     # ── Send helpers ──────────────────────────────────────────────────────
 
+    def get_text_channels(
+        self,
+        *,
+        on_result: Callable[[list[tuple[str, str, int]]], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
+    ):
+        """Fetch all visible text channels from the bot's guilds.
+
+        Calls *on_result* with a list of ``(guild_name, channel_name, channel_id)``
+        tuples, sorted by guild then channel name.
+        """
+        if not self.is_running:
+            if on_error:
+                on_error("Bot is not connected.")
+            return
+
+        async def _fetch():
+            try:
+                results: list[tuple[str, str, int]] = []
+                for guild in self._client.guilds:
+                    for ch in guild.text_channels:
+                        results.append((guild.name, ch.name, ch.id))
+                results.sort(key=lambda t: (t[0].lower(), t[1].lower()))
+                if on_result:
+                    on_result(results)
+            except Exception as exc:
+                if on_error:
+                    on_error(str(exc))
+
+        asyncio.run_coroutine_threadsafe(_fetch(), self._loop)
+
     def send_message(
         self,
         channel_id: int,
@@ -83,6 +114,38 @@ class DiscordService:
                 # Split into 2000-char chunks for Discord's limit
                 for i in range(0, len(content), 2000):
                     await channel.send(content[i : i + 2000])
+                if on_success:
+                    on_success()
+            except Exception as exc:
+                if on_error:
+                    on_error(str(exc))
+
+        asyncio.run_coroutine_threadsafe(_send(), self._loop)
+
+    def send_embed(
+        self,
+        channel_id: int,
+        embed: discord.Embed,
+        *,
+        file: discord.File | None = None,
+        on_success: Callable[[], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
+    ):
+        """Queue an embed message send, optionally with a file attachment."""
+        if not self.is_running:
+            if on_error:
+                on_error("Bot is not connected.")
+            return
+
+        async def _send():
+            try:
+                channel = self._client.get_channel(channel_id)
+                if channel is None:
+                    channel = await self._client.fetch_channel(channel_id)
+                kwargs: dict = {"embed": embed}
+                if file is not None:
+                    kwargs["file"] = file
+                await channel.send(**kwargs)
                 if on_success:
                     on_success()
             except Exception as exc:
