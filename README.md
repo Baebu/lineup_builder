@@ -8,9 +8,10 @@ Built on **DearPyGui** with a mixin-composition architecture — the entire back
 
 ## Screenshots
 
-![Lineup Builder screenshot 1](assets/Screenshots/Screenshot%202026-03-06%20072533.png)
-![Lineup Builder screenshot 2](assets/Screenshots/Screenshot%202026-03-06%20072539.png)
-![Lineup Builder screenshot 3](assets/Screenshots/Screenshot%202026-03-06%20072544.png)
+![Lineup Builder screenshot 1](assets/Screenshots/Screenshot%202026-03-07%20025936.png)
+![Lineup Builder screenshot 2](assets/Screenshots/Screenshot%202026-03-07%20025953.png)
+![Lineup Builder screenshot 3](assets/Screenshots/Screenshot%202026-03-07%20030001.png)
+![Lineup Builder screenshot 4](assets/Screenshots/Screenshot%202026-03-07%20030012.png)
 
 ---
 
@@ -25,11 +26,26 @@ Built on **DearPyGui** with a mixin-composition architecture — the entire back
 
 ### DJ Roster & Lineup Management
 
-- **Persistent Roster** — Store frequent performers alongside their VRCDN stream links.
+- **Persistent Roster** — Store frequent performers alongside their stream links. Supports **VRCDN**, **Twitch**, **YouTube**, **SoundCloud**, **Kick**, or any custom URL.
+- **Exact Link Mode** — Per-DJ toggle to skip VRCDN conversion and pass the stream URL through as-is (for Twitch, YouTube, etc.).
 - **Drag-and-Drop** — Drag DJs directly from your roster into a lineup slot.
 - **Slot Reordering** — Reorder slots using drag handles. Start times recalculate in real-time as durations change.
 - **Open Decks** — A dedicated configurable section for open-deck slots with adjustable counts and durations.
 - **Events History** — Save, restore, duplicate, and delete past event lineups from a persistent YAML-backed library.
+
+### Discord Bot Integration
+
+- **Built-in Discord Bot** — Connect a Discord bot directly from the app. Configure your bot token and client ID via a compact settings popup.
+- **Rich Embed Posting** — Lineups are posted as styled Discord embeds with event title, timestamps, genre tags, full lineup, and social links. Embed color matches your active theme accent.
+- **Embed Image** — Attach a poster image to embeds by pasting a URL or browsing for a local file.
+- **Channel Picker** — Fetches your server's text channels so you can post to Events, Popup, or Signups channels by name.
+- **Scheduled Posting** — Schedule posts for future delivery with a date/time picker. Posts persist across app restarts.
+- **`.env` Support** — Load bot credentials from a `.env` file for secure credential management.
+
+### Social Links
+
+- **Configurable Social Links** — Add links for Timeline, VRCPop, X (Twitter), Instagram, Discord, and VRC Group that appear at the bottom of lineup output and Discord embeds.
+- **Persistent Links** — Mark Discord and VRC Group links as persistent so they carry across all events automatically.
 
 ### Multi-Format Output
 
@@ -44,7 +60,7 @@ Real-time previews for four output formats:
 
 ### Personalization & Reliability
 
-- **Theme Engine** — 3 built-in dark presets (**Slate**, **Midnight**, **OLED Black**) plus unlimited user-saved custom presets. All color/dimension tokens are defined in `theme.py`.
+- **Theme Engine** — 8 built-in dark presets (**Slate**, **Midnight Blue**, **OLED Black**, **Crimson**, **Amber**, **Forest**, **Ocean**, **Violet**) plus unlimited user-saved custom presets. All color/dimension tokens are defined in `theme.py`.
 - **Crash Recovery** — Auto-save every 5 seconds to `auto_save.json`. On next launch, the app offers to restore the previous session.
 - **Window Persistence** — Remembers size, position, and panel widths across sessions via `window_state.json`.
 - **Windows Title Bar Coloring** — Dynamically colors the native title bar to match the active theme accent (Windows 10/11).
@@ -120,6 +136,8 @@ src/
 │   ├── output_builder.py   OutputMixin: bridges UI state → OutputGenerator
 │   ├── data_manager.py     DataMixin: YAML/JSON file I/O
 │   ├── debounce.py         DebounceMixin: timer helpers + frame work queue
+│   ├── discord_service.py  DiscordService: bot lifecycle, channel fetch, embed posting
+│   ├── discord_oauth.py    OAuth2 helpers (unused — bot-token auth preferred)
 │   └── types.py            Shared dataclasses (EventSnapshot)
 │
 └── frontend/         # DearPyGui widgets — no business logic
@@ -163,6 +181,7 @@ Cross-module communication uses `EventBus` pub/sub. `LineupModel` publishes `"mo
 | `output_builder.py` | `OutputMixin` | `_build_snapshot()` harvests widget state; `update_output()` drives preview |
 | `data_manager.py` | `DataMixin` | Load/save YAML + JSON; crash-recovery auto-save; window state persistence |
 | `debounce.py` | `DebounceMixin` | `_schedule_update()` (150 ms), `_schedule_save_library()` (500 ms), `_schedule_auto_save()` (5 s) |
+| `discord_service.py` | `DiscordService` | Bot start/stop, `get_text_channels()`, `send_message()`, `send_embed()` |
 | `types.py` | `EventSnapshot` | Frozen dataclass snapshot consumed by `OutputGenerator` |
 
 ### Frontend Modules
@@ -198,6 +217,7 @@ All files live in the application directory (resolved by `get_data_dir()` — th
 | `settings.json` | JSON | Theme colors, `ui_scale`, `user_presets` array |
 | `window_state.json` | JSON | Window geometry (x, y, width, height) and panel widths |
 | `auto_save.json` | JSON | Transient lineup state for crash recovery |
+| `.env` | Env | Optional bot credentials (`DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`) |
 
 ---
 
@@ -210,8 +230,13 @@ Themes are defined as dictionaries of hex color tokens in `settings_manager.py` 
 | Name | Description |
 | :---- | :---- |
 | **Slate (Default)** | Dark slate blue — the default palette |
-| **Midnight** | Deep midnight blue, deeper contrast than Slate |
+| **Midnight Blue** | Deep midnight blue with blue accents |
 | **OLED Black** | Near-pure-black backgrounds for OLED displays |
+| **Crimson** | Deep red/rose tones |
+| **Amber** | Warm amber/gold tones |
+| **Forest** | Dark emerald green |
+| **Ocean** | Deep teal/cyan |
+| **Violet** | Rich purple |
 
 User-defined custom presets can be saved at any time from the Settings tab and are stored in `settings.json` under `"user_presets"`.
 
@@ -252,6 +277,17 @@ LINEUP
 https://stream.vrcdn.live/live/{key}.live.ts   ← Quest (HLS)
 rtspt://stream.vrcdn.live/live/{key}           ← PC (RTSP)
 ```
+
+VRCDN stream keys are automatically extracted and reformatted for the target platform. Non-VRCDN links (Twitch, YouTube, Kick, etc.) are passed through unchanged when **"Use exact link"** is enabled on the DJ’s roster entry.
+
+### Supported Stream Platforms
+
+| Platform | Example Link | Notes |
+| :---- | :---- | :---- |
+| **VRCDN** | `https://stream.vrcdn.live/live/{key}` | Auto-converted between Quest (HLS) and PC (RTSP) formats |
+| **Twitch** | `https://twitch.tv/username` | Use "exact link" mode — passed through as-is |
+| **YouTube** | `https://youtube.com/watch?v=...` | Use "exact link" mode |
+| **Kick** | `https://kick.com/username` | Use "exact link" mode |
 
 ---
 
