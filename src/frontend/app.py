@@ -9,16 +9,17 @@ import dearpygui.dearpygui as dpg
 
 from src.backend.data_manager import DataMixin
 from src.backend.debounce import DebounceMixin
+from src.backend.discord_service import DiscordService
 from src.backend.event_bus import EventBus
 from src.backend.lineup_model import LineupModel
 from src.backend.output_builder import OutputMixin
 
-from .dj_roster import DJRosterMixin
 from .drag_drop import DragDropMixin
 from .events_manager import EventsMixin
 from .fonts import setup_fonts
 from .genre_manager import GenreMixin
 from .import_parser import ImportMixin
+from .roster import RosterMixin
 from .settings_manager import SettingsMixin
 from .slot_manager import SlotMixin
 from .slot_ui import DPGBoolVar, DPGVar
@@ -28,7 +29,7 @@ from .utils import get_data_dir, get_icon_path
 
 class App(
     UISetupMixin,
-    DJRosterMixin,
+    RosterMixin,
     DragDropMixin,
     EventsMixin,
     GenreMixin,
@@ -43,8 +44,14 @@ class App(
     def _data_path(filename: str) -> str:
         return os.path.join(get_data_dir(), filename)
 
-    LIBRARY_FILE      = property(lambda self: self._data_path("lineup_library.yaml"))
-    EVENTS_FILE       = property(lambda self: self._data_path("lineup_events.yaml"))
+    def _sync_path(self, filename: str) -> str:
+        """Like _data_path but uses the user-configured sync directory when set."""
+        sync_dir = getattr(self, "sync_data_dir", "").strip()
+        base = sync_dir if (sync_dir and os.path.isdir(sync_dir)) else get_data_dir()
+        return os.path.join(base, filename)
+
+    LIBRARY_FILE      = property(lambda self: self._sync_path("lineup_library.yaml"))
+    EVENTS_FILE       = property(lambda self: self._sync_path("lineup_events.yaml"))
     WINDOW_STATE_FILE = property(lambda self: self._data_path("window_state.json"))
     AUTO_SAVE_FILE    = property(lambda self: self._data_path("auto_save.json"))
 
@@ -54,6 +61,7 @@ class App(
         # Core architecture
         self.bus   = EventBus()
         self.model = LineupModel(self.bus)
+        self._discord_service = DiscordService()
 
         # ── State variables (DPGVar — tk.StringVar replacements) ─────────
         now = datetime.datetime.now()
@@ -68,14 +76,15 @@ class App(
         self.genre_search_var = DPGVar(default="")
         self.dj_search_var   = DPGVar(default="")
         self.slots           = []
+        self.social_links: dict[str, str] = {}
 
         # ── Debounce state ────────────────────────────────────────────────
         self._init_debounce()
         self._current_event_key = None
 
         # ── Load data & settings ─────────────────────────────────────────
+        self.load_settings()  # must run first so sync_data_dir is available
         self.load_data()
-        self.load_settings()
 
         # ── DPG viewport ─────────────────────────────────────────────────
         _icon = get_icon_path() or ""
@@ -111,10 +120,15 @@ class App(
         # Give DPG a few frames to calculate real widget sizes before packing genres
         dpg.set_frame_callback(3, lambda: self._schedule_genre_refresh())
 
+        # Load persisted scheduled posts and refresh the UI list
+        self._load_scheduled_posts()
+        dpg.set_frame_callback(5, lambda: self._refresh_schedule_list_ui())
+
     def run(self):
         """Main DPG render loop — processes the work queue every frame."""
         while dpg.is_dearpygui_running():
             self.process_queue()
+            self.check_scheduled_posts()
             dpg.render_dearpygui_frame()
         self._on_close()
         dpg.destroy_context()

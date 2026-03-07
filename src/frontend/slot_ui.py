@@ -8,11 +8,11 @@ import dearpygui.dearpygui as dpg
 
 from . import theme as T
 from .fonts import styled_text, bind_icon_font, Icon, HEADER, LABEL, MUTED, SUCCESS, ERROR
-from .widgets import add_icon_button
+from .widgets import add_icon_button, add_primary_button
 from .types import DPGVar, DPGBoolVar, SlotState
 
 # Re-export for backward compatibility
-__all__ = ["DPGVar", "DPGBoolVar", "SlotState", "build_slot_row"]
+__all__ = ["DPGVar", "DPGBoolVar", "SlotState", "build_slot_row", "build_add_slot_row"]
 
 
 def _toggle_slot_fold(slot: SlotState):
@@ -112,6 +112,27 @@ def _select_dj_suggestion(slot: SlotState, app):
     dpg.hide_item(f"slot_suggest_{sid}")
     app._schedule_update()
     _update_slot_info(slot, app)
+
+
+ADD_SLOT_ROW_TAG = "add_slot_placeholder"
+
+
+def build_add_slot_row(app, parent_tag: str):
+    """Render a placeholder row with a '+' button that adds a new slot."""
+    if dpg.does_item_exist(ADD_SLOT_ROW_TAG):
+        dpg.delete_item(ADD_SLOT_ROW_TAG)
+
+    with dpg.group(tag=ADD_SLOT_ROW_TAG, parent=parent_tag):
+        with dpg.group(horizontal=True):
+            dpg.add_spacer(width=4)
+            _icon = styled_text(Icon.ADD, MUTED)
+            bind_icon_font(_icon)
+            dpg.add_spacer(width=4)
+            add_primary_button(
+                "+ Add DJ Slot",
+                width=-1,
+                callback=lambda: app.add_slot(),
+            )
 
 
 def build_slot_row(slot: SlotState, app, parent_tag: str):

@@ -5,6 +5,8 @@ from .output_generator import OutputGenerator
 from .output_builder import OutputMixin
 from .data_manager import DataMixin
 from .debounce import DebounceMixin
+from .discord_service import DiscordService
+from .discord_oauth import DiscordOAuth
 
 __all__ = [
     "EventBus",
@@ -13,4 +15,6 @@ __all__ = [
     "OutputMixin",
     "DataMixin",
     "DebounceMixin",
+    "DiscordService",
+    "DiscordOAuth",
 ]

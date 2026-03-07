@@ -4,10 +4,32 @@ import os
 import dearpygui.dearpygui as dpg
 
 from . import theme as T
-from .fonts import HEADER, LABEL, styled_text
+from .fonts import ERROR, HEADER, LABEL, MUTED, SUCCESS, Icon, styled_text
 from .utils import get_data_dir
+from .widgets import add_icon_button
 
 SETTINGS_FILE = os.path.join(get_data_dir(), "settings.json")
+
+
+def _load_dotenv() -> dict[str, str]:
+    """Read key=value pairs from .env in the data directory (no third-party dep)."""
+    env: dict[str, str] = {}
+    env_path = os.path.join(get_data_dir(), ".env")
+    if not os.path.isfile(env_path):
+        return env
+    try:
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                env[key.strip()] = value.strip()
+    except Exception:
+        pass
+    return env
+
+
 DEFAULT_SETTINGS = {
     # Layout
     "left_panel_width": 325,
@@ -35,34 +57,136 @@ DEFAULT_SETTINGS = {
 }
 
 BUILTIN_PRESETS = [
+    # ── Cool / Neutral ────────────────────────────────────────────────────
     {
         "name": "Slate (Default)",
         "settings": dict(DEFAULT_SETTINGS),
     },
     {
-        "name": "Midnight",
+        "name": "Midnight Blue",
         "settings": {
             **DEFAULT_SETTINGS,
-            "panel_bg":      "#0A1128",
-            "card_bg":       "#040814",
-            "border_color":  "#1C2A4A",
-            "hover_color":   "#2A3B61",
-            "scrollbar_color": "#1C2A4A",
-            "text_primary":  "#E2E8F0",
-            "text_secondary": "#94A3B8",
+            "primary_color":   "#3B82F6",
+            "primary_hover":   "#2563EB",
+            "accent_color":    "#93C5FD",
+            "panel_bg":        "#0D1526",
+            "card_bg":         "#060D1A",
+            "border_color":    "#1E3A5F",
+            "hover_color":     "#1E3A5F",
+            "scrollbar_color": "#1E3A5F",
+            "text_primary":    "#E2E8F0",
+            "text_secondary":  "#93C5FD",
         },
     },
     {
         "name": "OLED Black",
         "settings": {
             **DEFAULT_SETTINGS,
-            "panel_bg":      "#121212",
-            "card_bg":       "#000000",
-            "border_color":  "#27272A",
-            "hover_color":   "#3F3F46",
+            "primary_color":   "#6366F1",
+            "primary_hover":   "#4F46E5",
+            "accent_color":    "#A5B4FC",
+            "panel_bg":        "#111111",
+            "card_bg":         "#000000",
+            "border_color":    "#27272A",
+            "hover_color":     "#3F3F46",
             "scrollbar_color": "#27272A",
-            "text_primary":  "#F4F4F5",
-            "text_secondary": "#A1A1AA",
+            "text_primary":    "#F4F4F5",
+            "text_secondary":  "#A1A1AA",
+        },
+    },
+    # ── Warm ─────────────────────────────────────────────────────────────
+    {
+        "name": "Crimson",
+        "settings": {
+            **DEFAULT_SETTINGS,
+            "primary_color":   "#E11D48",
+            "primary_hover":   "#BE123C",
+            "accent_color":    "#FDA4AF",
+            "secondary_color": "#3D1F27",
+            "secondary_hover": "#5C2D3A",
+            "panel_bg":        "#1A0D11",
+            "card_bg":         "#0D0608",
+            "border_color":    "#4C1D30",
+            "hover_color":     "#5C2D3A",
+            "scrollbar_color": "#4C1D30",
+            "text_primary":    "#FCE7F3",
+            "text_secondary":  "#FDA4AF",
+        },
+    },
+    {
+        "name": "Amber",
+        "settings": {
+            **DEFAULT_SETTINGS,
+            "primary_color":   "#D97706",
+            "primary_hover":   "#B45309",
+            "accent_color":    "#FCD34D",
+            "secondary_color": "#2D1F07",
+            "secondary_hover": "#3D2C0E",
+            "panel_bg":        "#1C1508",
+            "card_bg":         "#0E0B04",
+            "border_color":    "#44300A",
+            "hover_color":     "#5C4114",
+            "scrollbar_color": "#44300A",
+            "text_primary":    "#FEF3C7",
+            "text_secondary":  "#FCD34D",
+        },
+    },
+    # ── Nature / Cool-Green ───────────────────────────────────────────────
+    {
+        "name": "Forest",
+        "settings": {
+            **DEFAULT_SETTINGS,
+            "primary_color":   "#059669",
+            "primary_hover":   "#047857",
+            "success_color":   "#D97706",
+            "success_hover":   "#B45309",
+            "accent_color":    "#6EE7B7",
+            "secondary_color": "#0D2B1F",
+            "secondary_hover": "#163D2C",
+            "panel_bg":        "#0B1F17",
+            "card_bg":         "#04100B",
+            "border_color":    "#1A4030",
+            "hover_color":     "#1E5039",
+            "scrollbar_color": "#1A4030",
+            "text_primary":    "#D1FAE5",
+            "text_secondary":  "#6EE7B7",
+        },
+    },
+    {
+        "name": "Ocean",
+        "settings": {
+            **DEFAULT_SETTINGS,
+            "primary_color":   "#0891B2",
+            "primary_hover":   "#0E7490",
+            "accent_color":    "#67E8F9",
+            "secondary_color": "#0C2233",
+            "secondary_hover": "#14344D",
+            "panel_bg":        "#091D2C",
+            "card_bg":         "#040E16",
+            "border_color":    "#164E63",
+            "hover_color":     "#1A607A",
+            "scrollbar_color": "#164E63",
+            "text_primary":    "#CFFAFE",
+            "text_secondary":  "#67E8F9",
+        },
+    },
+    # ── Purple ────────────────────────────────────────────────────────────
+    {
+        "name": "Violet",
+        "settings": {
+            **DEFAULT_SETTINGS,
+            "primary_color":   "#7C3AED",
+            "primary_hover":   "#6D28D9",
+            "accent_color":    "#C4B5FD",
+            "secondary_color": "#2D1B5C",
+            "secondary_hover": "#3D2475",
+            "panel_bg":        "#160D2E",
+            "card_bg":         "#09051A",
+            "border_color":    "#3B1F6E",
+            "hover_color":     "#4C288A",
+            "scrollbar_color": "#3B1F6E",
+            "text_primary":    "#EDE9FE",
+            "text_secondary":  "#C4B5FD",
         },
     },
 ]
@@ -77,6 +201,32 @@ class SettingsMixin:
         """Load settings from JSON, falling back to defaults. Must be called before setup_ui."""
         self.settings = dict(DEFAULT_SETTINGS)
         self.user_presets: list = []
+        self.sync_data_dir: str = ""
+        self.persistent_links: dict = {
+            "DISCORD":   {"link": "", "enabled": False},
+            "VRC GROUP": {"link": "", "enabled": False},
+        }
+        self.discord_channels: dict = {
+            "events": "",
+            "popup": "",
+            "signups": "",
+        }
+        self.discord_bot_token: str = ""
+        self.discord_client_id: str = ""
+        self.discord_client_secret: str = ""
+        self.discord_embed_image: str = ""
+        self.discord_scheduled_posts: list = []
+        self.discord_oauth: dict = {}
+
+        # Load .env defaults
+        env = _load_dotenv()
+        if env.get("DISCORD_BOT_TOKEN"):
+            self.discord_bot_token = env["DISCORD_BOT_TOKEN"]
+        if env.get("DISCORD_CLIENT_ID"):
+            self.discord_client_id = env["DISCORD_CLIENT_ID"]
+        if env.get("DISCORD_CLIENT_SECRET"):
+            self.discord_client_secret = env["DISCORD_CLIENT_SECRET"]
+
         if os.path.exists(SETTINGS_FILE):
             try:
                 with open(SETTINGS_FILE) as f:
@@ -85,6 +235,20 @@ class SettingsMixin:
                     {k: v for k, v in data.items() if k in DEFAULT_SETTINGS}
                 )
                 self.user_presets = data.get("user_presets", [])
+                self.sync_data_dir = data.get("sync_data_dir", "")
+                for key in self.persistent_links:
+                    saved = data.get("persistent_links", {}).get(key)
+                    if isinstance(saved, dict):
+                        self.persistent_links[key] = saved
+                saved_channels = data.get("discord_channels", {})
+                if isinstance(saved_channels, dict):
+                    self.discord_channels.update(saved_channels)
+                self.discord_bot_token = data.get("discord_bot_token", "")
+                self.discord_client_id = data.get("discord_client_id", "")
+                self.discord_client_secret = data.get("discord_client_secret", "")
+                self.discord_embed_image = data.get("discord_embed_image", "")
+                self.discord_scheduled_posts = data.get("discord_scheduled_posts", [])
+                self.discord_oauth = data.get("discord_oauth", {})
             except Exception:
                 pass
 
@@ -96,7 +260,20 @@ class SettingsMixin:
     def save_settings(self):
         try:
             with open(SETTINGS_FILE, "w") as f:
-                json.dump({**self.settings, "user_presets": self.user_presets}, f, indent=2)
+                json.dump(
+                    {**self.settings, "user_presets": self.user_presets,
+                     "sync_data_dir": getattr(self, "sync_data_dir", ""),
+                     "persistent_links": getattr(self, "persistent_links", {}),
+                     "discord_channels": getattr(self, "discord_channels", {}),
+                     "discord_bot_token": getattr(self, "discord_bot_token", ""),
+                     "discord_client_id": getattr(self, "discord_client_id", ""),
+                     "discord_client_secret": getattr(self, "discord_client_secret", ""),
+                     "discord_embed_image": getattr(self, "discord_embed_image", ""),
+                     "discord_scheduled_posts": getattr(self, "discord_scheduled_posts", []),
+                     "discord_oauth": getattr(self, "discord_oauth", {})},
+
+                    f, indent=2,
+                )
         except Exception as e:
             print(f"Error saving settings: {e}")
 
@@ -160,7 +337,8 @@ class SettingsMixin:
                 dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize,  S.FRAME_BORDER)
         # ── Explicit Button Themes ──────────────────────────────────────
         _btn_tags = ["primary_btn_theme", "secondary_btn_theme",
-                     "success_btn_theme", "danger_btn_theme"]
+                     "success_btn_theme", "danger_btn_theme",
+                     "resize_handle_theme"]
         for t in _btn_tags:
             try:
                 if dpg.does_item_exist(t):
@@ -194,6 +372,15 @@ class SettingsMixin:
                 dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("danger_color", "#DC2626")))
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("danger_hover", "#B91C1C")))
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("danger_color", "#DC2626")))
+                dpg.add_theme_color(dpg.mvThemeCol_Text,          (10, 10, 10, 255))
+
+        with dpg.theme(tag="resize_handle_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("border_color", "#334155")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("accent_color", "#818CF8")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("accent_color", "#818CF8")))
+                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 0)
+                dpg.add_theme_style(dpg.mvStyleVar_FramePadding,  0, 0)
 
         if self._global_theme is not None:
             try:
@@ -205,12 +392,23 @@ class SettingsMixin:
         self._danger_btn_theme = "danger_btn_theme"
         dpg.bind_theme(global_theme)
 
+        # Rebind persistent buttons whose item-theme binding was invalidated
+        _primary_persistent = ["save_event_btn", "new_dj_btn", "add_dj_slot_btn", "copy_output_btn"]
+        for tag in _primary_persistent:
+            if dpg.does_item_exist(tag):
+                dpg.bind_item_theme(tag, "primary_btn_theme")
+        if dpg.does_item_exist("resize_handle"):
+            dpg.bind_item_theme("resize_handle", "resize_handle_theme")
+        # Reschedule output update so format buttons get their themes rebound too
+        if dpg.does_item_exist("fmt_discord"):
+            self._schedule_update()
+
         self._applied_settings = dict(self.settings)
         dpg.set_global_font_scale(float(s.get("ui_scale", 0.75)))
         self._set_titlebar_color(
-            bg=s.get("panel_bg",      "#1E293B"),
-            text=s.get("text_primary",  "#CBD5E1"),
-            border=s.get("accent_color", "#818CF8"),
+            bg=s.get("card_bg",       "#0F172A"),
+            text=s.get("text_primary", "#CBD5E1"),
+            border=s.get("primary_color", "#4F46E5"),
         )
 
     def _set_titlebar_color(self, bg: str, text: str, border: str):
@@ -329,10 +527,82 @@ class SettingsMixin:
             callback=lambda: self._reset_to_defaults(),
         )
 
+        # ── Data Directory (Cloud Sync Lite) ──────────────────────────────
+        dpg.add_separator(parent=container)
+        styled_text("   DATA DIRECTORY", HEADER, parent=container)
+        styled_text(
+            "Set a shared folder (e.g. Dropbox, Google Drive) to sync\n"
+            "your roster and events across machines. Settings stay local.",
+            MUTED, parent=container, wrap=360,
+        )
+        dpg.add_spacer(height=2, parent=container)
+        current_dir = getattr(self, "sync_data_dir", "")
+        with dpg.group(horizontal=True, parent=container):
+            dpg.add_input_text(
+                default_value=current_dir,
+                hint="Type path and press Enter, or browse \u2192",
+                width=-45,
+                tag="sync_dir_input",
+                on_enter=True,
+                callback=lambda s, a: self._apply_sync_dir(dpg.get_value(s)),
+            )
+            add_icon_button(Icon.FOLDER, width=40, height=20,
+                            callback=lambda: self._open_sync_dir_browser())
+        if current_dir:
+            if os.path.isdir(current_dir):
+                styled_text(f"\u2713 Active: {current_dir}", SUCCESS,
+                            parent=container, wrap=360)
+            else:
+                styled_text("\u26a0 Path not found \u2014 using default folder",
+                            ERROR, parent=container, wrap=360)
+            dpg.add_button(label="  Clear (use default folder)", parent=container,
+                           width=-1, callback=lambda: self._apply_sync_dir(""))
+
     def _reset_to_defaults(self):
         self._applied_settings = dict(self.settings)
         self.settings = dict(DEFAULT_SETTINGS)
         self.save_settings()
         self.apply_theme()
         self._build_settings_tab()
+
+    def _apply_sync_dir(self, new_path: str):
+        """Set a new sync data directory, reload data from it, and refresh all UI panels."""
+        new_path = new_path.strip().rstrip("/\\")
+        self.sync_data_dir = new_path
+        self.save_settings()
+        self.load_data()
+        self._schedule_roster_refresh()
+        self._schedule_genre_refresh()
+        if dpg.does_item_exist("events_scroll"):
+            self.refresh_saved_events_ui()
+        self._schedule_update()
+        self._work_queue.put(self._build_settings_tab)
+
+    def _open_sync_dir_browser(self):
+        """Open a DPG directory picker; on confirm calls _apply_sync_dir."""
+        tag = "sync_dir_dialog"
+        if dpg.does_item_exist(tag):
+            return
+
+        def _on_select(sender, app_data):
+            path = (app_data.get("file_path_name") or "").strip().rstrip("/\\")
+            if dpg.does_item_exist(tag):
+                dpg.delete_item(tag)
+            if path:
+                self._apply_sync_dir(path)
+
+        def _on_cancel(sender, app_data):
+            if dpg.does_item_exist(tag):
+                dpg.delete_item(tag)
+
+        dpg.add_file_dialog(
+            label="Select Sync Folder",
+            directory_selector=True,
+            callback=_on_select,
+            cancel_callback=_on_cancel,
+            tag=tag,
+            width=600,
+            height=400,
+            modal=True,
+        )
 

@@ -42,6 +42,7 @@ class EventSnapshot:
     names_only: bool = False
     output_format: str = "discord"  # "discord" | "local" | "quest" | "pc"
     saved_djs: list[DJInfo] = field(default_factory=list)
+    social_links: dict[str, str] = field(default_factory=dict)
 
     @property
     def start_datetime(self) -> datetime.datetime:

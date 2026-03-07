@@ -88,11 +88,18 @@ class ImportMixin:
             ### LINEUP
             <t:UNIX:t> | **DJ Name** (Genre)
         """
-        parsed = {"title": "", "vol": "", "timestamp": "", "genres": [], "slots": [], "names_only": False}
+        parsed = {"title": "", "vol": "", "timestamp": "", "genres": [], "slots": [],
+                  "names_only": False, "social_links": {}}
         slot_times: list[int] = []
         in_lineup = False
 
         for line in lines:
+            # ── Social links: "[LABEL](url) | [LABEL](url)" ──────────────
+            social = self._extract_social_links(line)
+            if social:
+                parsed["social_links"].update(social)
+                continue
+
             # ── Event timestamp: "# <t:UNIX:F> (<t:UNIX:R>)" ────────────
             m = re.search(r'<t:(\d+):F>', line)
             if m and not parsed["timestamp"]:
@@ -146,7 +153,8 @@ class ImportMixin:
             LINEUP
             20:00 | DJ Name (Genre)
         """
-        parsed = {"title": "", "vol": "", "timestamp": "", "genres": [], "slots": [], "names_only": False}
+        parsed = {"title": "", "vol": "", "timestamp": "", "genres": [], "slots": [],
+                  "names_only": False, "social_links": {}}
         slot_times: list[int] = []
         in_lineup = False
 
@@ -191,6 +199,23 @@ class ImportMixin:
         return parsed if (parsed["title"] or parsed["slots"]) else None
 
     # ── Helpers ───────────────────────────────────────────────────────────
+
+    _SOCIAL_LABELS = {"TIMELINE", "VRCPOP", "X", "IG", "DISCORD", "VRC GROUP"}
+
+    @staticmethod
+    def _extract_social_links(line: str) -> dict[str, str]:
+        """Extract ``[LABEL](url)`` markdown links whose label matches a known social field.
+
+        Returns a dict of ``{label: url}`` for every match, or empty dict if none found.
+        """
+        pairs = re.findall(r'\[([^\]]+)\]\((https?://[^\)]+)\)', line)
+        if not pairs:
+            return {}
+        result = {}
+        for label, url in pairs:
+            if label.upper() in ImportMixin._SOCIAL_LABELS:
+                result[label.upper()] = url
+        return result
 
     @staticmethod
     def _split_title_vol(candidate: str, parsed: dict):
@@ -291,6 +316,9 @@ class ImportMixin:
             self.refresh_genre_tags()
 
         self.names_only.set(parsed.get("names_only", False))
+
+        if parsed.get("social_links"):
+            self.social_links = parsed["social_links"]
 
         # Clear existing slots and rebuild
         for slot in self.slots:

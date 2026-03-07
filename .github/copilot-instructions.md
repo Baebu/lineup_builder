@@ -7,7 +7,7 @@ Mixin-composition desktop app. A single `App` class (`src/frontend/app.py`) inhe
 | # | Mixin | File | Responsibility |
 |---|-------|------|----------------|
 | 1 | `UISetupMixin` | `src/frontend/ui_builder.py` | DPG viewport, left/right panels, all widget construction, scroll/arrow-key handlers |
-| 2 | `DJRosterMixin` | `src/frontend/dj_roster.py` | DJ roster CRUD, bulk link import, drag payload creation |
+| 2 | `RosterMixin` | `src/frontend/roster.py` | DJ roster CRUD, bulk link import, drag payload creation |
 | 3 | `DragDropMixin` | `src/frontend/drag_drop.py` | Slot reordering, DJ-card→slot drop targets, flash highlight |
 | 4 | `EventsMixin` | `src/frontend/events_manager.py` | Save/load/delete/duplicate event lineups (YAML-backed) |
 | 5 | `GenreMixin` | `src/frontend/genre_manager.py` | Genre tag add/delete/toggle, active-genre filtering |
@@ -62,10 +62,15 @@ Cross-module events use `EventBus` pub/sub (`src/backend/event_bus.py`).
 
 - **Color tokens:** `src/frontend/theme.py` — hex string constants (`PANEL_BG`, `ACCENT`, etc.) + `hex_to_dpg()` converter + reusable style dicts (`ENTRY`, `COMBO`, `BTN_PRIMARY`, `BTN_DANGER`, `CARD`, etc.)
 - **Global theme:** Built dynamically in `SettingsMixin.apply_theme()` from `self.settings` color tokens. Maps 30+ DPG color slots + rounded-corner styles. Bound globally with `dpg.bind_theme(global_theme)`.
-- **Built-in presets** (3 total, in `BUILTIN_PRESETS` list in `settings_manager.py`):
+- **Built-in presets** (8 total, in `BUILTIN_PRESETS` list in `settings_manager.py`):
   - **Slate (Default)** — Dark slate blue
-  - **Midnight** — Deep midnight blue
+  - **Midnight Blue** — Deep midnight blue with blue accents
   - **OLED Black** — Near-pure-black for OLED displays
+  - **Crimson** — Deep red/rose tones
+  - **Amber** — Warm amber/gold tones
+  - **Forest** — Dark emerald green
+  - **Ocean** — Deep teal/cyan
+  - **Violet** — Rich purple
 - **User presets:** Saved to `settings.json` under `"user_presets"` array; managed via `save_current_as_preset()` / `delete_preset()`
 - **Fonts/icons:** `src/frontend/fonts.py` — `styled_text(label, style)` helper, `Icon` class (Material Symbols Rounded). Text styles: `HEADER`, `LABEL`, `BODY`, `MUTED`, `ERROR`, `SUCCESS`, `HINT`
 - **Widget factory:** `src/frontend/widgets.py` — `add_icon_button()`, `add_primary_button()`, `add_danger_button()`, `add_styled_input()`, `add_styled_combo()` — all apply correct theme automatically

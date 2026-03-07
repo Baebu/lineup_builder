@@ -34,7 +34,7 @@ a = Analysis(
         'src.frontend',
         'src.frontend.app',
         'src.frontend.date_time_picker',
-        'src.frontend.dj_roster',
+        'src.frontend.roster',
         'src.frontend.drag_drop',
         'src.frontend.events_manager',
         'src.frontend.fonts',

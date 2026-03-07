@@ -45,6 +45,12 @@ class OutputMixin:
             for d in self.saved_djs
         ]
 
+        # Merge persistent links over the event-specific ones
+        merged_social = dict(getattr(self, "social_links", {}))
+        for key, val in getattr(self, "persistent_links", {}).items():
+            if isinstance(val, dict) and val.get("enabled") and val.get("link", "").strip():
+                merged_social[key] = val["link"].strip()
+
         return EventSnapshot(
             title=self.event_title_var.get().strip(),
             vol=self.event_vol_var.get().strip(),
@@ -54,6 +60,7 @@ class OutputMixin:
             names_only=self.names_only.get(),
             output_format=self.output_format.get(),
             saved_djs=dj_list,
+            social_links=merged_social,
         )
 
     # ── Main output builder ───────────────────────────────────────────────
