@@ -32,13 +32,14 @@ class RestartHandler(FileSystemEventHandler):
 
 
 def main():
-    script_path = Path(__file__).parent / "main.py"
+    desktop_dir = Path(__file__).parent / "desktop"
+    script_path = desktop_dir / "main.py"
     if not script_path.exists():
         print(f"Error: {script_path} not found")
         sys.exit(1)
 
-    # Monitor the src directory
-    watch_path = Path(__file__).parent / "src"
+    # Monitor the desktop/src directory
+    watch_path = desktop_dir / "src"
     if not watch_path.exists():
         print(f"Error: {watch_path} not found")
         sys.exit(1)

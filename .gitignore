@@ -17,3 +17,11 @@
 /release
 /repomix-output*.xml
 /ARCHITECTURE.md
+/desktop/lineup_events.yaml
+/desktop/lineup_library.yaml
+/desktop/settings.json
+/desktop/window_state.json
+/desktop/auto_save.json
+/.ruff_cache
+/desktop/.env
+/server/.env

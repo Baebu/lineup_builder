@@ -1,8 +1,4 @@
 import sys
-from pathlib import Path
-
-# Add desktop/ to sys.path so internal src.* imports resolve
-sys.path.insert(0, str(Path(__file__).parent / "desktop"))
 
 from src.frontend.app import App
 
