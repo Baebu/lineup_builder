@@ -230,6 +230,10 @@ class SettingsMixin:
         self.server_url: str = ""
         self.server_api_key: str = ""
 
+        # Section layout state (collapsible drawers)
+        self._section_collapsed: dict[str, bool] = {}
+        self._section_labels: dict[str, str] = {}
+
         # Load .env defaults
         env = _load_dotenv()
         if env.get("DISCORD_BOT_TOKEN"):
@@ -272,6 +276,10 @@ class SettingsMixin:
                     self.server_url = data["server_url"]
                 if data.get("server_api_key"):
                     self.server_api_key = data["server_api_key"]
+                # Section layout persistence
+                saved_collapsed = data.get("section_collapsed", {})
+                if isinstance(saved_collapsed, dict):
+                    self._section_collapsed.update(saved_collapsed)
             except Exception:
                 pass
 
@@ -333,7 +341,8 @@ class SettingsMixin:
                      "discord_scheduled_posts": getattr(self, "discord_scheduled_posts", []),
                      "discord_oauth": getattr(self, "discord_oauth", {}),
                      "server_url": getattr(self, "server_url", ""),
-                     "server_api_key": getattr(self, "server_api_key", "")},
+                     "server_api_key": getattr(self, "server_api_key", ""),
+                     "section_collapsed": getattr(self, "_section_collapsed", {})},
                     f, indent=2,
                 )
         except Exception as e:
@@ -427,7 +436,8 @@ class SettingsMixin:
         # ── Explicit Button Themes ──────────────────────────────────────
         _btn_tags = ["primary_btn_theme", "secondary_btn_theme",
                      "success_btn_theme", "danger_btn_theme",
-                     "resize_handle_theme", "local_toggle_active_theme"]
+                     "resize_handle_theme", "local_toggle_active_theme",
+                     "section_btn_theme"]
         for t in _btn_tags:
             try:
                 if dpg.does_item_exist(t):
@@ -476,6 +486,14 @@ class SettingsMixin:
                 dpg.add_theme_color(dpg.mvThemeCol_Button,        _c(s.get("accent_color", "#818CF8")))
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("primary_color", "#4F46E5")))
                 dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("accent_color", "#818CF8")))
+
+        with dpg.theme(tag="section_btn_theme"):
+            with dpg.theme_component(dpg.mvButton):
+                dpg.add_theme_color(dpg.mvThemeCol_Button,        (0, 0, 0, 0))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, _c(s.get("hover_color", "#475569")))
+                dpg.add_theme_color(dpg.mvThemeCol_ButtonActive,  _c(s.get("hover_color", "#475569")))
+                dpg.add_theme_color(dpg.mvThemeCol_Text,          _c(s.get("accent_color", "#818CF8")))
+                dpg.add_theme_style(dpg.mvStyleVar_ButtonTextAlign, 0.0, 0.5)
 
         if self._global_theme is not None:
             try:
@@ -572,17 +590,6 @@ class SettingsMixin:
             return
         dpg.delete_item(container, children_only=True)
 
-        # ── Discord Account ───────────────────────────────────────────────
-        oauth = getattr(self, "_oauth", None)
-        if oauth and oauth.is_signed_in:
-            styled_text("   DISCORD ACCOUNT", HEADER, parent=container)
-            styled_text(f"   Signed in as {oauth.display_name}", LABEL, parent=container)
-            dpg.add_spacer(height=4, parent=container)
-            dpg.add_button(
-                label="Sign Out", parent=container, width=-1,
-                callback=lambda: self._discord_sign_out(),
-            )
-            dpg.add_separator(parent=container)
 
         # ── Theme Selection ───────────────────────────────────────────────
         styled_text("   THEME SELECTION", HEADER, parent=container)
@@ -638,72 +645,6 @@ class SettingsMixin:
             callback=lambda: self._reset_to_defaults(),
         )
 
-        # ── Server Connection ─────────────────────────────────────────────
-        dpg.add_separator(parent=container)
-        styled_text("   SERVER", HEADER, parent=container)
-        styled_text(
-            "Connect to a Lineup Builder server for DJ profiles\n"
-            "and booking management.",
-            MUTED, parent=container, wrap=360,
-        )
-        dpg.add_spacer(height=2, parent=container)
-
-        def _on_server_url(s, a):
-            self.server_url = dpg.get_value(s).strip().rstrip("/")
-            self.save_settings()
-            self.api.base_url = self.server_url
-
-        def _on_server_key(s, a):
-            self.server_api_key = dpg.get_value(s).strip()
-            self.save_settings()
-            self.api.api_key = self.server_api_key
-
-        dpg.add_input_text(
-            default_value=getattr(self, "server_url", ""),
-            hint="https://your-server.railway.app",
-            width=-1, parent=container,
-            tag="settings_server_url",
-            on_enter=True, callback=_on_server_url,
-        )
-        dpg.add_spacer(height=2, parent=container)
-        dpg.add_input_text(
-            default_value=getattr(self, "server_api_key", ""),
-            hint="API Key",
-            width=-1, parent=container, password=True,
-            tag="settings_server_key",
-            on_enter=True, callback=_on_server_key,
-        )
-
-        # ── Data Directory (Cloud Sync Lite) ──────────────────────────────
-        dpg.add_separator(parent=container)
-        styled_text("   DATA DIRECTORY", HEADER, parent=container)
-        styled_text(
-            "Set a shared folder (e.g. Dropbox, Google Drive) to sync\n"
-            "your roster and events across machines. Settings stay local.",
-            MUTED, parent=container, wrap=360,
-        )
-        dpg.add_spacer(height=2, parent=container)
-        current_dir = getattr(self, "sync_data_dir", "")
-        with dpg.group(horizontal=True, parent=container):
-            dpg.add_input_text(
-                default_value=current_dir,
-                hint="Type path and press Enter, or browse \u2192",
-                width=-45,
-                tag="sync_dir_input",
-                on_enter=True,
-                callback=lambda s, a: self._apply_sync_dir(dpg.get_value(s)),
-            )
-            add_icon_button(Icon.FOLDER, width=40, height=20,
-                            callback=lambda: self._open_sync_dir_browser())
-        if current_dir:
-            if os.path.isdir(current_dir):
-                styled_text(f"\u2713 Active: {current_dir}", SUCCESS,
-                            parent=container, wrap=360)
-            else:
-                styled_text("\u26a0 Path not found \u2014 using default folder",
-                            ERROR, parent=container, wrap=360)
-            dpg.add_button(label="  Clear (use default folder)", parent=container,
-                           width=-1, callback=lambda: self._apply_sync_dir(""))
 
     def _reset_to_defaults(self):
         self._applied_settings = dict(self.settings)
@@ -711,55 +652,4 @@ class SettingsMixin:
         self.save_settings()
         self.apply_theme()
         self._build_settings_tab()
-
-    def _apply_sync_dir(self, new_path: str):
-        """Set a new sync data directory, reload data from it, and refresh all UI panels."""
-        new_path = new_path.strip().rstrip("/\\")
-        self.sync_data_dir = new_path
-        self.save_settings()
-        self.load_data()
-        self._schedule_roster_refresh()
-        self._schedule_genre_refresh()
-        if dpg.does_item_exist("events_scroll"):
-            self.refresh_saved_events_ui()
-        self._schedule_update()
-        self._work_queue.put(self._build_settings_tab)
-
-    def _open_sync_dir_browser(self):
-        """Open a DPG directory picker; on confirm calls _apply_sync_dir."""
-        tag = "sync_dir_dialog"
-        if dpg.does_item_exist(tag):
-            return
-
-        def _on_select(sender, app_data):
-            path = (app_data.get("file_path_name") or "").strip().rstrip("/\\")
-            if dpg.does_item_exist(tag):
-                dpg.delete_item(tag)
-            if path:
-                self._apply_sync_dir(path)
-
-        def _on_cancel(sender, app_data):
-            if dpg.does_item_exist(tag):
-                dpg.delete_item(tag)
-
-        dpg.add_file_dialog(
-            label="Select Sync Folder",
-            directory_selector=True,
-            callback=_on_select,
-            cancel_callback=_on_cancel,
-            tag=tag,
-            width=600,
-            height=400,
-            modal=True,
-        )
-
-    def _discord_sign_out(self):
-        """Sign out of Discord OAuth and close the application."""
-        oauth = getattr(self, "_oauth", None)
-        if oauth:
-            oauth.sign_out()
-        self.discord_oauth = {}
-        self.save_settings()
-        # Must restart to show login screen again
-        dpg.stop_dearpygui()
 

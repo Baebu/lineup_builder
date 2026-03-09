@@ -1,7 +1,35 @@
+from contextlib import contextmanager
+
 import dearpygui.dearpygui as dpg
 
 from ..styling import theme as T
-from ..styling.fonts import Icon, bind_icon_font
+from ..styling.fonts import bind_icon_font
+
+
+def popup_pos(trigger_tag: str | int | None = None, width: int = 300, height: int = 200):
+    """Return (x, y) near *trigger_tag* (below-right of its rect), clamped to viewport.
+
+    Falls back to the current mouse position when *trigger_tag* is None or
+    the item doesn't exist yet.
+    """
+    vp_w = dpg.get_viewport_width()
+    vp_h = dpg.get_viewport_height()
+
+    if trigger_tag and dpg.does_item_exist(trigger_tag):
+        try:
+            mn = dpg.get_item_rect_min(trigger_tag)
+            mx = dpg.get_item_rect_max(trigger_tag)
+            x = int(mn[0])
+            y = int(mx[1]) + 4  # just below the trigger
+        except Exception:
+            x, y = dpg.get_mouse_pos(local=False)
+    else:
+        x, y = dpg.get_mouse_pos(local=False)
+
+    # Clamp so the popup stays inside the viewport
+    x = max(0, min(x, vp_w - width))
+    y = max(0, min(y, vp_h - height))
+    return [x, y]
 
 
 def add_icon_button(icon: str, is_danger: bool = False, is_primary: bool = False, **kwargs) -> int:
@@ -44,3 +72,40 @@ def add_styled_combo(**kwargs) -> int:
     """Create a dropdown combo box."""
     kwargs.setdefault("height", 20)
     return dpg.add_combo(**kwargs)
+
+
+@contextmanager
+def section(app, section_id: str, label: str, default_open: bool = True):
+    """Collapsible section. Use as a context manager.
+
+    Creates a wrapper group + toggle button header.
+    All widgets created inside the ``with`` block go into the content group.
+    """
+    wrapper_tag = f"sect_{section_id}"
+    content_tag = f"sect_c_{section_id}"
+
+    dpg.add_group(tag=wrapper_tag)
+    dpg.push_container_stack(dpg.last_item())
+
+    # Header toggle button
+    collapsed = app._section_collapsed.get(section_id, not default_open)
+    btn = dpg.add_button(
+        label=f"  {label}",
+        tag=f"sect_btn_{section_id}",
+        callback=lambda: app._toggle_section(section_id),
+        width=-1, height=20,
+    )
+    dpg.bind_item_theme(btn, "section_btn_theme")
+
+    # Register the label for later reference
+    app._section_labels[section_id] = label
+
+    # Content container
+    dpg.add_group(tag=content_tag, show=not collapsed)
+    dpg.push_container_stack(dpg.last_item())
+
+    try:
+        yield content_tag
+    finally:
+        dpg.pop_container_stack()  # content
+        dpg.pop_container_stack()  # wrapper

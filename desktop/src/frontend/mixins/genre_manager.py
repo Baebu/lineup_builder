@@ -1,6 +1,7 @@
 import dearpygui.dearpygui as dpg
 
 from ..styling.fonts import HEADER, MUTED, styled_text
+from ..ui.widgets import popup_pos
 
 
 class GenreMixin:
@@ -44,7 +45,7 @@ class GenreMixin:
                     dpg.delete_item(_wt)
             with dpg.window(tag=win_tag, label="Confirm Delete", modal=True,
                             autosize=True, no_resize=True, no_scrollbar=True,
-                            pos=dpg.get_mouse_pos(local=False)):
+                            pos=popup_pos()):
                 dpg.add_text(f"Remove '{val}' from saved genres?")
                 with dpg.group(horizontal=True):
                     dpg.add_button(label="Yes", width=140, callback=lambda s, a, u=None: _do_del())

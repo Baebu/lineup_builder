@@ -104,7 +104,8 @@ def _find_icon_font() -> str | None:
     if getattr(sys, "frozen", False):
         base = os.path.dirname(sys.executable)
     else:
-        base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        # desktop/src/frontend/styling/fonts.py → 5 levels up → project root
+        base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
     path = os.path.join(base, "assets", "Material_Symbols_Rounded", "static",
                         "MaterialSymbolsRounded-Regular.ttf")
     return path if os.path.exists(path) else None

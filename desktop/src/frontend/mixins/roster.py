@@ -10,7 +10,7 @@ import re
 import dearpygui.dearpygui as dpg
 
 from ..styling.fonts import BODY, ERROR, HEADER, LABEL, MUTED, SUCCESS, Icon, bind_icon_font, styled_text
-from ..ui.widgets import add_icon_button
+from ..ui.widgets import add_icon_button, popup_pos
 
 
 class RosterMixin:
@@ -68,7 +68,7 @@ class RosterMixin:
             dpg.delete_item(win_tag)
         with dpg.window(tag=win_tag, label="Edit DJ", modal=True, width=320, no_resize=True,
                         autosize=True, no_scrollbar=True,
-                        pos=dpg.get_mouse_pos(local=False)):
+                        pos=popup_pos(width=320)):
             dpg.add_text("NAME")
             name_input = dpg.add_input_text(tag=f"{win_tag}_name", default_value=dj.get("name", ""), width=290)
             dpg.add_text("STREAM LINK")
@@ -110,7 +110,7 @@ class RosterMixin:
             dpg.delete_item(win_tag)
         with dpg.window(tag=win_tag, label="Import DJ Links", modal=True,
                         width=480, no_resize=False, no_scrollbar=True,
-                        pos=dpg.get_mouse_pos(local=False)):
+                        pos=popup_pos(width=480, height=300)):
             styled_text("IMPORT DJ LINKS", HEADER)
             styled_text("Paste one entry per line: raw URL, Name: URL, or **Name** URL",
                          MUTED, wrap=450)
@@ -198,7 +198,7 @@ class RosterMixin:
             name = self.saved_djs[idx].get("name", "this DJ")
             with dpg.window(tag=win_tag, label="Confirm Delete", modal=True,
                             autosize=True, no_resize=True, no_scrollbar=True,
-                            pos=dpg.get_mouse_pos(local=False)):
+                            pos=popup_pos()):
                 dpg.add_text(f"Remove '{name}' from the roster?")
                 with dpg.group(horizontal=True):
                     def _confirm(s, a, u):
@@ -219,7 +219,7 @@ class RosterMixin:
             dpg.delete_item(win_tag)
         with dpg.window(tag=win_tag, label="New DJ", modal=True,
                         width=320, no_resize=True, autosize=True, no_scrollbar=True,
-                        pos=dpg.get_mouse_pos(local=False)):
+                        pos=popup_pos("new_dj_btn", width=320)):
             dpg.add_text("NAME")
             name_input = dpg.add_input_text(tag=f"{win_tag}_name", width=290)
             dpg.add_text("STREAM LINK")

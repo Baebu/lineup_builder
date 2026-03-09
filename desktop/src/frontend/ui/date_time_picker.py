@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 
 import dearpygui.dearpygui as dpg
 
+from .widgets import popup_pos
+
 
 # ── Full date+time picker (existing) ─────────────────────────────────────
 
@@ -125,7 +127,7 @@ def open_datetime_picker(var, callback=None):
 
     with dpg.window(tag=win_tag, label="Select Date & Time", modal=True,
                     no_resize=True, autosize=True, no_scrollbar=True,
-                    pos=dpg.get_mouse_pos(local=False)):
+                    pos=popup_pos(width=280, height=340)):
 
         # ── Calendar Navigation ──
         with dpg.group(horizontal=True):
@@ -386,7 +388,7 @@ def open_date_picker(input_tag: str, callback=None):
 
     with dpg.window(tag=win_tag, label="Select Date", modal=True,
                     no_resize=True, autosize=True, no_scrollbar=True,
-                    pos=dpg.get_mouse_pos(local=False)):
+                    pos=popup_pos(width=280, height=280)):
         with dpg.group(horizontal=True):
             def _prev():
                 state["view_month"] -= 1
@@ -485,7 +487,7 @@ def open_time_picker(input_tag: str, callback=None):
 
     with dpg.window(tag=win_tag, label="Select Time", modal=True,
                     no_resize=True, autosize=True, no_scrollbar=True,
-                    pos=dpg.get_mouse_pos(local=False)):
+                    pos=popup_pos(width=200, height=150)):
 
         dpg.add_text("Time")
         with dpg.group(horizontal=True):

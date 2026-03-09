@@ -4,6 +4,7 @@ import re
 import dearpygui.dearpygui as dpg
 
 from ..styling.fonts import HEADER, LABEL, MUTED, styled_text
+from ..ui.widgets import popup_pos
 
 
 class ImportMixin:
@@ -18,7 +19,7 @@ class ImportMixin:
             dpg.delete_item(win_tag)
         with dpg.window(tag=win_tag, label="Import Event", modal=True,
                         width=480, no_resize=False, no_scrollbar=True,
-                        pos=dpg.get_mouse_pos(local=False)):
+                        pos=popup_pos(width=480, height=300)):
             styled_text("IMPORT EVENT", HEADER)
             styled_text(
                 "Paste a Discord or plain-text formatted event below.\n"

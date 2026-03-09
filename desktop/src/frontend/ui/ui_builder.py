@@ -15,7 +15,7 @@ import dearpygui.dearpygui as dpg
 from ..styling import theme as T
 from .date_time_picker import add_datetime_row, add_date_row, add_time_row
 from ..styling.fonts import styled_text, bind_icon_font, Icon, HEADER, LABEL, BODY, MUTED, HINT, ERROR, SUCCESS
-from .widgets import add_icon_button, add_primary_button, add_danger_button
+from .widgets import add_icon_button, add_primary_button, add_danger_button, popup_pos, section
 
 log = logging.getLogger("ui-builder")
 
@@ -41,22 +41,32 @@ class UISetupMixin:
                 dpg.add_table_column(width_stretch=True)
                 with dpg.table_row():
                     with dpg.child_window(tag="left_panel", border=False,
-                                          no_scrollbar=True):
+                                          height=-1,
+                                          no_scrollbar=True,
+                                          no_scroll_with_mouse=True):
                         self._build_left_panel()
                     with dpg.child_window(tag="panel_divider", border=False,
-                                          no_scrollbar=True, width=1):
+                                          height=-1,
+                                          no_scrollbar=True,
+                                          no_scroll_with_mouse=True, width=1):
                         with dpg.theme() as _div_theme:
                             with dpg.theme_component(dpg.mvChildWindow):
                                 dpg.add_theme_color(dpg.mvThemeCol_ChildBg, T.DPG_BORDER)
                         dpg.bind_item_theme("panel_divider", _div_theme)
                     with dpg.child_window(tag="right_panel", border=False,
-                                          no_scrollbar=True):
+                                          height=-1,
+                                          no_scrollbar=True,
+                                          no_scroll_with_mouse=True):
                         self._build_right_panel()
 
         dpg.set_primary_window("primary_window", True)
         self._build_settings_tab()
         self.apply_theme()
         self._setup_wheel_handler()
+        self._apply_section_order()
+
+        # Position the auth avatar overlay after the first frame lays out
+        self._work_queue.put(self._position_auth_avatar)
 
         # Track base dimensions for proportional resize of right_tabs_content
         self._base_vp_height = dpg.get_viewport_height()
@@ -66,21 +76,20 @@ class UISetupMixin:
     # ── Left panel ────────────────────────────────────────────────────────
 
     _DRAWER_HEIGHT = 130
-    _AUTH_BTN_HEIGHT = 26
+    _AUTH_BTN_HEIGHT = 50
+    _AUTH_BTN_INNER  = 44
 
     def _build_left_panel(self):
         self._account_drawer_open = False
 
         with dpg.child_window(tag="left_tabs_wrapper", border=False,
                               autosize_x=True, height=-self._AUTH_BTN_HEIGHT,
-                              no_scrollbar=True):
+                              no_scrollbar=True, no_scroll_with_mouse=True):
             with dpg.tab_bar(tag="left_tabs"):
                 with dpg.tab(label="Event", tag="Event"):
                     self._build_event_tab()
                 with dpg.tab(label="Club", tag="Club"):
                     self._build_club_tab()
-                with dpg.tab(label="Bookings", tag="Bookings"):
-                    self._build_bookings_tab()
                 with dpg.tab(label="Roster", tag="Roster"):
                     self._build_dj_roster_tab()
                 with dpg.tab(label="DJ", tag="DJ"):
@@ -101,22 +110,30 @@ class UISetupMixin:
             self._build_account_drawer()
 
         # ── Auth card toggle button ───────────────────────────────────
-        dpg.add_button(tag="auth_card_btn", label="Local", width=-1,
-                       height=self._AUTH_BTN_HEIGHT,
+        _btn_h = self._AUTH_BTN_INNER
+        _av_sz = 24
+        _av_pad = _av_sz + 8          # left-padding for avatar inside button
+        dpg.add_button(tag="auth_card_btn", label="      Local", width=-1,
+                       height=_btn_h,
                        callback=lambda: self._toggle_account_drawer())
+        # Avatar overlaid on the button (positioned after first frame)
+        dpg.add_image("auth_avatar_tex", tag="auth_card_avatar",
+                      width=_av_sz, height=_av_sz, show=False)
 
     def _build_event_tab(self):
         with dpg.child_window(tag="event_tab_inner", border=False,
                               autosize_x=True, height=-1):
             # ── Header row ────────────────────────────────────────────────────
-            styled_text("   EVENT CONFIGURATION", HEADER)
-            with dpg.group(horizontal=True):
-                dpg.add_spacer(width=4)
-                dpg.add_button(label="+ New", width=80,
-                               callback=lambda: self.new_event())
-                add_primary_button("Load", tag="load_event_btn", width=80,
-                                   callback=lambda: self._toggle_saved_events_drawer())
-            dpg.add_separator()
+            with dpg.table(header_row=False, borders_innerH=False,
+                           borders_innerV=False, borders_outerH=False,
+                           borders_outerV=False, pad_outerX=False):
+                dpg.add_table_column(width_stretch=True)
+                dpg.add_table_column(width_stretch=True)
+                with dpg.table_row():
+                    dpg.add_button(label="+ New", width=-1,
+                                   callback=lambda: self.new_event())
+                    add_primary_button("Load", tag="load_event_btn", width=-1,
+                                       callback=lambda: self._toggle_saved_events_drawer())
 
             # ── Saved events drawer (inline, hidden by default) ─────────
             with dpg.child_window(tag="saved_events_drawer", height=200,
@@ -126,134 +143,135 @@ class UISetupMixin:
                     pass  # populated by refresh_saved_events_ui()
             self._saved_events_drawer_open = False
 
-            # ── Form fields (table for aligned labels) ─────────────────────
-            _LABEL_W = 62
-            with dpg.table(header_row=False, borders_innerH=False,
-                           borders_innerV=False, borders_outerH=False,
-                           borders_outerV=False, pad_outerX=False):
-                dpg.add_table_column(init_width_or_weight=_LABEL_W, width_fixed=True)
-                dpg.add_table_column(width_stretch=True)
-
-                # ── Title + Vol ───────────────────────────────────────────
-                with dpg.table_row():
-                    styled_text("   TITLE", LABEL)
-                    with dpg.group(horizontal=True):
-                        dpg.add_input_text(
-                            tag="event_title_input",
-                            default_value=self.event_title_var.get(),
-                            hint="Event title...", width=-50,
-                            callback=lambda s, a, u=None: self._schedule_update(),
-                        )
-                        dpg.add_input_text(
-                            tag="event_vol_input",
-                            default_value=self.event_vol_var.get(),
-                            hint="Vol",
-                            width=38,
-                            callback=lambda s, a, u=None: self._schedule_update(),
-                        )
-                        with dpg.theme() as _pill_theme:
-                            with dpg.theme_component(dpg.mvInputText):
-                                dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 999)
-                        dpg.bind_item_theme("event_vol_input", _pill_theme)
-
-                # ── Club ──────────────────────────────────────────────────
-                with dpg.table_row():
-                    styled_text("   CLUB", LABEL)
-                    dpg.add_input_text(
-                        tag="group_name_input",
-                        default_value=self.group_name_var.get(),
-                        hint="Club name...", width=-1,
-                        callback=lambda s, a, u=None: self._schedule_update(),
-                    )
-
-                # ── Collab ────────────────────────────────────────────────
-                with dpg.table_row():
-                    styled_text("   COLLAB", LABEL)
-                    dpg.add_input_text(
-                        tag="collab_with_input",
-                        default_value=self.collab_with_var.get(),
-                        hint="Collab with...", width=-1,
-                        callback=lambda s, a, u=None: self._schedule_update(),
-                    )
-
-                # ── Start ─────────────────────────────────────────────────
-                with dpg.table_row():
-                    styled_text("   START", LABEL)
-                    add_datetime_row(
-                        "event_timestamp_input", self.event_timestamp,
-                        callback=lambda s, a, u=None: self._schedule_update(),
-                    )
-
-                # ── Genres ────────────────────────────────────────────────
-                with dpg.table_row():
-                    styled_text("   GENRES", LABEL)
-                    with dpg.group(horizontal=True):
-                        dpg.add_input_text(
-                            tag="genre_entry",
-                            default_value=self.genre_entry_var.get(),
-                            hint="Search or press Enter to add...", width=-50,
-                            on_enter=True,
-                            callback=lambda s, a, u=None: self.add_genre_from_entry(),
-                            user_data=None,
-                        )
-                        add_icon_button(Icon.EDIT, callback=lambda: self.open_genre_editor())
-                        dpg.add_spacer(width=10)
-
-            # ── Post-table tag wiring ─────────────────────────────────────────
-            self.event_title_var._tag = "event_title_input"
-            self.event_vol_var._tag   = "event_vol_input"
-            self._register_scroll_int("event_vol_input", min_val=1,
-                                      on_change=lambda: self._schedule_update())
-            self.group_name_var._tag  = "group_name_input"
-            self.collab_var._tag      = "collab_check"
-            self.collab_with_var._tag = "collab_with_input"
-            self.genre_entry_var._tag = "genre_entry"
-            self.genre_search_var._tag = "genre_entry"
-            with dpg.item_handler_registry(tag="genre_entry_hr"):
-                dpg.add_item_edited_handler(
-                    callback=lambda s, a, u=None: self._schedule_genre_refresh()
-                )
-            dpg.add_separator()
-            dpg.bind_item_handler_registry("genre_entry", "genre_entry_hr")
-            with dpg.child_window(tag="genre_tags_frame", height=90,
-                                  border=False, autosize_x=True):
-                pass  # populated by refresh_genre_tags()
             dpg.add_separator()
 
-            # ── Social Links ──────────────────────────────────────────────
-            styled_text("   LINKS", HEADER)
-            with dpg.table(header_row=False, borders_innerH=False,
-                           borders_innerV=False, borders_outerH=False,
-                           borders_outerV=False, pad_outerX=False):
-                dpg.add_table_column(init_width_or_weight=_LABEL_W, width_fixed=True)
-                dpg.add_table_column(width_stretch=True)
-                for label, hint in self._SOCIAL_FIELDS:
-                    tag_key = label.replace(' ', '_')
+            # ── DETAILS section ───────────────────────────────────────
+            with section(self, "evt_config", "DETAILS"):
+                _LABEL_W = 62
+                with dpg.table(header_row=False, borders_innerH=False,
+                               borders_innerV=False, borders_outerH=False,
+                               borders_outerV=False, pad_outerX=False):
+                    dpg.add_table_column(init_width_or_weight=_LABEL_W, width_fixed=True)
+                    dpg.add_table_column(width_stretch=True)
+
+                    # ── Title + Vol ───────────────────────────────────────────
                     with dpg.table_row():
-                        styled_text(f"   {label}", LABEL)
+                        styled_text("   TITLE", LABEL)
+                        with dpg.group(horizontal=True):
+                            dpg.add_input_text(
+                                tag="event_title_input",
+                                default_value=self.event_title_var.get(),
+                                hint="Event title...", width=-50,
+                                callback=lambda s, a, u=None: self._schedule_update(),
+                            )
+                            dpg.add_input_text(
+                                tag="event_vol_input",
+                                default_value=self.event_vol_var.get(),
+                                hint="Vol",
+                                width=38,
+                                callback=lambda s, a, u=None: self._schedule_update(),
+                            )
+                            with dpg.theme() as _pill_theme:
+                                with dpg.theme_component(dpg.mvInputText):
+                                    dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 999)
+                            dpg.bind_item_theme("event_vol_input", _pill_theme)
+
+                    # ── Club ──────────────────────────────────────────────────
+                    with dpg.table_row():
+                        styled_text("   CLUB", LABEL)
                         dpg.add_input_text(
-                            tag=f"social_input_{tag_key}",
-                            default_value=self.social_links.get(label, ""),
-                            hint=hint, width=-1,
-                            callback=lambda s, a, u=label: self._on_social_link_changed(u),
+                            tag="group_name_input",
+                            default_value=self.group_name_var.get(),
+                            hint="Club name...", width=-1,
+                            callback=lambda s, a, u=None: self._schedule_update(),
                         )
+
+                    # ── Collab ────────────────────────────────────────────────
+                    with dpg.table_row():
+                        styled_text("   COLLAB", LABEL)
+                        dpg.add_input_text(
+                            tag="collab_with_input",
+                            default_value=self.collab_with_var.get(),
+                            hint="Collab with...", width=-1,
+                            callback=lambda s, a, u=None: self._schedule_update(),
+                        )
+
+                    # ── Start ─────────────────────────────────────────────────
+                    with dpg.table_row():
+                        styled_text("   START", LABEL)
+                        add_datetime_row(
+                            "event_timestamp_input", self.event_timestamp,
+                            callback=lambda s, a, u=None: self._schedule_update(),
+                        )
+
+                # ── Post-table tag wiring ─────────────────────────────────
+                self.event_title_var._tag = "event_title_input"
+                self.event_vol_var._tag   = "event_vol_input"
+                self._register_scroll_int("event_vol_input", min_val=1,
+                                          on_change=lambda: self._schedule_update())
+                self.group_name_var._tag  = "group_name_input"
+                self.collab_var._tag      = "collab_check"
+                self.collab_with_var._tag = "collab_with_input"
+
+            # ── GENRES section ────────────────────────────────────────────
+            with section(self, "evt_genres", "GENRES"):
+                with dpg.group(horizontal=True):
+                    dpg.add_input_text(
+                        tag="genre_entry",
+                        default_value=self.genre_entry_var.get(),
+                        hint="Search or press Enter to add...", width=-50,
+                        on_enter=True,
+                        callback=lambda s, a, u=None: self.add_genre_from_entry(),
+                        user_data=None,
+                    )
+                    add_icon_button(Icon.EDIT, callback=lambda: self.open_genre_editor())
+                    dpg.add_spacer(width=10)
+                self.genre_entry_var._tag = "genre_entry"
+                self.genre_search_var._tag = "genre_entry"
+                with dpg.item_handler_registry(tag="genre_entry_hr"):
+                    dpg.add_item_edited_handler(
+                        callback=lambda s, a, u=None: self._schedule_genre_refresh()
+                    )
+                dpg.bind_item_handler_registry("genre_entry", "genre_entry_hr")
+                with dpg.child_window(tag="genre_tags_frame", height=90,
+                                      border=False, autosize_x=True):
+                    pass  # populated by refresh_genre_tags()
+
+            # ── LINKS section ─────────────────────────────────────────────
+            with section(self, "evt_links", "LINKS"):
+                _LABEL_W = 62
+                with dpg.table(header_row=False, borders_innerH=False,
+                               borders_innerV=False, borders_outerH=False,
+                               borders_outerV=False, pad_outerX=False):
+                    dpg.add_table_column(init_width_or_weight=_LABEL_W, width_fixed=True)
+                    dpg.add_table_column(width_stretch=True)
+                    for label, hint in self._SOCIAL_FIELDS:
+                        tag_key = label.replace(' ', '_')
+                        with dpg.table_row():
+                            styled_text(f"   {label}", LABEL)
+                            dpg.add_input_text(
+                                tag=f"social_input_{tag_key}",
+                                default_value=self.social_links.get(label, ""),
+                                hint=hint, width=-1,
+                                callback=lambda s, a, u=label: self._on_social_link_changed(u),
+                            )
 
         self.refresh_genre_tags()
 
     def _build_dj_roster_tab(self):
-        with dpg.group(horizontal=True):
-            styled_text("   DJS", HEADER)
-        add_primary_button("+ New DJ", tag="new_dj_btn", width=-1, callback=lambda: self.add_new_dj_to_roster())
-        dpg.add_input_text(
-            tag="dj_search_input",
-            default_value=self.dj_search_var.get(),
-            hint="Search...", width=-11,
-            callback=lambda s, a, u=None: self._schedule_roster_refresh(),
-        )
-        self.dj_search_var._tag = "dj_search_input"
-        with dpg.child_window(tag="dj_roster_scroll", height=-1,
-                              border=False, autosize_x=True):
-            pass  # populated by refresh_dj_roster_ui()
+        with section(self, "roster_djs", "DJS"):
+            add_primary_button("+ New DJ", tag="new_dj_btn", width=-1,
+                               callback=lambda: self.add_new_dj_to_roster())
+            dpg.add_input_text(
+                tag="dj_search_input",
+                default_value=self.dj_search_var.get(),
+                hint="Search...", width=-11,
+                callback=lambda s, a, u=None: self._schedule_roster_refresh(),
+            )
+            self.dj_search_var._tag = "dj_search_input"
+            with dpg.child_window(tag="dj_roster_scroll", height=-1,
+                                  border=False, autosize_x=True):
+                pass  # populated by refresh_dj_roster_ui()
         self.refresh_dj_roster_ui()
 
     # ── DJ Profile tab ────────────────────────────────────────────────────
@@ -288,102 +306,93 @@ class UISetupMixin:
             with dpg.group(tag="dj_profile_group", show=False):
                 _LABEL_W = 62
 
-                # ── Header with name + sign out ───────────────────────
+                # ── Header with name (fixed, not a section) ───────
                 with dpg.group(horizontal=True):
                     styled_text("   DJ PROFILE", HEADER)
                 dpg.add_spacer(height=2)
                 with dpg.group(horizontal=True):
                     dpg.add_spacer(width=4)
                     styled_text("", LABEL, tag="dj_signed_in_label")
-                    dpg.add_button(
-                        tag="dj_signout_btn", label="Sign Out", width=70,
-                        callback=lambda: self._dj_sign_out(),
-                    )
                 dpg.add_separator()
 
-                # ── Links ─────────────────────────────────────────────
-                styled_text("   LINKS", HEADER)
-                dpg.add_spacer(height=4)
-                with dpg.table(header_row=False, borders_innerH=False,
-                               borders_innerV=False, borders_outerH=False,
-                               borders_outerV=False, pad_outerX=False):
-                    dpg.add_table_column(init_width_or_weight=_LABEL_W, width_fixed=True)
-                    dpg.add_table_column(width_stretch=True)
-                    for label, hint in self._DJ_LINK_FIELDS:
-                        tag_key = label.replace(' ', '_')
+                # ── Links section ─────────────────────────────────────
+                with section(self, "dj_links", "LINKS"):
+                    dpg.add_spacer(height=4)
+                    with dpg.table(header_row=False, borders_innerH=False,
+                                   borders_innerV=False, borders_outerH=False,
+                                   borders_outerV=False, pad_outerX=False):
+                        dpg.add_table_column(init_width_or_weight=_LABEL_W,
+                                             width_fixed=True)
+                        dpg.add_table_column(width_stretch=True)
+                        for label, hint in self._DJ_LINK_FIELDS:
+                            tag_key = label.replace(' ', '_')
+                            with dpg.table_row():
+                                styled_text(f"   {label.upper()}", LABEL)
+                                dpg.add_input_text(
+                                    tag=f"dj_link_{tag_key}",
+                                    hint=hint or "https://...", width=-1,
+                                    callback=lambda s, a, u=label: (
+                                        self._on_dj_link_changed(u)),
+                                )
+
+                # ── Logo section ──────────────────────────────────────
+                with section(self, "dj_logo", "LOGO"):
+                    dpg.add_spacer(height=4)
+                    with dpg.table(header_row=False, borders_innerH=False,
+                                   borders_innerV=False, borders_outerH=False,
+                                   borders_outerV=False, pad_outerX=False):
+                        dpg.add_table_column(init_width_or_weight=_LABEL_W,
+                                             width_fixed=True)
+                        dpg.add_table_column(width_stretch=True)
                         with dpg.table_row():
-                            styled_text(f"   {label.upper()}", LABEL)
+                            styled_text("   URL", LABEL)
                             dpg.add_input_text(
-                                tag=f"dj_link_{tag_key}",
-                                hint=hint or "https://...", width=-1,
-                                callback=lambda s, a, u=label: self._on_dj_link_changed(u),
+                                tag="dj_profile_logo",
+                                hint="Image URL or local path...", width=-1,
+                                callback=lambda s, a: self._on_dj_profile_changed(
+                                    "logo",
+                                    dpg.get_value("dj_profile_logo").strip()),
                             )
 
-                dpg.add_separator()
-
-                # ── Logo ──────────────────────────────────────────────
-                styled_text("   LOGO", HEADER)
-                dpg.add_spacer(height=4)
-                with dpg.table(header_row=False, borders_innerH=False,
-                               borders_innerV=False, borders_outerH=False,
-                               borders_outerV=False, pad_outerX=False):
-                    dpg.add_table_column(init_width_or_weight=_LABEL_W, width_fixed=True)
-                    dpg.add_table_column(width_stretch=True)
-                    with dpg.table_row():
-                        styled_text("   URL", LABEL)
+                # ── Genres section ────────────────────────────────────
+                with section(self, "dj_genres", "GENRES"):
+                    dpg.add_spacer(height=4)
+                    with dpg.group(horizontal=True):
                         dpg.add_input_text(
-                            tag="dj_profile_logo",
-                            hint="Image URL or local path...", width=-1,
-                            callback=lambda s, a: self._on_dj_profile_changed(
-                                "logo", dpg.get_value("dj_profile_logo").strip()),
+                            tag="dj_genre_input", hint="Add genre...",
+                            width=-60, on_enter=True,
+                            callback=lambda s, a: self._dj_add_genre(),
                         )
+                        dpg.add_button(
+                            label="+", width=40,
+                            callback=lambda: self._dj_add_genre(),
+                        )
+                    dpg.add_spacer(height=4)
+                    with dpg.group(tag="dj_genre_tags"):
+                        pass  # populated by _dj_refresh_genres()
 
-                dpg.add_separator()
-
-                # ── Genres ────────────────────────────────────────────
-                styled_text("   GENRES", HEADER)
-                dpg.add_spacer(height=4)
-                with dpg.group(horizontal=True):
-                    dpg.add_input_text(
-                        tag="dj_genre_input", hint="Add genre...",
-                        width=-60, on_enter=True,
-                        callback=lambda s, a: self._dj_add_genre(),
+                # ── Availability section ──────────────────────────────
+                with section(self, "dj_avail", "AVAILABILITY"):
+                    dpg.add_spacer(height=4)
+                    add_primary_button(
+                        "+ Add Date", tag="dj_avail_add_btn", width=-1,
+                        callback=lambda: self._dj_add_availability(),
                     )
-                    dpg.add_button(
-                        label="+", width=40,
-                        callback=lambda: self._dj_add_genre(),
-                    )
-                dpg.add_spacer(height=4)
-                with dpg.group(tag="dj_genre_tags"):
-                    pass  # populated by _dj_refresh_genres()
+                    dpg.add_spacer(height=4)
+                    with dpg.child_window(tag="dj_avail_scroll", height=150,
+                                          border=False, autosize_x=True):
+                        pass  # populated by _dj_refresh_availability()
 
-                dpg.add_separator()
-
-                # ── Availability ──────────────────────────────────────
-                styled_text("   AVAILABILITY", HEADER)
-                dpg.add_spacer(height=4)
-                add_primary_button(
-                    "+ Add Date", tag="dj_avail_add_btn", width=-1,
-                    callback=lambda: self._dj_add_availability(),
-                )
-                dpg.add_spacer(height=4)
-                with dpg.child_window(tag="dj_avail_scroll", height=150,
-                                      border=False, autosize_x=True):
-                    pass  # populated by _dj_refresh_availability()
-
-                dpg.add_separator()
-
-                # ── My Bookings ───────────────────────────────────────
-                with dpg.group(horizontal=True):
-                    styled_text("   MY BOOKINGS", HEADER)
+                # ── My Bookings section ───────────────────────────────
+                with section(self, "dj_bookings", "MY BOOKINGS"):
                     add_icon_button(
                         Icon.REFRESH,
                         callback=lambda: self._refresh_dj_bookings(),
                     )
-                dpg.add_spacer(height=4)
-                with dpg.child_window(tag="dj_bookings_scroll", height=-1,
-                                      border=False, autosize_x=True):
-                    pass  # populated by _refresh_dj_bookings()
+                    dpg.add_spacer(height=4)
+                    with dpg.child_window(tag="dj_bookings_scroll", height=-1,
+                                          border=False, autosize_x=True):
+                        pass  # populated by _refresh_dj_bookings()
 
         # If already signed in from a previous session, restore the view
         if self.dj_profile.get("signed_in") and self.dj_profile.get("name"):
@@ -441,14 +450,6 @@ class UISetupMixin:
                 self._work_queue.put(_on_err)
 
         threading.Thread(target=_do, daemon=True).start()
-
-    def _dj_sign_out(self):
-        """Unlink — keeps the account on the server but marks as not signed in locally."""
-        self.dj_profile["signed_in"] = False
-        self.save_settings()
-        dpg.configure_item("dj_profile_group", show=False)
-        dpg.configure_item("dj_signin_group", show=True)
-        dpg.set_value("dj_signin_error", "")
 
     def _dj_restore_session(self):
         """Restore profile view if already signed in from settings."""
@@ -799,33 +800,33 @@ class UISetupMixin:
     def _build_club_tab(self):
         with dpg.child_window(tag="club_tab_inner", border=False,
                               autosize_x=True, height=-1):
-            styled_text("   CLUB LINKS", HEADER)
-            styled_text("   Shared across all events.", MUTED)
-            dpg.add_spacer(height=4)
-            _LABEL_W = 62
-            with dpg.table(header_row=False, borders_innerH=False,
-                           borders_innerV=False, borders_outerH=False,
-                           borders_outerV=False, pad_outerX=False):
-                dpg.add_table_column(init_width_or_weight=_LABEL_W, width_fixed=True)
-                dpg.add_table_column(width_stretch=True)
-                for label, hint in self._CLUB_LINK_FIELDS:
-                    tag_key = label.replace(' ', '_')
-                    p = self.persistent_links.get(label, {})
-                    with dpg.table_row():
-                        styled_text(f"   {label}", LABEL)
-                        dpg.add_input_text(
-                            tag=f"group_link_{tag_key}",
-                            default_value=p.get("link", "") if isinstance(p, dict) else "",
-                            hint=hint, width=-1,
-                            callback=lambda s, a, u=label: self._on_club_link_changed(u),
-                        )
+            # ── CLUB LINKS section ────────────────────────────────
+            with section(self, "club_links", "CLUB LINKS"):
+                styled_text("   Shared across all events.", MUTED)
+                dpg.add_spacer(height=4)
+                _LABEL_W = 62
+                with dpg.table(header_row=False, borders_innerH=False,
+                               borders_innerV=False, borders_outerH=False,
+                               borders_outerV=False, pad_outerX=False):
+                    dpg.add_table_column(init_width_or_weight=_LABEL_W,
+                                         width_fixed=True)
+                    dpg.add_table_column(width_stretch=True)
+                    for label, hint in self._CLUB_LINK_FIELDS:
+                        tag_key = label.replace(' ', '_')
+                        p = self.persistent_links.get(label, {})
+                        with dpg.table_row():
+                            styled_text(f"   {label}", LABEL)
+                            dpg.add_input_text(
+                                tag=f"group_link_{tag_key}",
+                                default_value=(p.get("link", "")
+                                               if isinstance(p, dict) else ""),
+                                hint=hint, width=-1,
+                                callback=lambda s, a, u=label: (
+                                    self._on_club_link_changed(u)),
+                            )
 
-            dpg.add_separator()
-            dpg.add_spacer(height=4)
-
-            # ── VRChat group verification ─────────────────────────
-            with dpg.group(tag="vrchat_verify_section"):
-                styled_text("   VRCHAT GROUP", HEADER)
+            # ── VRCHAT GROUP section ──────────────────────────────
+            with section(self, "club_vrchat", "VRCHAT GROUP"):
                 styled_text("   Verify ownership of your VRChat group.", MUTED)
                 dpg.add_spacer(height=4)
                 with dpg.group(tag="vrchat_linked_info", show=False):
@@ -844,116 +845,18 @@ class UISetupMixin:
                 dpg.add_spacer(height=2)
                 styled_text("", HINT, tag="vrchat_verify_status")
 
-            dpg.add_separator()
-            dpg.add_spacer(height=4)
-
-            # ── Bookings section ──────────────────────────────────
-            styled_text("   BOOK A DJ", HEADER)
-            styled_text("   Send a booking request to a DJ.", MUTED)
-            dpg.add_spacer(height=4)
-            with dpg.table(header_row=False, borders_innerH=False,
-                           borders_innerV=False, borders_outerH=False,
-                           borders_outerV=False, pad_outerX=False):
-                dpg.add_table_column(init_width_or_weight=_LABEL_W, width_fixed=True)
-                dpg.add_table_column(width_stretch=True)
-                with dpg.table_row():
-                    styled_text("   DJ", LABEL)
-                    dpg.add_input_text(
-                        tag="booking_dj_name", hint="DJ name...", width=-1,
-                    )
-                with dpg.table_row():
-                    styled_text("   EVENT", LABEL)
-                    dpg.add_input_text(
-                        tag="booking_event_title", hint="Event title...", width=-1,
-                    )
-                with dpg.table_row():
-                    styled_text("   DATE", LABEL)
-                    add_date_row("booking_event_date")
-                with dpg.table_row():
-                    styled_text("   TIME", LABEL)
-                    add_time_row("booking_start_time", default="8:00 PM")
-                with dpg.table_row():
-                    styled_text("   MINS", LABEL)
-                    dpg.add_input_int(
-                        tag="booking_duration",
-                        default_value=60, min_value=15, max_value=480,
-                        min_clamped=True, max_clamped=True, width=-1,
-                    )
-                with dpg.table_row():
-                    styled_text("   MSG", LABEL)
-                    dpg.add_input_text(
-                        tag="booking_message", hint="Optional message...",
-                        width=-1, multiline=True, height=50,
-                    )
-
-            dpg.add_spacer(height=4)
-            add_primary_button(
-                "Send Booking Request", tag="booking_send_btn", width=-1,
-                callback=lambda: self._send_booking_request(),
-            )
-            dpg.add_spacer(height=2)
-            styled_text("", HINT, tag="booking_status_label")
-            dpg.add_separator()
-            dpg.add_spacer(height=4)
-
-            # ── Sent bookings ─────────────────────────────────────
-            with dpg.group(horizontal=True):
-                styled_text("   SENT BOOKINGS", HEADER)
+            # ── SENT BOOKINGS section ─────────────────────────────
+            with section(self, "club_sent", "SENT BOOKINGS"):
                 add_icon_button(
                     Icon.REFRESH,
                     callback=lambda: self._refresh_group_bookings(),
                 )
-            dpg.add_spacer(height=4)
-            with dpg.child_window(tag="group_bookings_scroll", height=-1,
-                                  border=False, autosize_x=True):
-                pass
+                dpg.add_spacer(height=4)
+                with dpg.child_window(tag="group_bookings_scroll", height=-1,
+                                      border=False, autosize_x=True):
+                    pass
 
     # ── Bookings tab ──────────────────────────────────────────────────────
-
-    def _build_bookings_tab(self):
-        with dpg.child_window(tag="bookings_tab_inner", border=False,
-                              autosize_x=True, height=-1):
-            styled_text("   FIND DJs", HEADER)
-            styled_text("   Browse DJs by availability and genre.", MUTED)
-            dpg.add_spacer(height=4)
-
-            # ── Filters ───────────────────────────────────────────────
-            _LABEL_W = 62
-            with dpg.table(header_row=False, borders_innerH=False,
-                           borders_innerV=False, borders_outerH=False,
-                           borders_outerV=False, pad_outerX=False):
-                dpg.add_table_column(init_width_or_weight=_LABEL_W, width_fixed=True)
-                dpg.add_table_column(width_stretch=True)
-                with dpg.table_row():
-                    styled_text("   DATE", LABEL)
-                    add_date_row("bookings_filter_date")
-                with dpg.table_row():
-                    styled_text("   TIME", LABEL)
-                    add_time_row("bookings_filter_start", default="8:00 PM")
-                with dpg.table_row():
-                    styled_text("   GENRE", LABEL)
-                    dpg.add_input_text(
-                        tag="bookings_genre_search",
-                        hint="Filter by genre...", width=-1,
-                        callback=lambda s, a: self._bookings_apply_filters(),
-                    )
-
-            dpg.add_spacer(height=4)
-            with dpg.group(horizontal=True):
-                add_primary_button(
-                    "Search", tag="bookings_search_btn", width=-1,
-                    callback=lambda: self._bookings_fetch_djs(),
-                )
-            dpg.add_spacer(height=2)
-            styled_text("", HINT, tag="bookings_status_label")
-
-            dpg.add_separator()
-            dpg.add_spacer(height=4)
-
-            # ── DJ results scroll ─────────────────────────────────────
-            with dpg.child_window(tag="bookings_dj_scroll", height=-1,
-                                  border=False, autosize_x=True):
-                styled_text("   Press Search to load DJs.", MUTED)
 
     # ── VRChat group logic ───────────────────────────────────────────────
 
@@ -982,6 +885,7 @@ class UISetupMixin:
             modal=True, autosize=True, no_resize=True, no_scrollbar=True,
             on_close=lambda: dpg.delete_item(win_tag),
             min_size=(420, 0),
+            pos=popup_pos("vrchat_verify_btn", width=420, height=350),
         ):
             styled_text("  VRCHAT GROUP VERIFICATION", HEADER)
             dpg.add_spacer(height=4)
@@ -1199,69 +1103,6 @@ class UISetupMixin:
 
     # ── Booking logic ─────────────────────────────────────────────────────
 
-    def _send_booking_request(self):
-        """Send a booking request to the server."""
-        dj_name = dpg.get_value("booking_dj_name").strip()
-        if not dj_name:
-            dpg.set_value("booking_status_label", "   DJ name is required.")
-            return
-        if not self.api.base_url:
-            dpg.set_value("booking_status_label", "   Server URL not configured.")
-            return
-
-        event_title = dpg.get_value("booking_event_title").strip()
-        event_date = dpg.get_value("booking_event_date").strip()
-        start_time = dpg.get_value("booking_start_time")
-        duration = dpg.get_value("booking_duration")
-        message = dpg.get_value("booking_message").strip()
-
-        # Use group name from settings
-        group_name = ""
-        for label in ("DISCORD", "VRC GROUP"):
-            p = self.persistent_links.get(label, {})
-            if isinstance(p, dict) and p.get("link"):
-                group_name = p["link"]
-                break
-        # Try event title as group identifier if no link
-        if not group_name:
-            group_name = dpg.get_value("event_title_input").strip() if dpg.does_item_exist("event_title_input") else ""
-
-        dpg.set_value("booking_status_label", "   Sending...")
-        dpg.configure_item("booking_send_btn", enabled=False)
-
-        def _do():
-            try:
-                from src.backend.services.api_client import APIError
-                result = self.api.create_booking(
-                    dj_name=dj_name,
-                    group_name=group_name,
-                    event_title=event_title,
-                    event_date=event_date,
-                    start_time=start_time,
-                    duration=duration,
-                    message=message,
-                )
-
-                def _on_ok():
-                    dpg.set_value("booking_status_label",
-                                  f"   Booking #{result['id']} sent! Status: pending")
-                    dpg.configure_item("booking_send_btn", enabled=True)
-                    self._refresh_group_bookings()
-
-                self._work_queue.put(_on_ok)
-            except APIError as exc:
-                def _on_err():
-                    dpg.set_value("booking_status_label", f"   {exc.detail}")
-                    dpg.configure_item("booking_send_btn", enabled=True)
-                self._work_queue.put(_on_err)
-            except Exception:
-                def _on_err():
-                    dpg.set_value("booking_status_label", "   Connection failed.")
-                    dpg.configure_item("booking_send_btn", enabled=True)
-                self._work_queue.put(_on_err)
-
-        threading.Thread(target=_do, daemon=True).start()
-
     def _refresh_group_bookings(self):
         """Fetch and display sent bookings for this group."""
         if not self.api.base_url:
@@ -1325,7 +1166,8 @@ class UISetupMixin:
     def _build_right_panel(self):
         # ── Tab bar wrapped in a resizable container ──────────────────────
         with dpg.child_window(tag="right_tabs_content", height=360,
-                              border=False, autosize_x=True, no_scrollbar=True):
+                              border=False, autosize_x=True, no_scrollbar=True,
+                              no_scroll_with_mouse=True):
             with dpg.tab_bar(tag="right_tabs"):
                 with dpg.tab(label="Lineup"):
                     styled_text("   TIMESLOTS  ", HEADER)
@@ -1486,7 +1328,7 @@ class UISetupMixin:
     def _apply_local_mode_visibility(self):
         """Hide server-dependent tabs/sections when running in local mode."""
         is_local = getattr(self, "_local_mode", False)
-        for tag in ("DJ", "DiscordTab", "vrchat_verify_section"):
+        for tag in ("DJ", "DiscordTab", "sect_club_vrchat"):
             if dpg.does_item_exist(tag):
                 dpg.configure_item(tag, show=not is_local)
         self._update_auth_card()
@@ -1495,12 +1337,25 @@ class UISetupMixin:
         """Refresh the auth card button label to reflect sign-in state."""
         if not dpg.does_item_exist("auth_card_btn"):
             return
+        _pad = "      "  # space for avatar overlay
         if self._oauth.is_signed_in:
             user = self._oauth.user_info or {}
             name = user.get("username", "Unknown")
-            dpg.configure_item("auth_card_btn", label=name)
+            dpg.configure_item("auth_card_btn", label=f"{_pad}{name}")
         else:
-            dpg.configure_item("auth_card_btn", label="Local")
+            dpg.configure_item("auth_card_btn", label=f"{_pad}Local")
+        self._position_auth_avatar()
+
+    def _position_auth_avatar(self):
+        """Place the avatar image on top of the auth card button."""
+        if not dpg.does_item_exist("auth_card_btn") or not dpg.does_item_exist("auth_card_avatar"):
+            return
+        btn_pos = dpg.get_item_pos("auth_card_btn")
+        btn_h = dpg.get_item_height("auth_card_btn")
+        av_sz = 24
+        x = btn_pos[0] + 8
+        y = btn_pos[1] + max(0, (btn_h - av_sz) // 2)
+        dpg.configure_item("auth_card_avatar", pos=[x, y], show=True)
 
     def _load_discord_avatar(self, user: dict):
         """Download and display the user's Discord avatar in the auth card."""
@@ -1519,7 +1374,7 @@ class UISetupMixin:
                 req = urllib.request.Request(url, headers={"User-Agent": "LineupBuilder/1.2"})
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     data = resp.read()
-                img = Image.open(io.BytesIO(data)).convert("RGBA").resize((16, 16))
+                img = Image.open(io.BytesIO(data)).convert("RGBA").resize((32, 32))
                 # Normalise to 0–1 floats for DPG
                 pixels = [v / 255.0 for v in img.tobytes()]
 
@@ -1529,9 +1384,11 @@ class UISetupMixin:
                     if dpg.does_alias_exist("auth_avatar_tex"):
                         dpg.remove_alias("auth_avatar_tex")
                     with dpg.texture_registry():
-                        dpg.add_static_texture(16, 16, pixels, tag="auth_avatar_tex")
+                        dpg.add_static_texture(32, 32, pixels, tag="auth_avatar_tex")
                     if dpg.does_item_exist("auth_avatar_img"):
                         dpg.configure_item("auth_avatar_img", texture_tag="auth_avatar_tex", show=True)
+                    if dpg.does_item_exist("auth_card_avatar"):
+                        dpg.configure_item("auth_card_avatar", texture_tag="auth_avatar_tex")
                 self._work_queue.put(_apply)
             except Exception as exc:
                 log.debug("Failed to load Discord avatar: %s", exc)
@@ -1546,7 +1403,7 @@ class UISetupMixin:
         with dpg.group(horizontal=True):
             dpg.add_image(
                 "auth_avatar_tex", tag="account_avatar_img",
-                width=16, height=16, show=False,
+                width=32, height=32, show=False,
             )
             styled_text("  Not signed in", MUTED, tag="account_status_text")
         dpg.add_spacer(height=6)
@@ -1587,6 +1444,8 @@ class UISetupMixin:
         dpg.configure_item("left_tabs_wrapper", height=-offset)
         if show:
             self._refresh_account_drawer()
+        # Reposition avatar overlay after layout shift
+        self._work_queue.put(self._position_auth_avatar)
 
     def _sign_out_from_drawer(self):
         """Sign out and update the drawer + auth card."""
@@ -2027,6 +1886,7 @@ class UISetupMixin:
             tag=tag, label="Pending Scheduled Posts",
             modal=True, autosize=True, no_resize=True,
             no_scrollbar=True, min_size=(320, 100),
+            pos=popup_pos("discord_pending_btn", width=320, height=200),
         ):
             dpg.add_group(tag="discord_scheduled_list")
             self._refresh_schedule_list_ui()
@@ -2404,13 +2264,10 @@ class UISetupMixin:
         base_vp = getattr(self, "_base_vp_height", 600)
         base_tabs = getattr(self, "_base_tabs_height", 360)
 
-        # Stretch the panel divider to fill the full viewport height
-        if dpg.does_item_exist("panel_divider"):
-            dpg.configure_item("panel_divider", height=vp_h)
-
         if base_vp <= 0 or not dpg.does_item_exist("right_tabs_content"):
             return
         new_h = max(80, int(base_tabs * vp_h / base_vp))
         max_h = vp_h - 200
         new_h = min(new_h, max_h)
         dpg.configure_item("right_tabs_content", height=new_h)
+        self._position_auth_avatar()

@@ -197,8 +197,11 @@ class DataMixin:
             return
         title = state.get("title", "").strip()
         label = f"An unsaved lineup was found{(' — ' + title) if title else ''}.\nRestore it?"
+        vp_w = dpg.get_viewport_width()
+        vp_h = dpg.get_viewport_height()
         with dpg.window(tag=win_tag, label="Restore Unsaved Session", modal=True,
-                        autosize=True, no_resize=True, no_scrollbar=True):
+                        autosize=True, no_resize=True, no_scrollbar=True,
+                        pos=[max(0, vp_w // 2 - 180), max(0, vp_h // 2 - 60)]):
             dpg.add_text(label, wrap=340)
             with dpg.group(horizontal=True):
                 restore_btn = dpg.add_button(

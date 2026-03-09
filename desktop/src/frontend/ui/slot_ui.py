@@ -201,6 +201,12 @@ def build_slot_row(slot: SlotState, app, parent_tag: str):
                 callback=lambda s, a, u: _edit_dj_from_slot(u, app),
             )
 
+            add_icon_button(
+                Icon.SEARCH,
+                user_data=slot,
+                callback=lambda s, a, u: app._open_slot_booking_modal(u),
+            )
+
             _del_btn = add_icon_button(
                 Icon.CLOSE, is_danger=True,
                 user_data=slot,

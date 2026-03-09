@@ -4,7 +4,7 @@ import datetime
 import dearpygui.dearpygui as dpg
 
 from ..styling.fonts import BODY, LABEL, MUTED, Icon, bind_icon_font, styled_text
-from ..ui.widgets import add_icon_button
+from ..ui.widgets import add_icon_button, popup_pos
 
 
 class EventsMixin:
@@ -18,7 +18,7 @@ class EventsMixin:
             if not dpg.does_item_exist(_warn_win):
                 with dpg.window(tag=_warn_win, label="Warning", modal=True,
                                 autosize=True, no_resize=True, no_scrollbar=True,
-                                pos=dpg.get_mouse_pos(local=False)):
+                                pos=popup_pos()):
                     dpg.add_text("Please set an Event Title before saving the lineup.")
                     dpg.add_button(label="OK", width=-1, user_data=_warn_win,
                                    callback=lambda s, a, u: dpg.delete_item(u))
@@ -74,7 +74,7 @@ class EventsMixin:
                 dpg.delete_item(wt)
             with dpg.window(tag=wt, label="Update Event", modal=True,
                             autosize=True, no_resize=True, no_scrollbar=True,
-                            pos=dpg.get_mouse_pos(local=False)):
+                            pos=popup_pos()):
                 dpg.add_text(f"'{full_title}' already exists. Overwrite?")
                 with dpg.group(horizontal=True):
                     yes_btn = dpg.add_button(label="Yes", width=140, user_data=wt,
@@ -120,7 +120,7 @@ class EventsMixin:
                 dpg.delete_item(wt)
             with dpg.window(tag=wt, label="New Event", modal=True,
                             autosize=True, no_resize=True, no_scrollbar=True,
-                            pos=dpg.get_mouse_pos(local=False)):
+                            pos=popup_pos()):
                 dpg.add_text("Clear the current lineup and start fresh?")
                 with dpg.group(horizontal=True):
                     yes_btn = dpg.add_button(label="Yes", width=140, user_data=wt,
@@ -260,7 +260,7 @@ class EventsMixin:
                 dpg.delete_item(_wt)
         with dpg.window(tag=wt, label="Confirm Delete", modal=True,
                         autosize=True, no_resize=True, no_scrollbar=True,
-                        pos=dpg.get_mouse_pos(local=False)):
+                        pos=popup_pos()):
             dpg.add_text(f"Delete saved event '{full_title}'?")
             with dpg.group(horizontal=True):
                 _yes = dpg.add_button(label="Yes", width=140, callback=lambda s, a, u=None: _do_delete())

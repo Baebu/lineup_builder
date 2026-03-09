@@ -25,6 +25,7 @@ from .styling.fonts import setup_fonts, styled_text, HEADER, MUTED, ERROR
 from .mixins.genre_manager import GenreMixin
 from .mixins.import_parser import ImportMixin
 from .mixins.roster import RosterMixin
+from .mixins.sections import SectionsMixin
 from .mixins.settings_manager import SettingsMixin
 from .mixins.slot_manager import SlotMixin
 from .ui.slot_ui import DPGBoolVar, DPGVar
@@ -46,6 +47,7 @@ class App(
     OutputMixin,
     DataMixin,
     SettingsMixin,
+    SectionsMixin,
     DebounceMixin,
     ImportMixin,
 ):
