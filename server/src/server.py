@@ -21,19 +21,25 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request, Security
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 
 from config import API_KEY, BOT_TOKEN, VRCHAT_PASSWORD, VRCHAT_USERNAME, log
-from db import close_db, init_db
-from routes import bookings, discord, dj, user_data, vrchat
-from routes.discord import scheduled_posts
+from db import init_db
+from mongo import close_mongo, init_mongo
+from routes import bookings, club, discord, dj, user_data, vrchat
+from routes import discord_oauth
+from routes import images as images_route
+from routes.discord import scheduled_posts, sent_posts, _record_sent
 from services.discord_bot import bot, bot_ready, send_embed
 from services.vrchat_api import (
     VRC_LOGIN_COOLDOWN,
     set_auth_cookie,
     vrchat_get,
     vrchat_login,
+    vrchat_verify_session,
+    _vrc_saved_cookie,
 )
 
 # Import _vrc_last_call for cooldown check
@@ -59,8 +65,9 @@ async def _scheduler_loop():
             if post_dt and now >= post_dt:
                 log.info("Firing scheduled post %s", post_id)
                 try:
-                    await send_embed(entry["channel_id"], entry["embed_data"],
+                    message = await send_embed(int(entry["channel_id"]), entry["embed_data"],
                                      entry.get("image_url"))
+                    _record_sent(message, entry["embed_data"], entry.get("image_url", ""))
                 except Exception:
                     log.exception("Failed to fire scheduled post %s", post_id)
                 fired.append(post_id)
@@ -103,20 +110,29 @@ async def lifespan(app: FastAPI):
             await asyncio.wait_for(bot_ready.wait(), timeout=30)
         except asyncio.TimeoutError:
             log.warning("Bot did not become ready within 30 s")
-    # Init database
+    # Init databases
     await init_db()
+    await init_mongo()
     # Start scheduler
     _scheduler_task = asyncio.get_event_loop().create_task(_scheduler_loop())
-    # Log in to VRChat on boot (skip if last API call was recent)
+    # Log in to VRChat on boot — reuse saved session if still valid
     if VRCHAT_USERNAME and VRCHAT_PASSWORD:
-        _since_last = time.time() - _vrc_last_call
-        if _vrc_last_call and _since_last < VRC_LOGIN_COOLDOWN:
-            log.info(
-                "VRChat login skipped — last API call was %.0fs ago (cooldown %ds)",
-                _since_last, VRC_LOGIN_COOLDOWN,
-            )
+        loop = asyncio.get_event_loop()
+        if _vrc_saved_cookie:
+            valid = await loop.run_in_executor(None, vrchat_verify_session, _vrc_saved_cookie)
+            if valid:
+                log.info("VRChat session restored from saved cookie — no re-login needed")
+                _vrchat_keepalive_task = loop.create_task(_vrchat_keepalive_loop())
+            else:
+                log.info("Saved VRChat cookie expired — performing fresh login")
+                auth = await loop.run_in_executor(None, vrchat_login)
+                if auth:
+                    set_auth_cookie(auth)
+                    log.info("VRChat session established on startup")
+                    _vrchat_keepalive_task = loop.create_task(_vrchat_keepalive_loop())
+                else:
+                    log.error("VRChat login failed on startup — API calls will retry later")
         else:
-            loop = asyncio.get_event_loop()
             auth = await loop.run_in_executor(None, vrchat_login)
             if auth:
                 set_auth_cookie(auth)
@@ -132,10 +148,22 @@ async def lifespan(app: FastAPI):
         _vrchat_keepalive_task.cancel()
     if bot.is_ready():
         await bot.close()
-    await close_db()
+    await close_mongo()
 
 
 app = FastAPI(title="Lineup Builder Bot Server", lifespan=lifespan)
+
+# CORS — allow web app origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(RequestValidationError)
@@ -178,13 +206,34 @@ async def health():
     }
 
 
+@app.post("/admin/rebuild-db", dependencies=[Depends(verify_api_key)])
+async def admin_rebuild_db():
+    """Drop and recreate all MongoDB collections. Requires API key."""
+    from db import rebuild_db
+    actions = await rebuild_db()
+    return {"status": "rebuilt", "actions": actions}
+
+
 # ── Register routers ─────────────────────────────────────────────────────
 
-app.include_router(discord.router, dependencies=[Depends(verify_api_key)])
-app.include_router(dj.router, dependencies=[Depends(verify_api_key)])
-app.include_router(bookings.router, dependencies=[Depends(verify_api_key)])
-app.include_router(user_data.router, dependencies=[Depends(verify_api_key)])
-app.include_router(vrchat.router, dependencies=[Depends(verify_api_key)])
+# OAuth routes are public (no API key)
+app.include_router(discord_oauth.router)
+
+# Image storage routes are public — browser clients upload directly
+app.include_router(images_route.router)
+
+# DJ profile routes are public — called by the browser web app (no API key available)
+app.include_router(dj.router)
+app.include_router(club.router)
+
+# Discord bot read-only routes are public — browser fetches guilds/channels/roles
+app.include_router(discord.public_router)
+
+# Discord mutation routes (post embed, schedule, resend) — also public for web app
+app.include_router(discord.router)
+app.include_router(bookings.router)
+app.include_router(user_data.router)
+app.include_router(vrchat.router)
 
 
 # ── Entry point ──────────────────────────────────────────────────────────

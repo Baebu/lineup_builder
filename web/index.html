@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lineup Builder</title>
+    <link rel="stylesheet" href="/src/styles/reset.css" />
+    <link rel="stylesheet" href="/src/styles/theme.css" />
+    <link rel="stylesheet" href="/src/styles/layout.css" />
+    <link rel="stylesheet" href="/src/styles/components.css" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Top bar -->
+      <header class="topbar">
+        <span class="topbar__title">Lineup Builder</span>
+        <div class="topbar__actions">
+          <button class="btn btn--icon" id="btn-settings" title="Settings">
+            <span class="material-symbols-rounded">settings</span>
+          </button>
+          <button class="login-pill" id="btn-login" title="Sign in with Discord">
+            <span class="material-symbols-rounded login-pill__icon">person</span>
+            <span class="login-pill__label">Sign In</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="panels">
+        <!-- Left Panel -->
+        <aside class="panel panel--left" id="panel-left">
+          <nav class="tabs" id="left-tabs">
+            <button class="tab active" data-tab="event">Event</button>
+            <button class="tab" data-tab="roster">Roster</button>
+            <button class="tab" data-tab="dj">DJ<span class="tab-badge" id="badge-dj" hidden></span></button>
+            <button class="tab" data-tab="club">Club<span class="tab-badge" id="badge-club" hidden></span></button>
+          </nav>
+
+          <div class="panel__body">
+            <!-- Event Tab -->
+            <div class="tab-content active" id="tab-event">
+
+              <!-- Saved Events section (buttons always visible, list in drawer) -->
+              <fieldset class="fieldset" data-section="evt-saved">
+                <legend>SAVED EVENTS</legend>
+                <div style="display:flex;gap:6px">
+                  <button class="btn btn--primary" id="btn-save-event" style="flex:1;justify-content:center">
+                    <span class="material-symbols-rounded" style="font-size:16px">save</span> Save
+                  </button>
+                  <button class="btn btn--secondary" id="btn-new-event" style="flex:1;justify-content:center">
+                    <span class="material-symbols-rounded" style="font-size:16px">add</span> New
+                  </button>
+                  <button class="btn btn--secondary" id="btn-import" style="flex:1;justify-content:center">
+                    <span class="material-symbols-rounded" style="font-size:16px">file_upload</span> Import
+                  </button>
+                </div>
+                <!-- Drawer: collapsible saved events list -->
+                <div class="discord-drawer" id="saved-events-drawer">
+                  <button class="discord-drawer__toggle" id="btn-saved-events-drawer">
+                    <span class="material-symbols-rounded discord-drawer__chevron">expand_more</span>
+                    <span class="discord-drawer__label">SAVED</span>
+                    <span class="discord-drawer__count" id="saved-events-count" hidden>0</span>
+                  </button>
+                  <div class="discord-drawer__body" id="saved-events-list" hidden></div>
+                </div>
+              </fieldset>
+
+              <fieldset class="fieldset fieldset--collapsible" data-section="evt-details">
+                <legend>
+                  <button class="fieldset__toggle" aria-expanded="true">
+                    <span class="material-symbols-rounded fieldset__toggle-icon">expand_more</span>
+                    DETAILS
+                  </button>
+                </legend>
+                <div class="field-row">
+                  <label class="field-label">TITLE</label>
+                  <input type="text" class="input" id="event-title" placeholder="Event title..." />
+                  <input type="text" class="input input--xs" id="event-vol" placeholder="Vol" style="width:56px;flex:none" />
+                </div>
+                <div class="field-row">
+                  <label class="field-label">CLUB</label>
+                  <input type="text" class="input" id="group-name" placeholder="Club name..." />
+                </div>
+                <div class="field-row">
+                  <label class="field-label">COLLAB</label>
+                  <input type="text" class="input" id="collab-with" placeholder="Collab with..." />
+                </div>
+                <div class="field-row">
+                  <label class="field-label">START</label>
+                  <input type="datetime-local" class="input" id="event-datetime" />
+                </div>
+              </fieldset>
+
+              <fieldset class="fieldset fieldset--collapsible" data-section="evt-genres">
+                <legend>
+                  <button class="fieldset__toggle" aria-expanded="true">
+                    <span class="material-symbols-rounded fieldset__toggle-icon">expand_more</span>
+                    GENRES
+                  </button>
+                </legend>
+                <div class="genre-entry-row">
+                  <input type="text" class="input" id="genre-entry" placeholder="Search or press Enter to add..." />
+                  <button class="btn btn--icon" id="btn-add-genre">
+                    <span class="material-symbols-rounded">add</span>
+                  </button>
+                </div>
+                <div class="genre-tags" id="genre-tags"></div>
+              </fieldset>
+
+              <fieldset class="fieldset fieldset--collapsible" data-section="evt-links">
+                <legend>
+                  <button class="fieldset__toggle" aria-expanded="true">
+                    <span class="material-symbols-rounded fieldset__toggle-icon">expand_more</span>
+                    LINKS
+                  </button>
+                </legend>
+                <div id="social-links-container"></div>
+              </fieldset>
+
+              <fieldset class="fieldset fieldset--collapsible" data-section="evt-poster">
+                <legend>
+                  <button class="fieldset__toggle" aria-expanded="true">
+                    <span class="material-symbols-rounded fieldset__toggle-icon">expand_more</span>
+                    POSTER
+                  </button>
+                </legend>
+                <div class="logo-uploader" id="embed-image-drop-zone">
+                  <img id="embed-image-preview" class="logo-preview" style="display:none" alt="Poster preview" />
+                  <div class="logo-placeholder" id="embed-image-placeholder">
+                    <span class="material-symbols-rounded" style="font-size:28px;color:var(--color-text-secondary)">image</span>
+                    <span style="font-size:var(--text-xs);color:var(--color-text-secondary)">Drop image or</span>
+                    <button class="btn btn--secondary btn--sm" id="btn-embed-image-browse" type="button">Browse</button>
+                  </div>
+                  <button class="btn btn--icon embed-image-clear" id="btn-clear-embed-image" title="Clear image" style="display:none">
+                    <span class="material-symbols-rounded">close</span>
+                  </button>
+                  <input type="file" id="embed-image-file" accept="image/*" style="display:none" />
+                </div>
+                <div class="field-row" style="margin-top:var(--space-2)">
+                  <label class="field-label" style="width:42px">URL</label>
+                  <input type="text" class="input input--sm" id="discord-embed-image" placeholder="Or paste image URL..." style="flex:1" />
+                </div>
+              </fieldset>
+
+              <fieldset class="fieldset fieldset--collapsible" id="discord-section" data-section="evt-discord">
+                <legend>
+                  <button class="fieldset__toggle" aria-expanded="true">
+                    <span class="material-symbols-rounded fieldset__toggle-icon">expand_more</span>
+                    DISCORD
+                  </button>
+                </legend>
+                <div class="field-row">
+                  <label class="field-label">SERVER</label>
+                  <select class="select" id="discord-guild-select" style="flex:1">
+                    <option value="">Select server...</option>
+                  </select>
+                  <button class="btn btn--icon" id="btn-refresh-guilds" title="Refresh servers">
+                    <span class="material-symbols-rounded">refresh</span>
+                  </button>
+                </div>
+                <div class="field-row">
+                  <label class="field-label">CHANNEL</label>
+                  <select class="select" id="discord-channel-select" style="flex:1">
+                    <option value="">Select channel...</option>
+                  </select>
+                </div>
+                <div class="discord-roles-section" id="discord-roles-section" hidden>
+                  <label class="label" style="margin-bottom:4px">ROLE MENTIONS</label>
+                  <input type="text" class="input input--sm" id="discord-role-search" placeholder="Filter roles..." />
+                  <div class="discord-roles-list" id="discord-roles-list"></div>
+                </div>
+
+                <div class="discord-subsection">
+                  <label class="label">POST OUTPUT</label>
+                  <div class="discord-post-buttons">
+                    <button class="btn btn--primary btn--sm" id="btn-discord-post">Post to Channel</button>
+                    <button class="btn btn--secondary btn--sm" id="btn-discord-post-text">Post as Text</button>
+                  </div>
+                </div>
+
+                <div class="discord-subsection">
+                  <label class="label">SCHEDULE</label>
+                  <div class="field-row">
+                    <input type="datetime-local" class="input input--sm" id="discord-schedule-datetime" style="flex:1" />
+                  </div>
+                  <div class="discord-post-buttons">
+                    <button class="btn btn--primary btn--sm" id="btn-discord-schedule">Schedule</button>
+                  </div>
+                </div>
+
+                <!-- Scheduled posts drawer -->
+                <div class="discord-drawer" id="discord-scheduled-drawer">
+                  <button class="discord-drawer__toggle" id="btn-scheduled-drawer">
+                    <span class="material-symbols-rounded discord-drawer__chevron">expand_more</span>
+                    <span class="discord-drawer__label">SCHEDULED</span>
+                    <span class="discord-drawer__count" id="scheduled-count" hidden>0</span>
+                  </button>
+                  <div class="discord-drawer__body" id="discord-scheduled-list" hidden></div>
+                </div>
+
+                <!-- Sent history drawer -->
+                <div class="discord-drawer" id="discord-sent-drawer">
+                  <button class="discord-drawer__toggle" id="btn-sent-drawer">
+                    <span class="material-symbols-rounded discord-drawer__chevron">expand_more</span>
+                    <span class="discord-drawer__label">SENT</span>
+                    <span class="discord-drawer__count" id="sent-count" hidden>0</span>
+                  </button>
+                  <div class="discord-drawer__body" id="discord-sent-list" hidden></div>
+                </div>
+
+              </fieldset>
+            </div>
+
+            <!-- Roster Tab -->
+            <div class="tab-content" id="tab-roster">
+              <input type="text" class="input input--sm" id="roster-search"
+                     placeholder="Search DJs..." style="margin:8px 8px 0;width:calc(100% - 16px);box-sizing:border-box" />
+              <fieldset class="fieldset">
+                <legend>MY DJS</legend>
+                <div style="display:flex;gap:var(--space-2)">
+                  <button class="btn btn--primary btn--full-inner" id="btn-add-dj" style="flex:1">+ New DJ</button>
+                  <button class="btn btn--secondary btn--full-inner" id="btn-import-dj-links" style="flex:1">
+                    <span class="material-symbols-rounded" style="font-size:16px">link</span> Import Links
+                  </button>
+                </div>
+                <div class="scroll-container" id="roster-local-list"></div>
+              </fieldset>
+              <fieldset class="fieldset">
+                <legend>BOOKED</legend>
+                <div class="scroll-container" id="roster-booked-list"></div>
+              </fieldset>
+            </div>
+
+            <!-- DJ Profile Tab -->
+            <div class="tab-content" id="tab-dj">
+              <!-- Sign-in view (shown when not linked) -->
+              <div id="dj-signin-view">
+                <fieldset class="fieldset">
+                  <legend>DJ PROFILE</legend>
+                  <p class="muted-text">Sign in with Discord (top right) to manage your DJ profile, availability, and bookings.</p>
+                  <p class="muted-text" id="dj-signin-error" style="color:var(--color-danger);min-height:18px"></p>
+                </fieldset>
+              </div>
+
+              <!-- Profile view (shown when linked) -->
+              <div id="dj-profile-view" hidden>
+                <fieldset class="fieldset">
+                  <legend>DJ PROFILE</legend>
+                  <p class="muted-text" id="dj-signed-in-label"></p>
+                  <div class="field-row">
+                    <label class="field-label">DISPLAY</label>
+                    <input type="text" class="input input--sm" id="dj-display-name" placeholder="Your display name..." style="flex:1" />
+                  </div>
+                </fieldset>
+
+                <fieldset class="fieldset">
+                  <legend>LINKS</legend>
+                  <div id="dj-links-container"></div>
+                </fieldset>
+
+                <fieldset class="fieldset">
+                  <legend>LOGO</legend>
+                  <div class="logo-uploader" id="dj-logo-drop-zone">
+                    <img id="dj-logo-preview" class="logo-preview" style="display:none" alt="Logo preview" />
+                    <div class="logo-placeholder" id="dj-logo-placeholder">
+                      <span class="material-symbols-rounded" style="font-size:28px;color:var(--color-text-secondary)">image</span>
+                      <span style="font-size:var(--text-xs);color:var(--color-text-secondary)">Drop image or</span>
+                      <button class="btn btn--secondary btn--sm" id="btn-dj-logo-browse" type="button">Browse</button>
+                    </div>
+                    <input type="file" id="dj-logo-file" accept="image/*" style="display:none" />
+                  </div>
+                  <div class="field-row" style="margin-top:var(--space-2)">
+                    <label class="field-label" style="width:42px">URL</label>
+                    <input type="text" class="input input--sm" id="dj-profile-logo" placeholder="Or paste image URL..." style="flex:1" />
+                  </div>
+                </fieldset>
+
+                <fieldset class="fieldset">
+                  <legend>GENRES</legend>
+                  <div class="genre-entry-row">
+                    <input type="text" class="input" id="dj-genre-input" placeholder="Add genre..." />
+                    <button class="btn btn--icon" id="btn-dj-add-genre">
+                      <span class="material-symbols-rounded">add</span>
+                    </button>
+                  </div>
+                  <div class="genre-tags" id="dj-genre-tags"></div>
+                </fieldset>
+
+                <fieldset class="fieldset">
+                  <legend>AVAILABILITY</legend>
+                  <button class="btn btn--primary btn--full-inner" id="btn-dj-add-avail">+ Add Date</button>
+                  <div class="scroll-container" id="dj-avail-list"></div>
+                </fieldset>
+
+                <fieldset class="fieldset">
+                  <legend>MY BOOKINGS</legend>
+                  <button class="btn btn--icon" id="btn-dj-refresh-bookings" title="Refresh bookings" style="align-self:flex-start">
+                    <span class="material-symbols-rounded">refresh</span>
+                  </button>
+                  <div class="scroll-container" id="dj-bookings-list"></div>
+                </fieldset>
+              </div>
+            </div>
+
+            <!-- Club Tab -->
+            <div class="tab-content" id="tab-club">
+
+              <!-- VRChat Group — top, two states -->
+              <fieldset class="fieldset">
+                <legend>VRCHAT GROUP</legend>
+                <!-- State: not yet linked -->
+                <div id="vrchat-unlinked-state">
+                  <p class="muted-text">Verify ownership of your VRChat group.</p>
+                  <button class="btn btn--primary btn--full-inner" id="btn-vrchat-verify">Verify VRChat Group</button>
+                  <p class="muted-text" id="vrchat-verify-status" style="min-height:18px"></p>
+                </div>
+                <!-- State: group linked -->
+                <div id="vrchat-linked-state" hidden>
+                  <div class="group-linked-card" id="vrchat-linked-info"></div>
+                  <button class="btn btn--secondary btn--full-inner" id="btn-vrchat-change" style="margin-top:8px">Change Group</button>
+                </div>
+              </fieldset>
+
+              <fieldset class="fieldset">
+                <legend>CLUB LINKS</legend>
+                <p class="muted-text">Shared across all events.</p>
+                <div class="field-row">
+                  <label class="field-label" style="width:72px">DISCORD</label>
+                  <input type="text" class="input input--sm" id="club-link-discord" placeholder="https://discord.gg/..." style="flex:1" />
+                </div>
+              </fieldset>
+
+              <fieldset class="fieldset">
+                <legend>SENT BOOKINGS</legend>
+                <button class="btn btn--icon" id="btn-club-refresh-bookings" title="Refresh bookings" style="align-self:flex-start">
+                  <span class="material-symbols-rounded">refresh</span>
+                </button>
+                <div class="scroll-container" id="club-bookings-list"></div>
+              </fieldset>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Resize Handle -->
+        <div class="resize-handle" id="resize-handle"></div>
+
+        <!-- Right Panel -->
+        <div class="panel panel--right" id="panel-right">
+          <nav class="tabs" id="right-tabs">
+            <button class="tab active" data-tab="lineup">Lineup</button>
+          </nav>
+
+          <!-- Lineup area (scrollable) -->
+          <div class="tab-content active" id="tab-lineup">
+            <fieldset class="fieldset">
+              <legend>TIMESLOTS</legend>
+              <div class="scroll-container" id="slots-container"></div>
+              <button class="btn btn--primary btn--full-inner" id="btn-add-slot">
+                <span class="material-symbols-rounded" style="font-size:16px">add</span> Add DJ Slot
+              </button>
+            </fieldset>
+          </div>
+
+          <!-- Output resize handle -->
+          <div class="output-resize-handle" id="output-resize-handle"></div>
+
+          <!-- Output section — always visible at bottom -->
+          <div class="output-section" id="output-section">
+            <fieldset class="fieldset fieldset--output">
+              <legend>PREVIEW</legend>
+              <div class="output-toolbar">
+                <div class="output-controls">
+                  <div class="output-formats">
+                    <button class="output-format-btn active" data-format="discord">Discord</button>
+                    <button class="output-format-btn" data-format="local">Plain</button>
+                  </div>
+                  <div class="output-stream-toggles">
+                    <button class="output-stream-btn" data-stream="quest">Quest</button>
+                    <button class="output-stream-btn" data-stream="pc">PC</button>
+                  </div>
+                </div>
+                <div class="output-actions">
+                  <div class="checkbox-row">
+                    <input type="checkbox" id="names-only" />
+                    <label for="names-only">Names Only</label>
+                  </div>
+                </div>
+              </div>
+              <pre class="output-preview" id="output-preview"></pre>
+              <div class="output-bottom-bar">
+                <button class="btn btn--secondary btn--sm" id="btn-refresh-output">
+                  Refresh
+                </button>
+                <button class="btn btn--primary btn--sm" id="btn-copy-output">
+                  <span class="material-symbols-rounded" style="font-size:14px">content_copy</span>
+                  Copy
+                </button>
+              </div>
+            </fieldset>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Hidden select used by OutputManager (programmatic) -->
+    <select class="select" id="output-format" hidden>
+      <option value="discord">Discord</option>
+      <option value="local">Plain Text</option>
+    </select>
+
+    <!-- Modal overlay (hidden by default) -->
+    <div class="modal-overlay" id="modal-overlay" hidden>
+      <div class="modal" id="modal-container"></div>
+    </div>
+
+    <!-- Settings drawer (hidden by default) -->
+    <div class="drawer-overlay" id="settings-overlay" hidden>
+      <aside class="drawer" id="settings-drawer">
+        <div class="drawer__header">
+          <h2>Settings</h2>
+          <button class="btn btn--icon" id="btn-close-settings">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+        <div class="drawer__body">
+          <section class="section">
+            <label class="label">Theme Preset</label>
+            <select class="select" id="theme-preset"></select>
+          </section>
+        </div>
+      </aside>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -45,24 +45,33 @@ _vrc_auth_lock = threading.Lock()
 
 # ── Rate-limit state persistence ──────────────────────────────────────────
 
-def _vrc_load_state() -> tuple[float, float]:
-    """Load last_call and backoff_until from disk. Returns (0.0, 0.0) on failure."""
+def _vrc_load_state() -> tuple[float, float, str]:
+    """Load last_call, backoff_until, and auth_cookie from disk."""
     try:
         data = json.loads(VRC_STATE_FILE.read_text())
-        return float(data.get("last_call", 0.0)), float(data.get("backoff_until", 0.0))
+        return (
+            float(data.get("last_call", 0.0)),
+            float(data.get("backoff_until", 0.0)),
+            data.get("auth_cookie", ""),
+        )
     except (FileNotFoundError, json.JSONDecodeError, ValueError):
-        return 0.0, 0.0
+        return 0.0, 0.0, ""
 
 
-_vrc_last_call, _vrc_backoff_until = _vrc_load_state()
+_vrc_last_call, _vrc_backoff_until, _vrc_saved_cookie = _vrc_load_state()
+
+# Pre-load saved cookie so the first request doesn't require a re-login
+if _vrc_saved_cookie:
+    _vrc_auth_cookie = _vrc_saved_cookie
 
 
 def _vrc_save_state():
-    """Persist last_call and backoff_until to disk."""
+    """Persist last_call, backoff_until, and auth_cookie to disk."""
     try:
         VRC_STATE_FILE.write_text(json.dumps({
             "last_call": _vrc_last_call,
             "backoff_until": _vrc_backoff_until,
+            "auth_cookie": _vrc_auth_cookie,
         }))
     except OSError as exc:
         log.warning("Failed to save VRChat rate state: %s", exc)
@@ -197,10 +206,11 @@ def _ensure_vrchat_auth() -> str:
 
 
 def set_auth_cookie(cookie: str):
-    """Set the auth cookie directly (used during startup)."""
+    """Set the auth cookie and persist it to disk."""
     global _vrc_auth_cookie
     with _vrc_auth_lock:
         _vrc_auth_cookie = cookie
+    _vrc_save_state()
 
 
 def _invalidate_vrchat_auth():
@@ -208,6 +218,34 @@ def _invalidate_vrchat_auth():
     global _vrc_auth_cookie
     with _vrc_auth_lock:
         _vrc_auth_cookie = ""
+    _vrc_save_state()
+
+
+def vrchat_verify_session(cookie: str) -> bool:
+    """Check if a previously-saved auth cookie is still valid."""
+    if not cookie:
+        return False
+    req = urllib.request.Request(
+        f"{_VRC_API}/auth/user",
+        headers={
+            "User-Agent": _VRC_UA,
+            "Cookie": f"auth={cookie}",
+        },
+    )
+    _vrc_wait()
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+            # A valid session returns a user object (has 'id' field)
+            return bool(data.get("id") or data.get("displayName"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            return False
+        log.warning("VRChat session verify unexpected error %s", exc.code)
+        return False
+    except Exception as exc:
+        log.warning("VRChat session verify failed: %s", exc)
+        return False
 
 
 # ── API calls ─────────────────────────────────────────────────────────────

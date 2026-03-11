@@ -1,85 +1,93 @@
 """
-Database layer for DJ profiles and bookings (SQLite via aiosqlite).
+Database layer — MongoDB via motor (async).
+
+Collections:
+  dj_profiles  — DJ registration, profiles, login
+  bookings     — booking requests between clubs and DJs
+  user_data    — cloud-saved user blobs (library, events, settings)
+  clubs        — club Discord links + VRChat group verification
+  counters     — auto-increment ID sequences
 """
 
-import os
+from datetime import datetime, timezone
 
-import aiosqlite
-
-DB_PATH = os.environ.get("DB_PATH", "lineup.db")
-
-_db: aiosqlite.Connection | None = None
+from mongo import get_mongo_db
 
 
-async def get_db() -> aiosqlite.Connection:
-    global _db
-    if _db is None:
-        _db = await aiosqlite.connect(DB_PATH)
-        _db.row_factory = aiosqlite.Row
-        await _db.execute("PRAGMA journal_mode=WAL")
-        await _db.execute("PRAGMA foreign_keys=ON")
-    return _db
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
+
+# ── Collections ───────────────────────────────────────────────────────────
+
+def dj_profiles():
+    return get_mongo_db()["dj_profiles"]
+
+
+def bookings():
+    return get_mongo_db()["bookings"]
+
+
+def user_data():
+    return get_mongo_db()["user_data"]
+
+
+def clubs():
+    return get_mongo_db()["clubs"]
+
+
+def counters():
+    return get_mongo_db()["counters"]
+
+
+# ── Auto-increment helper ────────────────────────────────────────────────
+
+async def next_id(collection_name: str) -> int:
+    """Return the next auto-increment integer ID for a collection."""
+    doc = await counters().find_one_and_update(
+        {"_id": collection_name},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True,
+    )
+    return doc["seq"]
+
+
+# ── Init (indexes) ────────────────────────────────────────────────────────
 
 async def init_db():
-    """Create tables if they don't exist."""
-    db = await get_db()
-    await db.executescript("""
-        CREATE TABLE IF NOT EXISTS dj_profiles (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            name        TEXT    NOT NULL UNIQUE COLLATE NOCASE,
-            password    TEXT    NOT NULL DEFAULT '',
-            discord_id  TEXT    NOT NULL DEFAULT '',
-            links       TEXT    NOT NULL DEFAULT '{}',
-            logo        TEXT    NOT NULL DEFAULT '',
-            genres      TEXT    NOT NULL DEFAULT '[]',
-            availability TEXT   NOT NULL DEFAULT '[]',
-            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-            updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
-        );
+    """Create indexes. Collections are created implicitly by MongoDB."""
+    from pymongo import ASCENDING
+    from pymongo.collation import Collation
 
-        CREATE TABLE IF NOT EXISTS bookings (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            dj_id       INTEGER NOT NULL REFERENCES dj_profiles(id),
-            group_name  TEXT    NOT NULL DEFAULT '',
-            event_title TEXT    NOT NULL DEFAULT '',
-            event_date  TEXT    NOT NULL DEFAULT '',
-            start_time  TEXT    NOT NULL DEFAULT '',
-            duration    INTEGER NOT NULL DEFAULT 60,
-            message     TEXT    NOT NULL DEFAULT '',
-            status      TEXT    NOT NULL DEFAULT 'pending',
-            discord_channel_id INTEGER,
-            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-            updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
-        );
+    ci = Collation(locale="en", strength=2)  # case-insensitive
 
-        CREATE TABLE IF NOT EXISTS user_data (
-            discord_id  TEXT    NOT NULL,
-            key         TEXT    NOT NULL,
-            value       TEXT    NOT NULL DEFAULT '{}',
-            updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-            PRIMARY KEY (discord_id, key)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_bookings_dj_id ON bookings(dj_id);
-        CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
-    """)
-
-    # ── Migrations ────────────────────────────────────────────────────────
-    # Add genres column to existing dj_profiles tables (no-op if already present)
-    try:
-        await db.execute(
-            "ALTER TABLE dj_profiles ADD COLUMN genres TEXT NOT NULL DEFAULT '[]'"
-        )
-        await db.commit()
-    except Exception:
-        pass  # column already exists
-
-    await db.commit()
+    await dj_profiles().create_index("discord_id")
+    await dj_profiles().create_index(
+        [("name", ASCENDING)], unique=True, collation=ci
+    )
+    await bookings().create_index("dj_id")
+    await bookings().create_index("status")
+    await bookings().create_index("group_name")
+    await user_data().create_index([("discord_id", ASCENDING), ("key", ASCENDING)], unique=True)
+    await clubs().create_index("discord_id", unique=True)
 
 
 async def close_db():
-    global _db
-    if _db:
-        await _db.close()
-        _db = None
+    """No-op — motor client is closed via close_mongo()."""
+    pass
+
+
+async def rebuild_db():
+    """Drop and recreate all collections. Returns list of actions taken."""
+    db = get_mongo_db()
+    actions = []
+    for name in ["dj_profiles", "bookings", "user_data", "clubs", "counters"]:
+        try:
+            await db.drop_collection(name)
+            actions.append(f"dropped {name}")
+        except Exception as e:
+            actions.append(f"failed to drop {name}: {e}")
+    await init_db()
+    actions.append("recreated indexes")
+    return actions

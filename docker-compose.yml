@@ -1,0 +1,16 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: lineup-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: lineup
+      MONGO_INITDB_ROOT_PASSWORD: lineup_dev
+      MONGO_INITDB_DATABASE: lineup_builder
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

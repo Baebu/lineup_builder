@@ -124,10 +124,6 @@ def build_add_slot_row(app, parent_tag: str):
 
     with dpg.group(tag=ADD_SLOT_ROW_TAG, parent=parent_tag):
         with dpg.group(horizontal=True):
-            dpg.add_spacer(width=4)
-            _icon = styled_text(Icon.ADD, MUTED)
-            bind_icon_font(_icon)
-            dpg.add_spacer(width=4)
             add_primary_button(
                 "+ Add DJ Slot",
                 width=-1,

@@ -25,3 +25,10 @@
 /.ruff_cache
 /desktop/.env
 /server/.env
+/server/vrc_state.json
+/server/src/lineup.db-wal
+/server/src/lineup.db-shm
+/server/src/lineup.db
+/web/node_modules/
+/web/dist/
+/server/uploads

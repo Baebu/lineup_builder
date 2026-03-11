@@ -148,7 +148,7 @@ class DataMixin:
             "title": self.event_title_var.get(),
             "vol": self.event_vol_var.get(),
             "group_name": self.group_name_var.get(),
-            "collab": self.collab_var.get(),
+            "collab": bool(self.collab_with_var.get().strip()),
             "collab_with": self.collab_with_var.get(),
             "timestamp": self.event_timestamp.get(),
             "genres": list(self.active_genres),

@@ -3,9 +3,12 @@ Discord bot instance, embed builder, and send helpers.
 """
 
 import asyncio
+import io
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 import discord
+import httpx
 
 from config import log
 
@@ -97,10 +100,31 @@ def _build_embed(data: dict) -> discord.Embed:
     return embed
 
 
-async def send_embed(channel_id: int, embed_data: dict, image_url: str | None = None):
-    """Resolve channel and send the embed."""
+async def send_embed(channel_id: int, embed_data: dict, image_url: str | None = None) -> discord.Message:
+    """Resolve channel and send the embed with image as a Discord attachment."""
     channel = bot.get_channel(channel_id)
     if channel is None:
         channel = await bot.fetch_channel(channel_id)
-    embed = _build_embed({**embed_data, "image_url": image_url or ""})
-    await channel.send(embed=embed)
+
+    file: discord.File | None = None
+    effective_image_url = ""
+
+    if image_url and image_url.startswith(("http://", "https://")):
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(image_url)
+            if resp.status_code == 200:
+                filename = urlparse(image_url).path.rsplit("/", 1)[-1] or "logo.png"
+                if "." not in filename:
+                    ext = resp.headers.get("content-type", "image/png").split("/")[-1].split("+")[0]
+                    filename = f"logo.{ext}"
+                file = discord.File(io.BytesIO(resp.content), filename=filename)
+                effective_image_url = f"attachment://{filename}"
+        except Exception:
+            log.warning("Failed to fetch embed image %s — skipping attachment", image_url)
+
+    embed = _build_embed({**embed_data, "image_url": effective_image_url})
+
+    if file:
+        return await channel.send(embed=embed, file=file)
+    return await channel.send(embed=embed)

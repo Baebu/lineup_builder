@@ -45,23 +45,43 @@ class OutputMixin:
             for d in self.saved_djs
         ]
 
-        # Merge persistent links over the event-specific ones
-        merged_social = dict(getattr(self, "social_links", {}))
+        # Read social links directly from widgets for real-time values
+        merged_social = {}
+        for label, _ in getattr(self, "_SOCIAL_FIELDS", []):
+            tag = f"social_input_{label.replace(' ', '_')}"
+            if dpg.does_item_exist(tag):
+                val = (dpg.get_value(tag) or "").strip()
+                if val:
+                    merged_social[label] = val
+            elif label in getattr(self, "social_links", {}):
+                val = self.social_links[label].strip()
+                if val:
+                    merged_social[label] = val
         for key, val in getattr(self, "persistent_links", {}).items():
             if isinstance(val, dict) and val.get("enabled") and val.get("link", "").strip():
                 merged_social[key] = val["link"].strip()
+        # Also read club link widgets directly for real-time values
+        for label, _ in getattr(self, "_CLUB_LINK_FIELDS", []):
+            tag = f"group_link_{label.replace(' ', '_')}"
+            if dpg.does_item_exist(tag):
+                val = (dpg.get_value(tag) or "").strip()
+                if val:
+                    merged_social[label] = val
+
+        collab_with = self.collab_with_var.get().strip()
 
         return EventSnapshot(
             title=self.event_title_var.get().strip(),
             vol=self.event_vol_var.get().strip(),
             group_name=self.group_name_var.get().strip(),
-            collab=self.collab_var.get(),
-            collab_with=self.collab_with_var.get().strip(),
+            collab=bool(collab_with),
+            collab_with=collab_with,
             timestamp=self.event_timestamp.get(),
             genres=list(self.active_genres),
             slots=slots,
             names_only=self.names_only.get(),
             output_format=self.output_format.get(),
+            stream_link_format=self.stream_link_format.get(),
             saved_djs=dj_list,
             social_links=merged_social,
         )
@@ -78,17 +98,18 @@ class OutputMixin:
             if dpg.does_item_exist(tag):
                 dpg.set_value(tag, time_str)
 
-        # Sync button themes for formats and times toggle
+        # Sync button themes for formats, stream links, and times toggle
         if hasattr(self, "output_format") and hasattr(self, "names_only"):
             fmt = self.output_format.get()
+            slf = self.stream_link_format.get()
             if dpg.does_item_exist("fmt_discord"):
                 dpg.bind_item_theme("fmt_discord", "success_btn_theme" if fmt == "discord" else "secondary_btn_theme")
             if dpg.does_item_exist("fmt_plain"):
                 dpg.bind_item_theme("fmt_plain", "success_btn_theme" if fmt == "local" else "secondary_btn_theme")
             if dpg.does_item_exist("fmt_quest"):
-                dpg.bind_item_theme("fmt_quest", "success_btn_theme" if fmt == "quest" else "secondary_btn_theme")
+                dpg.bind_item_theme("fmt_quest", "success_btn_theme" if slf == "quest" else "secondary_btn_theme")
             if dpg.does_item_exist("fmt_pc"):
-                dpg.bind_item_theme("fmt_pc", "success_btn_theme" if fmt == "pc" else "secondary_btn_theme")
+                dpg.bind_item_theme("fmt_pc", "success_btn_theme" if slf == "pc" else "secondary_btn_theme")
                 
             if dpg.does_item_exist("fmt_times"):
                 times_on = not self.names_only.get()
@@ -96,6 +117,23 @@ class OutputMixin:
                 dpg.bind_item_theme("fmt_times", "success_btn_theme" if times_on else "secondary_btn_theme")
 
         # Delegate the heavy lifting to the pure-Python generator
+        import pathlib as _pl
+        _dbg_lines = []
+        for _lbl, _ in getattr(self, "_SOCIAL_FIELDS", []):
+            _tag = f"social_input_{_lbl.replace(' ', '_')}"
+            _exists = dpg.does_item_exist(_tag)
+            _val = dpg.get_value(_tag) if _exists else "N/A"
+            _dbg_lines.append(f"  {_lbl}: exists={_exists}, val={_val!r}")
+        import traceback as _tb
+        _stack = "".join(_tb.format_stack()[-5:-1])
+        _pl.Path("debug_social.txt").write_text(
+            f"=== update_output call ===\n"
+            f"caller stack:\n{_stack}\n"
+            f"_SOCIAL_FIELDS widget state:\n" + "\n".join(_dbg_lines) + "\n"
+            f"social_links dict: {getattr(self, 'social_links', 'MISSING')}\n"
+            f"merged_social in snapshot: {snap.social_links!r}\n"
+            f"output_format: {snap.output_format}\n"
+        )
         body = OutputGenerator.generate(snap)
 
         if dpg.does_item_exist("output_text"):
@@ -109,11 +147,13 @@ class OutputMixin:
         dpg.set_clipboard_text(text)
 
     def copy_quest_links(self):
-        self.set_quest_view()
+        self.stream_link_format.set("quest")
+        self.update_output()
         self._copy_output_to_clipboard()
 
     def copy_pc_links(self):
-        self.set_pc_view()
+        self.stream_link_format.set("pc")
+        self.update_output()
         self._copy_output_to_clipboard()
 
     def _copy_output_to_clipboard(self):
@@ -128,12 +168,4 @@ class OutputMixin:
 
     def set_plain_text(self):
         self.output_format.set("local")
-        self.update_output()
-
-    def set_quest_view(self):
-        self.output_format.set("quest")
-        self.update_output()
-
-    def set_pc_view(self):
-        self.output_format.set("pc")
         self.update_output()

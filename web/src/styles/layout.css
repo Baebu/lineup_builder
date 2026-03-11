@@ -1,0 +1,297 @@
+/* ── Application Layout ── */
+
+body {
+  background: #000000;
+  color: var(--color-text-primary);
+}
+
+/* ── Top bar ──────────────────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--topbar-height);
+  padding: 0 var(--space-4);
+  background: var(--color-panel-bg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.topbar__title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  letter-spacing: 0.02em;
+}
+
+.topbar__actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* ── Main panels ──────────────────────────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+.panels {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 0%;
+  overflow: hidden;
+  min-height: 0;
+  width: 100%;
+}
+
+/* ── Left panel ───────────────────────────────────────────────────────── */
+.panel--left {
+  display: flex;
+  flex-direction: column;
+  width: var(--panel-left-width);
+  min-width: var(--panel-left-min);
+  max-width: var(--panel-left-max);
+  background: var(--color-panel-bg);
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* ── Resize handle ────────────────────────────────────────────────────── */
+.resize-handle {
+  width: 3px;
+  background: var(--color-border);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background var(--transition-fast);
+}
+.resize-handle:hover,
+.resize-handle.dragging {
+  background: var(--color-accent);
+}
+
+/* ── Right panel ──────────────────────────────────────────────────────── */
+.panel--right {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0%;
+  overflow: hidden;
+  min-width: 450px;
+  background: var(--color-panel-bg);
+}
+
+/* ── Tabs ─────────────────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  background: var(--color-card-bg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  gap: 0;
+}
+
+.tab {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  border-bottom: 2px solid transparent;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  white-space: nowrap;
+  background: transparent;
+}
+
+.tab:hover {
+  color: var(--color-text-primary);
+  background: var(--color-hover);
+}
+
+.tab.active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* ── Tab notification badge ───────────────────────────────────────────── */
+.tab {
+  position: relative;
+}
+
+.tab-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--color-danger, #e53e3e);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+/* ── Tab content panels ───────────────────────────────────────────────── */
+.tab-content {
+  display: none !important;
+  flex: 1 1 0%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tab-content.active {
+  display: flex !important;
+  flex-direction: column;
+}
+
+/* ── Scroll containers ────────────────────────────────────────────────── */
+.scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ── Panel body (scrollable tab area) ─────────────────────────────────── */
+.panel__body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+/* ── Section ──────────────────────────────────────────────────────────── */
+.section {
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* ── Output section (fixed at bottom of right panel) ──────────────────── */
+.output-section {
+  flex-shrink: 0;
+  border-top: none;
+  display: flex;
+  flex-direction: column;
+  height: var(--output-height, 220px);
+  max-height: 70%;
+  min-height: 120px;
+}
+
+/* ── Output resize handle ─────────────────────────────────────────────── */
+.output-resize-handle {
+  height: 3px;
+  flex-shrink: 0;
+  background: var(--color-border);
+  cursor: row-resize;
+  transition: background var(--transition-fast);
+  border-top: 1px solid var(--color-border);
+}
+
+.output-resize-handle:hover,
+.output-resize-handle.dragging {
+  background: var(--color-accent);
+}
+
+/* ── Settings / Drawer overlay ────────────────────────────────────────── */
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-overlay);
+  z-index: 100;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.drawer {
+  width: 320px;
+  background: var(--color-panel-bg);
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+}
+.drawer--open {
+  transform: translateX(0);
+}
+
+.drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.drawer__header h2 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Modal overlay ────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--color-overlay);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  max-width: 420px;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.modal__title {
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.modal__message {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

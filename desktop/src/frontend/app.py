@@ -256,6 +256,7 @@ class App(
         self.active_genres   = []
         self.names_only      = DPGBoolVar(default=False)
         self.output_format   = DPGVar(default="discord")
+        self.stream_link_format = DPGVar(default="")
         self.genre_entry_var  = DPGVar(default="")
         self.genre_search_var = DPGVar(default="")
         self.dj_search_var   = DPGVar(default="")
@@ -296,6 +297,9 @@ class App(
 
         # Load existing VRChat group link (if signed in)
         dpg.set_frame_callback(7, lambda: self._load_vrchat_group_info())
+
+        # Fetch booked DJs from server (if signed in)
+        dpg.set_frame_callback(8, lambda: self._fetch_booked_djs())
 
     def run(self):
         """Main entry point — login → main app → render loop."""

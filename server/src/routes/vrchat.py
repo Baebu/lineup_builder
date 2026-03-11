@@ -3,13 +3,12 @@ VRChat routes — bio verification, group linking.
 """
 
 import asyncio
-import json
 import urllib.parse
 
 from fastapi import APIRouter, HTTPException
 
 from config import VRCHAT_USERNAME
-from db import get_db
+from db import clubs, _now
 from models.schemas import VRChatGroupVerifyRequest, VRChatVerifyBioRequest
 from services.vrchat_api import VRC_GROUP_RE, vrchat_get
 
@@ -64,33 +63,15 @@ async def vrchat_verify_bio(req: VRChatVerifyBioRequest):
                    "Please add the code to your VRChat bio and try again.",
         )
 
-    # Bio verified — fetch owned groups
-    groups = await loop.run_in_executor(None, vrchat_get, f"/users/{user_id}/groups")
-    if groups is None:
-        raise HTTPException(status_code=502, detail="Failed to fetch VRChat groups")
-
-    owned = []
-    for g in groups:
-        if g.get("ownerId") == user_id:
-            owned.append({
-                "group_id": g.get("id", ""),
-                "group_name": g.get("name", ""),
-                "short_code": g.get("shortCode", ""),
-                "member_count": g.get("memberCount", 0),
-                "banner_url": g.get("bannerUrl", ""),
-                "icon_url": g.get("iconUrl", ""),
-            })
-
     return {
         "vrchat_user_id": user_id,
         "vrchat_display_name": user_detail.get("displayName", ""),
-        "owned_groups": owned,
     }
 
 
 @router.post("/vrchat/verify-group")
 async def vrchat_verify_group(req: VRChatGroupVerifyRequest):
-    """Verify a VRChat group by ID and link it to a Discord user."""
+    """Verify a VRChat group by ID and confirm ownership via the verified VRChat user ID."""
     group_id = req.group_id.strip()
     if not VRC_GROUP_RE.match(group_id):
         raise HTTPException(status_code=400, detail="Invalid VRChat group ID")
@@ -106,36 +87,89 @@ async def vrchat_verify_group(req: VRChatGroupVerifyRequest):
     if not data:
         raise HTTPException(status_code=404, detail="VRChat group not found")
 
-    # Store the verified link
-    db = await get_db()
-    link_data = {
-        "group_id": data.get("id", group_id),
-        "group_name": data.get("name", ""),
-        "short_code": data.get("shortCode", ""),
-        "owner_id": data.get("ownerId", ""),
-        "member_count": data.get("memberCount", 0),
-        "banner_url": data.get("bannerUrl", ""),
-        "icon_url": data.get("iconUrl", ""),
-    }
-    await db.execute(
-        """INSERT INTO user_data (discord_id, key, value, updated_at)
-           VALUES (?, 'vrchat_group', ?, datetime('now'))
-           ON CONFLICT(discord_id, key) DO UPDATE
-           SET value = excluded.value, updated_at = excluded.updated_at""",
-        (req.discord_id, json.dumps(link_data)),
+    # Confirm ownership: group.ownerId must match the bio-verified VRChat user ID
+    owner_id = data.get("ownerId", "")
+    if owner_id != req.vrchat_user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not the owner of that VRChat group.",
+        )
+
+    short_code = data.get("shortCode", "") + (
+        "." + data["discriminator"] if data.get("discriminator") else ""
     )
-    await db.commit()
-    return link_data
+
+    # Upsert the verified link in the clubs collection
+    await clubs().update_one(
+        {"discord_id": req.discord_id},
+        {"$set": {
+            "vrchat_group_id": data.get("id", group_id),
+            "vrchat_group_name": data.get("name", ""),
+            "vrchat_short_code": short_code,
+            "vrchat_owner_id": data.get("ownerId", ""),
+            "vrchat_member_count": data.get("memberCount", 0),
+            "vrchat_icon_url": data.get("iconUrl", ""),
+            "vrchat_banner_url": data.get("bannerUrl", ""),
+            "updated_at": _now(),
+        }},
+        upsert=True,
+    )
+
+    return {
+        "group_id":     data.get("id", group_id),
+        "group_name":   data.get("name", ""),
+        "short_code":   short_code,
+        "owner_id":     data.get("ownerId", ""),
+        "member_count": data.get("memberCount", 0),
+        "banner_url":   data.get("bannerUrl", ""),
+        "icon_url":     data.get("iconUrl", ""),
+    }
 
 
 @router.get("/user/{discord_id}/vrchat-group")
 async def get_vrchat_group(discord_id: str):
     """Get the stored VRChat group link for a Discord user."""
-    db = await get_db()
-    rows = await db.execute_fetchall(
-        "SELECT value FROM user_data WHERE discord_id = ? AND key = 'vrchat_group'",
-        (discord_id,),
-    )
-    if not rows:
+    doc = await clubs().find_one({
+        "discord_id": discord_id,
+        "vrchat_group_id": {"$nin": [None, ""]},
+    })
+    if not doc:
         return {}
-    return json.loads(rows[0][0])
+    return {
+        "group_id":     doc.get("vrchat_group_id", ""),
+        "group_name":   doc.get("vrchat_group_name", ""),
+        "short_code":   doc.get("vrchat_short_code", ""),
+        "owner_id":     doc.get("vrchat_owner_id", ""),
+        "member_count": doc.get("vrchat_member_count", 0),
+        "icon_url":     doc.get("vrchat_icon_url", ""),
+        "banner_url":   doc.get("vrchat_banner_url", ""),
+    }
+
+
+@router.get("/vrchat/user/{vrchat_user_id}/groups")
+async def get_vrchat_user_groups(vrchat_user_id: str):
+    """Return VRChat groups owned by the given user.
+
+    Fetches all groups the user is a member of via GET /users/{id}/groups, then
+    filters to those where ownerId matches the user — there is no dedicated
+    'owned groups' endpoint in the VRChat API.
+    """
+    if not VRCHAT_USERNAME:
+        raise HTTPException(status_code=503, detail="VRChat API not configured on the server")
+
+    loop = asyncio.get_event_loop()
+    groups = await loop.run_in_executor(None, vrchat_get, f"/users/{vrchat_user_id}/groups")
+    if groups is None:
+        raise HTTPException(status_code=502, detail="Failed to fetch VRChat groups")
+
+    # Filter to groups the user owns — ownerId must match their verified VRChat user ID
+    return [
+        {
+            "groupId": g.get("groupId", ""),
+            "name": g.get("name", ""),
+            "shortCode": g.get("shortCode", "") + ("." + g["discriminator"] if g.get("discriminator") else ""),
+            "memberCount": g.get("memberCount", 0),
+        }
+        for g in groups
+        if g.get("groupId") and g.get("ownerId") == vrchat_user_id
+    ]

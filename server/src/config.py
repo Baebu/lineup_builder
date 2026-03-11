@@ -30,6 +30,13 @@ API_KEY = os.environ.get("API_KEY", "")
 VRCHAT_USERNAME = os.environ.get("VRCHAT_USERNAME", "")
 VRCHAT_PASSWORD = os.environ.get("VRCHAT_PASSWORD", "")
 VRCHAT_TOTP_SECRET = os.environ.get("VRCHAT_TOTP_SECRET", "").replace(" ", "")
+MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017/lineup_builder")
+DISCORD_CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID", "")
+DISCORD_CLIENT_SECRET = os.environ.get("DISCORD_CLIENT_SECRET", "")
+DISCORD_REDIRECT_URI = os.environ.get("DISCORD_REDIRECT_URI", "http://localhost:3000/api/discord/callback")
+
+# Directory where uploaded DJ images are stored
+IMAGES_DIR = Path(os.environ.get("IMAGES_DIR", str(Path(__file__).resolve().parent.parent / "uploads")))
 
 if not BOT_TOKEN:
     log.warning("DISCORD_BOT_TOKEN not set — bot will not start.")

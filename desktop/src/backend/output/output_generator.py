@@ -44,8 +44,6 @@ class OutputGenerator:
     def generate(snap: "EventSnapshot") -> str:
         """Return the formatted output string for *snap*'s ``output_format``."""
         fmt = snap.output_format
-        if fmt in ("quest", "pc"):
-            return OutputGenerator._generate_stream_links(snap, fmt)
         if fmt == "local":
             return OutputGenerator._generate_plain(snap)
         return OutputGenerator._generate_discord(snap)
@@ -114,6 +112,10 @@ class OutputGenerator:
         # Lineup header
         lines.append("### LINEUP")
 
+        # Build DJ lookup for stream links
+        dj_lookup = {d.name: d for d in snap.saved_djs} if snap.stream_link_format else {}
+        slf = snap.stream_link_format
+
         ptr = start
         for idx, slot in enumerate(snap.slots, start=1):
             name = slot.name or str(idx)
@@ -123,6 +125,14 @@ class OutputGenerator:
                 genre_str = f" ({slot.genre})" if slot.genre else ""
                 ts = int(ptr.timestamp())
                 lines.append(f"<t:{ts}:t> | **{name}**{genre_str}")
+
+            # Interleave stream link after each slot
+            if slf and slot.name.strip():
+                dj = dj_lookup.get(slot.name.strip())
+                if dj and dj.stream:
+                    link = dj.stream if dj.exact_link else OutputGenerator.vrcdn_convert(dj.stream, slf)
+                    lines.append(f"```\n{link}\n```")
+
             ptr += datetime.timedelta(minutes=slot.duration)
 
         # Social links (bottom of lineup)
@@ -165,6 +175,10 @@ class OutputGenerator:
         # Lineup header
         lines.append("LINEUP")
 
+        # Build DJ lookup for stream links
+        dj_lookup = {d.name: d for d in snap.saved_djs} if snap.stream_link_format else {}
+        slf = snap.stream_link_format
+
         ptr = start
         for idx, slot in enumerate(snap.slots, start=1):
             name = slot.name or str(idx)
@@ -173,7 +187,27 @@ class OutputGenerator:
             else:
                 genre_str = f" ({slot.genre})" if slot.genre else ""
                 lines.append(f"{ptr.strftime('%H:%M')} | {name}{genre_str}")
+
+            # Interleave stream link after each slot
+            if slf and slot.name.strip():
+                dj = dj_lookup.get(slot.name.strip())
+                if dj and dj.stream:
+                    link = dj.stream if dj.exact_link else OutputGenerator.vrcdn_convert(dj.stream, slf)
+                    lines.append(link)
+
             ptr += datetime.timedelta(minutes=slot.duration)
+
+        # Social links (bottom of lineup)
+        _LINK_ORDER = ["TIMELINE", "VRCPOP", "X", "IG", "DISCORD", "VRC GROUP"]
+        if snap.social_links:
+            parts = [
+                f"{label}: {snap.social_links[label]}"
+                for label in _LINK_ORDER
+                if snap.social_links.get(label, "").strip()
+            ]
+            if parts:
+                lines.append("")
+                lines.append(" | ".join(parts))
 
         return "\n".join(lines)
 

@@ -1,0 +1,75 @@
+/* ── Theme CSS Custom Properties ──
+ * Maps desktop color tokens to CSS variables.
+ * ThemeManager.applyTheme() overwrites these at runtime.
+ */
+
+:root {
+  /* Fixed button colors */
+  --color-primary:         #7C3AED;
+  --color-primary-hover:   #6D28D9;
+  --color-secondary:       #2D1B5C;
+  --color-secondary-hover: #4C288A;
+  --color-success:         #059669;
+  --color-success-hover:   #047857;
+  --color-danger:          #dc2626;
+  --color-danger-hover:    #b91c1c;
+  --color-accent:          #C4B5FD;
+
+  /* Structural colors — change per preset */
+  --color-panel-bg:        #160D2E;
+  --color-card-bg:         #09051A;
+  --color-border:          #3B1F6E;
+  --color-hover:           #4C288A;
+  --color-scrollbar:       #4C288A;
+  --color-text-primary:    #EDE9FE;
+  --color-text-secondary:  #C4B5FD;
+
+  /* Derived / semantic */
+  --color-input-bg:        color-mix(in srgb, var(--color-card-bg) 70%, var(--color-panel-bg));
+  --color-overlay:         rgba(0, 0, 0, 0.65);
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Radius */
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Typography */
+  --text-xs:   11px;
+  --text-sm:   12px;
+  --text-base: 14px;
+  --text-md:   15px;
+  --text-lg:   16px;
+  --text-xl:   18px;
+
+  /* Topbar */
+  --topbar-height: 48px;
+
+  /* Panel */
+  --panel-left-width: 340px;
+  --panel-left-min:   450px;
+  --panel-left-max:   500px;
+
+  /* Transitions */
+  --transition-fast: 120ms ease;
+  --transition-med:  200ms ease;
+}
+
+/* ── Scrollbar styling ─────────────────────────────────────── */
+::-webkit-scrollbar-track {
+  background: var(--color-card-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border-radius: var(--radius-sm);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-hover);
+}

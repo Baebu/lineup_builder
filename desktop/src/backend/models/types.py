@@ -43,7 +43,8 @@ class EventSnapshot:
     genres: list[str] = field(default_factory=list)
     slots: list[SlotData] = field(default_factory=list)
     names_only: bool = False
-    output_format: str = "discord"  # "discord" | "local" | "quest" | "pc"
+    output_format: str = "discord"  # "discord" | "local"
+    stream_link_format: str = ""    # "" | "quest" | "pc"
     saved_djs: list[DJInfo] = field(default_factory=list)
     social_links: dict[str, str] = field(default_factory=dict)
 

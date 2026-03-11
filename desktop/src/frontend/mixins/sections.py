@@ -9,7 +9,7 @@ import dearpygui.dearpygui as dpg
 SECTION_DEFAULTS = {
     "Event": ["evt_config", "evt_genres", "evt_links"],
     "Club": ["club_links", "club_vrchat", "club_sent"],
-    "Roster": ["roster_djs"],
+    "Roster": ["roster_local", "roster_booked"],
     "DJ": ["dj_links", "dj_logo", "dj_genres", "dj_avail", "dj_bookings"],
 }
 

@@ -210,7 +210,6 @@ class UISetupMixin:
                 self._register_scroll_int("event_vol_input", min_val=1,
                                           on_change=lambda: self._schedule_update())
                 self.group_name_var._tag  = "group_name_input"
-                self.collab_var._tag      = "collab_check"
                 self.collab_with_var._tag = "collab_with_input"
 
             # ── GENRES section ────────────────────────────────────────────
@@ -253,26 +252,35 @@ class UISetupMixin:
                                 tag=f"social_input_{tag_key}",
                                 default_value=self.social_links.get(label, ""),
                                 hint=hint, width=-1,
-                                callback=lambda s, a, u=label: self._on_social_link_changed(u),
+                                user_data=label,
+                                callback=lambda s, a, u: self._on_social_link_changed(u),
                             )
 
         self.refresh_genre_tags()
 
     def _build_dj_roster_tab(self):
-        with section(self, "roster_djs", "DJS"):
-            add_primary_button("+ New DJ", tag="new_dj_btn", width=-1,
-                               callback=lambda: self.add_new_dj_to_roster())
-            dpg.add_input_text(
-                tag="dj_search_input",
-                default_value=self.dj_search_var.get(),
-                hint="Search...", width=-11,
-                callback=lambda s, a, u=None: self._schedule_roster_refresh(),
-            )
-            self.dj_search_var._tag = "dj_search_input"
-            with dpg.child_window(tag="dj_roster_scroll", height=-1,
+        add_primary_button("+ New DJ", tag="new_dj_btn", width=-1,
+                           callback=lambda: self.add_new_dj_to_roster())
+        dpg.add_input_text(
+            tag="dj_search_input",
+            default_value=self.dj_search_var.get(),
+            hint="Search...", width=-11,
+            callback=lambda s, a, u=None: self._schedule_roster_refresh(),
+        )
+        self.dj_search_var._tag = "dj_search_input"
+
+        with section(self, "roster_local", "LOCAL"):
+            with dpg.child_window(tag="dj_roster_scroll", height=250,
                                   border=False, autosize_x=True):
                 pass  # populated by refresh_dj_roster_ui()
+
+        with section(self, "roster_booked", "BOOKED"):
+            with dpg.child_window(tag="booked_roster_scroll", height=-1,
+                                  border=False, autosize_x=True):
+                pass  # populated by refresh_booked_roster_ui()
+
         self.refresh_dj_roster_ui()
+        self.refresh_booked_roster_ui()
 
     # ── DJ Profile tab ────────────────────────────────────────────────────
 
@@ -1208,20 +1216,18 @@ class UISetupMixin:
 
                     styled_text("  EMBED IMAGE", LABEL)
                     with dpg.group(horizontal=True):
-                        dpg.add_input_text(
-                            tag="embed_image_input",
-                            default_value=getattr(self, "discord_embed_image", ""),
-                            hint="Image URL or path...",
-                            width=-1,
-                            on_enter=True,
-                            callback=lambda s, a, u=None: self._save_embed_image(),
-                        )
+                        _img_path = getattr(self, "discord_embed_image", "")
+                        _img_label = _os.path.basename(_img_path) if _img_path else "Select Image..."
+                        if len(_img_label) > 32:
+                            _img_label = _img_label[:29] + "..."
                         add_primary_button(
-                            "Browse", tag="embed_image_browse_btn",
+                            _img_label, tag="embed_image_browse_btn",
+                            width=-40,
                             callback=lambda: self._browse_embed_image(),
                         )
                         dpg.add_button(
-                            tag="embed_image_clear_btn", label="Clear",
+                            tag="embed_image_clear_btn", label="X",
+                            width=35,
                             callback=lambda: self._clear_embed_image(),
                         )
                     dpg.add_spacer(height=4)
@@ -1299,19 +1305,18 @@ class UISetupMixin:
                 dpg.add_button(tag="fmt_plain",   label="Plain",   width=-1,
                                callback=lambda: self.set_plain_text())
                 dpg.add_button(tag="fmt_quest",   label="Quest",   width=-1,
-                               callback=lambda: self.set_quest_view())
+                               callback=lambda: self._toggle_stream_links("quest"))
                 dpg.add_button(tag="fmt_pc",      label="PC",      width=-1,
-                               callback=lambda: self.set_pc_view())
+                               callback=lambda: self._toggle_stream_links("pc"))
         dpg.add_button(tag="fmt_times", label="Times on", width=-1,
                        callback=lambda: self._toggle_times())
 
         with dpg.child_window(tag="output_text_scroll", height=-30,
-                              autosize_x=True, horizontal_scrollbar=True):
-            dpg.add_input_text(
+                              autosize_x=True):
+            dpg.add_text(
                 tag="output_text",
-                multiline=True, readonly=False,
-                tab_input=True,
-                width=-1, height=-1,
+                default_value="",
+                wrap=0,
             )
 
         with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
@@ -1328,7 +1333,7 @@ class UISetupMixin:
     def _apply_local_mode_visibility(self):
         """Hide server-dependent tabs/sections when running in local mode."""
         is_local = getattr(self, "_local_mode", False)
-        for tag in ("DJ", "DiscordTab", "sect_club_vrchat"):
+        for tag in ("DJ", "DiscordTab", "sect_club_vrchat", "sect_roster_booked"):
             if dpg.does_item_exist(tag):
                 dpg.configure_item(tag, show=not is_local)
         self._update_auth_card()
@@ -1508,47 +1513,37 @@ class UISetupMixin:
         import webbrowser
         webbrowser.open(invite_url)
 
-    def _save_embed_image(self):
-        """Persist the embed image path/URL from the input field."""
-        if dpg.does_item_exist("embed_image_input"):
-            self.discord_embed_image = dpg.get_value("embed_image_input").strip()
-            self.save_settings()
-
     def _clear_embed_image(self):
         """Clear the embed image."""
         self.discord_embed_image = ""
-        if dpg.does_item_exist("embed_image_input"):
-            dpg.set_value("embed_image_input", "")
+        if dpg.does_item_exist("embed_image_browse_btn"):
+            dpg.set_item_label("embed_image_browse_btn", "Select Image...")
         self.save_settings()
 
     def _browse_embed_image(self):
-        """Open a file dialog to pick a local image."""
-        fd_tag = "embed_image_file_dialog"
-        if dpg.does_item_exist(fd_tag):
-            dpg.delete_item(fd_tag)
-
-        def _on_file_selected(_sender, app_data, _user):
-            selections = app_data.get("selections", {})
-            path = list(selections.values())[0] if selections else app_data.get("file_path_name", "")
-            if path:
-                if dpg.does_item_exist("embed_image_input"):
-                    dpg.set_value("embed_image_input", path)
-                self.discord_embed_image = path
-                self.save_settings()
-
-        with dpg.file_dialog(
-            tag=fd_tag,
-            directory_selector=False,
-            show=True,
-            callback=_on_file_selected,
-            width=600, height=400,
-        ):
-            dpg.add_file_extension(".png", color=(0, 255, 100, 255))
-            dpg.add_file_extension(".jpg", color=(0, 255, 100, 255))
-            dpg.add_file_extension(".jpeg", color=(0, 255, 100, 255))
-            dpg.add_file_extension(".gif", color=(0, 255, 100, 255))
-            dpg.add_file_extension(".webp", color=(0, 255, 100, 255))
-            dpg.add_file_extension(".*", color=(150, 150, 150, 255))
+        """Open the native Windows file explorer to pick a local image."""
+        import tkinter as _tk
+        from tkinter import filedialog as _fd
+        root = _tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        path = _fd.askopenfilename(
+            parent=root,
+            title="Select Embed Image",
+            filetypes=[
+                ("Image files", "*.png *.jpg *.jpeg *.gif *.webp"),
+                ("All files", "*.*"),
+            ],
+        )
+        root.destroy()
+        if path:
+            self.discord_embed_image = path
+            if dpg.does_item_exist("embed_image_browse_btn"):
+                label = _os.path.basename(path)
+                if len(label) > 32:
+                    label = label[:29] + "..."
+                dpg.set_item_label("embed_image_browse_btn", label)
+            self.save_settings()
 
     def _build_discord_settings_drawer(self):
         """Populate the Discord settings drawer with config fields."""
@@ -1790,6 +1785,23 @@ class UISetupMixin:
             ]
             if parts:
                 embed.add_field(name="Links", value=" | ".join(parts), inline=False)
+
+        # Additional user-appended text (typed after auto-generated output)
+        from ...backend.output.output_generator import OutputGenerator
+        generated = OutputGenerator.generate(snap)
+        actual = dpg.get_value("output_text") if dpg.does_item_exist("output_text") else ""
+        if actual.startswith(generated):
+            extra = actual[len(generated):].strip()
+        else:
+            extra = ""
+        if extra:
+            extra_chunks = [extra[i : i + 1024] for i in range(0, len(extra), 1024)]
+            for i, chunk in enumerate(extra_chunks):
+                embed.add_field(
+                    name="Notes" if i == 0 else "\u200b",
+                    value=chunk,
+                    inline=False,
+                )
 
         # Embed image — URL or local file
         import os
@@ -2078,7 +2090,7 @@ class UISetupMixin:
     @staticmethod
     def _dict_to_snapshot(d: dict):
         """Deserialize a plain dict back into an EventSnapshot."""
-        from ..backend.types import DJInfo, EventSnapshot, SlotData
+        from ...backend.models.types import DJInfo, EventSnapshot, SlotData
         if not d:
             return None
         return EventSnapshot(
@@ -2113,6 +2125,12 @@ class UISetupMixin:
                     "image": entry.get("image", ""),
                     "snapshot": snap,
                 })
+
+    def _toggle_stream_links(self, fmt: str):
+        """Toggle stream link format — only one active at a time, or none."""
+        current = self.stream_link_format.get()
+        self.stream_link_format.set("" if current == fmt else fmt)
+        self.update_output()
 
     def _toggle_times(self):
         self.names_only.set(not self.names_only.get())

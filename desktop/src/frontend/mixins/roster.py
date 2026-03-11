@@ -5,15 +5,25 @@ Dependencies: re, dearpygui, theme
 Architecture: Mixin for App class. Uses DPG child_window "dj_roster_scroll".
 """
 
+import logging
 import re
+import threading
 
 import dearpygui.dearpygui as dpg
 
-from ..styling.fonts import BODY, ERROR, HEADER, LABEL, MUTED, SUCCESS, Icon, bind_icon_font, styled_text
-from ..ui.widgets import add_icon_button, popup_pos
+from ..styling.fonts import BODY, ERROR, HEADER, HINT, LABEL, MUTED, SUCCESS, Icon, bind_icon_font, styled_text
+from ..ui.widgets import add_icon_button, add_primary_button, popup_pos
+
+log = logging.getLogger("roster")
 
 
 class RosterMixin:
+
+    def _refresh_all_slot_info(self):
+        """Refresh the LINK status indicator on every slot row after DJ roster changes."""
+        from ..ui.slot_ui import _update_slot_info
+        for slot in self.slots:
+            _update_slot_info(slot, self)
 
     def refresh_dj_roster_ui(self):
         if not dpg.does_item_exist("dj_roster_scroll"):
@@ -26,13 +36,14 @@ class RosterMixin:
         if not self.saved_djs:
             styled_text("No DJs saved yet.\nSave a DJ from a slot or press + NEW DJ.",
                          LABEL, parent="dj_roster_scroll")
-            return
-        if not filtered:
+        elif not filtered:
             styled_text("No DJs match your search.",
                          LABEL, parent="dj_roster_scroll")
-            return
-        for idx, dj in filtered:
-            self._build_dj_card("dj_roster_scroll", dj, idx)
+        else:
+            for idx, dj in filtered:
+                self._build_dj_card("dj_roster_scroll", dj, idx)
+        # Also refresh the booked section (search filter applies to both)
+        self.refresh_booked_roster_ui()
 
     def _build_dj_card(self, parent, dj, idx):
         card_tag = f"dj_card_{idx}"
@@ -100,6 +111,8 @@ class RosterMixin:
                     self._save_library()
                     self.refresh_dj_roster_ui()
                     self._work_queue.put(self._refresh_slot_combos)
+                    self._refresh_all_slot_info()
+                    self._schedule_update()
                     dpg.delete_item(d["win_tag"])
                 save_btn = dpg.add_button(label="Save", width=140, user_data=save_data, callback=_save)
                 dpg.bind_item_theme(save_btn, "primary_btn_theme")
@@ -154,6 +167,8 @@ class RosterMixin:
                 self._save_library()
                 self.refresh_dj_roster_ui()
                 self._work_queue.put(self._refresh_slot_combos)
+                self._refresh_all_slot_info()
+                self._schedule_update()
                 dpg.delete_item(_wt)
 
             with dpg.group(horizontal=True):
@@ -207,6 +222,8 @@ class RosterMixin:
                         self._save_library()
                         self.refresh_dj_roster_ui()
                         self._work_queue.put(self._refresh_slot_combos)
+                        self._refresh_all_slot_info()
+                        self._schedule_update()
                         dpg.delete_item(wt)
                     dpg.add_button(label="Yes", width=140, user_data=(idx, win_tag), callback=_confirm)
                     dpg.bind_item_theme(dpg.last_item(), self._danger_btn_theme)
@@ -244,7 +261,155 @@ class RosterMixin:
                     self._save_library()
                     self.refresh_dj_roster_ui()
                     self._work_queue.put(self._refresh_slot_combos)
+                    self._refresh_all_slot_info()
+                    self._schedule_update()
                     dpg.delete_item(_wt)
                 save_btn = dpg.add_button(label="Save", width=140, callback=_save)
                 dpg.bind_item_theme(save_btn, "primary_btn_theme")
+
+    # ── Booked DJs (from server booking history) ─────────────────────────
+
+    _booked_djs: list[dict] = []
+
+    def refresh_booked_roster_ui(self):
+        """Populate the BOOKED section with DJs from past booking history."""
+        if not dpg.does_item_exist("booked_roster_scroll"):
+            return
+        dpg.delete_item("booked_roster_scroll", children_only=True)
+
+        if getattr(self, "_local_mode", False):
+            return
+
+        if not self._booked_djs:
+            styled_text("No booked DJs yet.\nDJs you book will appear here.",
+                         LABEL, parent="booked_roster_scroll")
+            return
+
+        query = self.dj_search_var.get().strip().lower()
+        filtered = [dj for dj in self._booked_djs
+                    if not query or query in dj.get("name", "").lower()]
+
+        if not filtered:
+            styled_text("No booked DJs match your search.",
+                         LABEL, parent="booked_roster_scroll")
+            return
+
+        for i, dj in enumerate(filtered):
+            self._build_booked_dj_card("booked_roster_scroll", dj, i)
+
+    def _build_booked_dj_card(self, parent, dj, idx):
+        """Build a draggable card for a previously booked DJ."""
+        card_tag = f"booked_dj_card_{idx}"
+        if dpg.does_item_exist(card_tag):
+            dpg.delete_item(card_tag)
+        dj_name = dj.get("name", "Unnamed")
+        last_event = dj.get("last_event", "")
+        is_in_local = any(
+            d.get("name", "").lower() == dj_name.lower() for d in self.saved_djs
+        )
+
+        with dpg.group(tag=card_tag, parent=parent):
+            with dpg.drag_payload(drag_data=dj_name, payload_type="DJ_CARD"):
+                styled_text(f"+ {dj_name}", HEADER)
+            with dpg.table(
+                header_row=False, borders_innerH=False, borders_innerV=False,
+                borders_outerH=False, borders_outerV=False, pad_outerX=False,
+            ):
+                dpg.add_table_column(width_stretch=True)
+                dpg.add_table_column(width_fixed=True)
+                with dpg.table_row():
+                    with dpg.group():
+                        with dpg.group(horizontal=True):
+                            dpg.add_spacer(width=4)
+                            _drag_txt = styled_text(Icon.DRAG, MUTED)
+                            bind_icon_font(_drag_txt)
+                            dpg.add_spacer(width=4)
+                            styled_text(dj_name, BODY)
+                        if last_event:
+                            with dpg.group(horizontal=True):
+                                dpg.add_spacer(width=30)
+                                styled_text(last_event, MUTED)
+                    with dpg.group(horizontal=True):
+                        styled_text("BOOKED", HINT)
+                        if not is_in_local:
+                            add_icon_button(
+                                Icon.SAVE, width=28, height=20,
+                                user_data=dj,
+                                callback=lambda s, a, u: self._save_booked_to_local(u),
+                            )
+                        dpg.add_spacer(width=10)
+            dpg.add_separator()
+
+    def _save_booked_to_local(self, dj: dict):
+        """Copy a booked DJ into the local roster."""
+        name = dj.get("name", "")
+        if not name:
+            return
+        if any(d.get("name", "").lower() == name.lower() for d in self.saved_djs):
+            return  # already local
+        self.saved_djs.append({
+            "name": name,
+            "stream": dj.get("stream", ""),
+            "exact_link": False,
+        })
+        self._save_library()
+        self.refresh_dj_roster_ui()
+        self.refresh_booked_roster_ui()
+        self._work_queue.put(self._refresh_slot_combos)
+        self._refresh_all_slot_info()
+        self._schedule_update()
+
+    def _fetch_booked_djs(self):
+        """Fetch booking history from the server and deduplicate into _booked_djs."""
+        if getattr(self, "_local_mode", False) or not self.api.base_url:
+            return
+
+        def _do():
+            try:
+                # Derive group_name the same way bookings.py does
+                group_name = ""
+                for label in ("DISCORD", "VRC GROUP"):
+                    p = getattr(self, "persistent_links", {}).get(label, {})
+                    if isinstance(p, dict) and p.get("link"):
+                        group_name = p["link"]
+                        break
+                if not group_name:
+                    group_name = self.event_title_var.get().strip()
+                if not group_name:
+                    return
+
+                bookings = self.api.list_group_bookings(group_name)
+
+                # Deduplicate by DJ name, most recent booking first
+                seen: dict[str, dict] = {}
+                for b in sorted(bookings, key=lambda x: x.get("event_date", ""), reverse=True):
+                    dj_name = b.get("dj_name", "").strip()
+                    if not dj_name or dj_name.lower() in seen:
+                        continue
+                    seen[dj_name.lower()] = {
+                        "name": dj_name,
+                        "stream": "",
+                        "last_event": b.get("event_title", ""),
+                    }
+
+                # Try to enrich with stream link from DJ profiles
+                for key, dj in seen.items():
+                    try:
+                        profile = self.api.dj_get_profile(dj["name"])
+                        links = profile.get("links", {})
+                        dj["stream"] = links.get("stream", "")
+                    except Exception:
+                        pass
+
+                result = list(seen.values())
+
+                def _apply():
+                    self._booked_djs = result
+                    self.refresh_booked_roster_ui()
+
+                self._work_queue.put(_apply)
+            except Exception:
+                log.debug("Failed to fetch booked DJs", exc_info=True)
+
+        threading.Thread(target=_do, daemon=True).start()
 

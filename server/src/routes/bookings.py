@@ -6,34 +6,40 @@ import asyncio
 
 import discord
 from fastapi import APIRouter, HTTPException
+from pymongo.collation import Collation
 
 from config import log
-from db import get_db
+from db import bookings, dj_profiles, next_id, _now
 from models.schemas import BookingCreateRequest, BookingRespondRequest
 from services.discord_bot import bot, bot_ready
 
 router = APIRouter()
 
+_CI = Collation(locale="en", strength=2)
+
 
 @router.post("/booking")
 async def create_booking(req: BookingCreateRequest):
-    db = await get_db()
-    rows = await db.execute_fetchall(
-        "SELECT id FROM dj_profiles WHERE name = ? COLLATE NOCASE", (req.dj_name,)
-    )
-    if not rows:
+    dj = await dj_profiles().find_one({"name": req.dj_name}, collation=_CI)
+    if not dj:
         raise HTTPException(status_code=404, detail="DJ not found")
-    dj_id = rows[0][0]
+    dj_id = dj["id"]
 
-    cursor = await db.execute(
-        """INSERT INTO bookings (dj_id, group_name, event_title, event_date,
-               start_time, duration, message, discord_channel_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (dj_id, req.group_name, req.event_title, req.event_date,
-         req.start_time, req.duration, req.message, req.discord_channel_id),
-    )
-    await db.commit()
-    booking_id = cursor.lastrowid
+    booking_id = await next_id("bookings")
+    await bookings().insert_one({
+        "id": booking_id,
+        "dj_id": dj_id,
+        "group_name": req.group_name,
+        "event_title": req.event_title,
+        "event_date": req.event_date,
+        "start_time": req.start_time,
+        "duration": req.duration,
+        "message": req.message,
+        "discord_channel_id": req.discord_channel_id,
+        "status": "pending",
+        "created_at": _now(),
+        "updated_at": _now(),
+    })
 
     # Notify DJ via Discord DM if bot is ready
     if bot_ready.is_set():
@@ -45,13 +51,10 @@ async def create_booking(req: BookingCreateRequest):
 async def _notify_dj_booking(dj_id: int, req: BookingCreateRequest, booking_id: int):
     """Send a Discord DM to the DJ about a new booking request."""
     try:
-        db = await get_db()
-        rows = await db.execute_fetchall(
-            "SELECT name FROM dj_profiles WHERE id = ?", (dj_id,)
-        )
-        if not rows:
+        dj = await dj_profiles().find_one({"id": dj_id})
+        if not dj:
             return
-        dj_name = rows[0][0]
+        dj_name = dj["name"]
 
         # Try to find the DJ as a Discord user across guilds
         target_member = None
@@ -88,28 +91,21 @@ async def _notify_dj_booking(dj_id: int, req: BookingCreateRequest, booking_id: 
 @router.get("/bookings/dj/{dj_name}")
 async def list_dj_bookings(dj_name: str):
     """List all bookings for a specific DJ."""
-    db = await get_db()
-    rows = await db.execute_fetchall(
-        "SELECT id FROM dj_profiles WHERE name = ? COLLATE NOCASE", (dj_name,)
-    )
-    if not rows:
+    dj = await dj_profiles().find_one({"name": dj_name}, collation=_CI)
+    if not dj:
         raise HTTPException(status_code=404, detail="DJ not found")
-    dj_id = rows[0][0]
+    dj_id = dj["id"]
 
-    bookings = await db.execute_fetchall(
-        """SELECT id, group_name, event_title, event_date, start_time,
-                  duration, message, status, created_at
-           FROM bookings WHERE dj_id = ? ORDER BY created_at DESC""",
-        (dj_id,),
-    )
-    return [
-        {
-            "id": b[0], "group_name": b[1], "event_title": b[2],
-            "event_date": b[3], "start_time": b[4], "duration": b[5],
-            "message": b[6], "status": b[7], "created_at": b[8],
-        }
-        for b in bookings
-    ]
+    results = []
+    async for b in bookings().find({"dj_id": dj_id}).sort("created_at", -1):
+        results.append({
+            "id": b["id"], "group_name": b.get("group_name", ""),
+            "event_title": b.get("event_title", ""), "event_date": b.get("event_date", ""),
+            "start_time": b.get("start_time", ""), "duration": b.get("duration", 60),
+            "message": b.get("message", ""), "status": b.get("status", "pending"),
+            "created_at": b.get("created_at", ""),
+        })
+    return results
 
 
 @router.put("/booking/{booking_id}/respond")
@@ -117,42 +113,33 @@ async def respond_to_booking(booking_id: int, req: BookingRespondRequest):
     if req.status not in ("accepted", "declined"):
         raise HTTPException(status_code=400, detail="Status must be 'accepted' or 'declined'")
 
-    db = await get_db()
-    rows = await db.execute_fetchall(
-        "SELECT id, dj_id, group_name, event_title, discord_channel_id, status FROM bookings WHERE id = ?",
-        (booking_id,),
-    )
-    if not rows:
+    b = await bookings().find_one({"id": booking_id})
+    if not b:
         raise HTTPException(status_code=404, detail="Booking not found")
 
-    booking = rows[0]
-    if booking[5] != "pending":
+    if b.get("status") != "pending":
         raise HTTPException(status_code=400, detail="Booking already responded to")
 
-    await db.execute(
-        "UPDATE bookings SET status = ?, updated_at = datetime('now') WHERE id = ?",
-        (req.status, booking_id),
+    await bookings().update_one(
+        {"id": booking_id},
+        {"$set": {"status": req.status, "updated_at": _now()}},
     )
-    await db.commit()
 
     # Notify the group's Discord channel if set
-    if bot_ready.is_set() and booking[4]:
+    if bot_ready.is_set() and b.get("discord_channel_id"):
         asyncio.create_task(
-            _notify_group_booking_response(booking_id, booking, req.status)
+            _notify_group_booking_response(booking_id, b, req.status)
         )
 
     return {"status": req.status}
 
 
-async def _notify_group_booking_response(booking_id: int, booking, status: str):
+async def _notify_group_booking_response(booking_id: int, booking: dict, status: str):
     """Post a message to the group's channel about the DJ's response."""
     try:
-        channel_id = booking[4]
-        db = await get_db()
-        dj_rows = await db.execute_fetchall(
-            "SELECT name FROM dj_profiles WHERE id = ?", (booking[1],)
-        )
-        dj_name = dj_rows[0][0] if dj_rows else "Unknown DJ"
+        channel_id = booking["discord_channel_id"]
+        dj = await dj_profiles().find_one({"id": booking["dj_id"]})
+        dj_name = dj["name"] if dj else "Unknown DJ"
 
         emoji = "\u2705" if status == "accepted" else "\u274c"
         channel = bot.get_channel(channel_id)
@@ -160,29 +147,27 @@ async def _notify_group_booking_response(booking_id: int, booking, status: str):
             channel = await bot.fetch_channel(channel_id)
         await channel.send(
             f"{emoji} **{dj_name}** has **{status}** the booking for "
-            f"**{booking[3]}** on {booking[2]}."
+            f"**{booking.get('event_title', '')}** on {booking.get('group_name', '')}."
         )
     except Exception:
         log.exception("Failed to notify group about booking %s response", booking_id)
 
 
-@router.get("/bookings/group/{group_name}")
+@router.get("/bookings/group/{group_name:path}")
 async def list_group_bookings(group_name: str):
     """List all bookings created by a specific group."""
-    db = await get_db()
-    bookings = await db.execute_fetchall(
-        """SELECT b.id, p.name as dj_name, b.event_title, b.event_date,
-                  b.start_time, b.duration, b.message, b.status, b.created_at
-           FROM bookings b JOIN dj_profiles p ON b.dj_id = p.id
-           WHERE b.group_name = ? COLLATE NOCASE
-           ORDER BY b.created_at DESC""",
-        (group_name,),
-    )
-    return [
-        {
-            "id": b[0], "dj_name": b[1], "event_title": b[2],
-            "event_date": b[3], "start_time": b[4], "duration": b[5],
-            "message": b[6], "status": b[7], "created_at": b[8],
-        }
-        for b in bookings
-    ]
+    results = []
+    async for b in bookings().find(
+        {"group_name": group_name},
+        collation=_CI,
+    ).sort("created_at", -1):
+        dj = await dj_profiles().find_one({"id": b["dj_id"]})
+        dj_name = dj["name"] if dj else "Unknown"
+        results.append({
+            "id": b["id"], "dj_name": dj_name,
+            "event_title": b.get("event_title", ""), "event_date": b.get("event_date", ""),
+            "start_time": b.get("start_time", ""), "duration": b.get("duration", 60),
+            "message": b.get("message", ""), "status": b.get("status", "pending"),
+            "created_at": b.get("created_at", ""),
+        })
+    return results
