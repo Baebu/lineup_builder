@@ -123,6 +123,13 @@ async def send_embed(channel_id: int, embed_data: dict, image_url: str | None = 
         except Exception:
             log.warning("Failed to fetch embed image %s — skipping attachment", image_url)
 
+    custom_content = embed_data.get("content", "")
+
+    if custom_content:
+        if file:
+            return await channel.send(content=custom_content, file=file)
+        return await channel.send(content=custom_content)
+
     embed = _build_embed({**embed_data, "image_url": effective_image_url})
 
     if file:

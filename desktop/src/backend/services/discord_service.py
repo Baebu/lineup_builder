@@ -125,8 +125,9 @@ class DiscordService:
     def send_embed(
         self,
         channel_id: int,
-        embed: discord.Embed,
+        embed: discord.Embed | None = None,
         *,
+        content: str | None = None,
         file: discord.File | None = None,
         on_success: Callable[[], None] | None = None,
         on_error: Callable[[str], None] | None = None,
@@ -142,7 +143,11 @@ class DiscordService:
                 channel = self._client.get_channel(channel_id)
                 if channel is None:
                     channel = await self._client.fetch_channel(channel_id)
-                kwargs: dict = {"embed": embed}
+                kwargs: dict = {}
+                if embed:
+                    kwargs["embed"] = embed
+                if content:
+                    kwargs["content"] = content
                 if file is not None:
                     kwargs["file"] = file
                 await channel.send(**kwargs)

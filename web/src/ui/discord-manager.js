@@ -277,6 +277,8 @@ export class DiscordManager {
       return;
     }
     const data = this._buildEmbedData();
+    const preview = document.getElementById("output-preview");
+    data.content = preview?.value ?? "";
     if (!data.slots.length) {
       showToast("Add at least one slot to the lineup first", "error");
       return;
@@ -303,7 +305,7 @@ export class DiscordManager {
     }
 
     const preview = document.getElementById("output-preview");
-    const content = preview?.textContent ?? "";
+    const content = preview?.value ?? "";
     if (!content) {
       showToast("Output is empty", "error");
       return;
@@ -339,12 +341,16 @@ export class DiscordManager {
       return;
     }
 
+    const data = this._buildEmbedData();
+    const preview = document.getElementById("output-preview");
+    data.content = preview?.value ?? "";
+
     showToast("Scheduling post...", "info");
     try {
       await this._api.createScheduledPost(
         postAt.toISOString(),
         this._selectedChannelId,
-        this._buildEmbedData(),
+        data,
         this._embedImageUrl,
       );
       showToast("Post scheduled!", "success");

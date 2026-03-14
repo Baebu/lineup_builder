@@ -246,6 +246,8 @@ async def update_scheduled_post(post_id: str, req: UpdateScheduleRequest):
         entry["channel_id"] = req.channel_id
     if req.image_url is not None:
         entry["image_url"] = req.image_url
+    if req.content is not None:
+        entry["embed_data"]["content"] = req.content
     if req.title is not None:
         entry["embed_data"]["title"] = req.title
     if req.vol is not None:

@@ -56,9 +56,9 @@ export class OutputManager {
     const snap = this._model.snapshot();
     try {
       const text = OutputGenerator.generate(snap);
-      this._preview.textContent = text;
+      this._preview.value = text;
     } catch (err) {
-      this._preview.textContent = `[Error generating output: ${err.message}]`;
+      this._preview.value = `[Error generating output: ${err.message}]`;
     }
   }
 
@@ -70,7 +70,7 @@ export class OutputManager {
   }
 
   _copyOutput() {
-    const text = this._preview?.textContent ?? "";
+    const text = this._preview?.value ?? "";
     if (!text) return;
     navigator.clipboard.writeText(text).then(() => {
       this._showCopied();

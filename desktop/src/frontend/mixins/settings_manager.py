@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import threading
 
 import dearpygui.dearpygui as dpg
 
@@ -223,12 +222,7 @@ class SettingsMixin:
         }
         self.discord_bot_token: str = ""
         self.discord_client_id: str = ""
-        self.discord_client_secret: str = ""
         self.discord_embed_image: str = ""
-        self.discord_scheduled_posts: list = []
-        self.discord_oauth: dict = {}
-        self.server_url: str = ""
-        self.server_api_key: str = ""
 
         # Section layout state (collapsible drawers)
         self._section_collapsed: dict[str, bool] = {}
@@ -240,12 +234,6 @@ class SettingsMixin:
             self.discord_bot_token = env["DISCORD_BOT_TOKEN"]
         if env.get("DISCORD_CLIENT_ID"):
             self.discord_client_id = env["DISCORD_CLIENT_ID"]
-        if env.get("DISCORD_CLIENT_SECRET"):
-            self.discord_client_secret = env["DISCORD_CLIENT_SECRET"]
-        if env.get("SERVER_URL"):
-            self.server_url = env["SERVER_URL"]
-        if env.get("SERVER_API_KEY"):
-            self.server_api_key = env["SERVER_API_KEY"]
 
         if os.path.exists(SETTINGS_FILE):
             try:
@@ -268,14 +256,7 @@ class SettingsMixin:
                     self.discord_channels.update(saved_channels)
                 self.discord_bot_token = data.get("discord_bot_token", "")
                 self.discord_client_id = data.get("discord_client_id", "")
-                self.discord_client_secret = data.get("discord_client_secret", "")
                 self.discord_embed_image = data.get("discord_embed_image", "")
-                self.discord_scheduled_posts = data.get("discord_scheduled_posts", [])
-                self.discord_oauth = data.get("discord_oauth", {})
-                if data.get("server_url"):
-                    self.server_url = data["server_url"]
-                if data.get("server_api_key"):
-                    self.server_api_key = data["server_api_key"]
                 # Section layout persistence
                 saved_collapsed = data.get("section_collapsed", {})
                 if isinstance(saved_collapsed, dict):
@@ -283,46 +264,11 @@ class SettingsMixin:
             except Exception:
                 pass
 
-        # ── Cloud settings (override local with server data) ─────────────
-        self._load_cloud_settings()
-
         # Tracks the last-applied color for each key
         self._applied_settings: dict = dict(self.settings)
         self._global_theme = None
         self._danger_btn_theme = None
 
-    def _load_cloud_settings(self):
-        """Pull synced settings from the server and merge on top of local."""
-        discord_id = self._discord_id() if hasattr(self, "_discord_id") else ""
-        api = getattr(self, "api", None)
-        if not discord_id or not api:
-            return
-        try:
-            cloud = api.get_user_data(discord_id, "settings")
-        except Exception as exc:
-            log.warning("Could not fetch cloud settings: %s", exc)
-            return
-        if not cloud or not isinstance(cloud, dict):
-            return
-        # Merge theme colours
-        for k, v in cloud.items():
-            if k in DEFAULT_SETTINGS:
-                self.settings[k] = v
-        if "user_presets" in cloud:
-            self.user_presets = cloud["user_presets"]
-        if "persistent_links" in cloud:
-            for key in self.persistent_links:
-                saved = cloud["persistent_links"].get(key)
-                if isinstance(saved, dict):
-                    self.persistent_links[key] = saved
-        if "dj_profile" in cloud and isinstance(cloud["dj_profile"], dict):
-            self.dj_profile.update(cloud["dj_profile"])
-        if "discord_channels" in cloud and isinstance(cloud["discord_channels"], dict):
-            self.discord_channels.update(cloud["discord_channels"])
-        if "discord_embed_image" in cloud:
-            self.discord_embed_image = cloud["discord_embed_image"]
-        if "discord_scheduled_posts" in cloud:
-            self.discord_scheduled_posts = cloud["discord_scheduled_posts"]
 
     def save_settings(self):
         # ── Local file (everything, including secrets) ────────────────────
@@ -336,44 +282,12 @@ class SettingsMixin:
                      "discord_channels": getattr(self, "discord_channels", {}),
                      "discord_bot_token": getattr(self, "discord_bot_token", ""),
                      "discord_client_id": getattr(self, "discord_client_id", ""),
-                     "discord_client_secret": getattr(self, "discord_client_secret", ""),
                      "discord_embed_image": getattr(self, "discord_embed_image", ""),
-                     "discord_scheduled_posts": getattr(self, "discord_scheduled_posts", []),
-                     "discord_oauth": getattr(self, "discord_oauth", {}),
-                     "server_url": getattr(self, "server_url", ""),
-                     "server_api_key": getattr(self, "server_api_key", ""),
                      "section_collapsed": getattr(self, "_section_collapsed", {})},
                     f, indent=2,
                 )
         except Exception as e:
             print(f"Error saving settings: {e}")
-
-        # ── Cloud (non-secret settings only) ──────────────────────────────
-        self._push_settings_to_server()
-
-    def _push_settings_to_server(self):
-        """Push syncable settings to the server in a background thread."""
-        discord_id = self._discord_id() if hasattr(self, "_discord_id") else ""
-        api = getattr(self, "api", None)
-        if not discord_id or not api:
-            return
-        cloud_data = {
-            **self.settings,
-            "user_presets": self.user_presets,
-            "persistent_links": getattr(self, "persistent_links", {}),
-            "dj_profile": getattr(self, "dj_profile", {}),
-            "discord_channels": getattr(self, "discord_channels", {}),
-            "discord_embed_image": getattr(self, "discord_embed_image", ""),
-            "discord_scheduled_posts": getattr(self, "discord_scheduled_posts", []),
-        }
-
-        def _push():
-            try:
-                api.put_user_data(discord_id, "settings", cloud_data)
-            except Exception as exc:
-                log.warning("Cloud save (settings) failed: %s", exc)
-
-        threading.Thread(target=_push, daemon=True).start()
 
     # ── Theme application ─────────────────────────────────────────────────
 
@@ -507,15 +421,12 @@ class SettingsMixin:
 
         # Rebind persistent buttons whose item-theme binding was invalidated
         _primary_persistent = ["save_event_btn", "new_dj_btn", "add_dj_slot_btn",
-                               "copy_output_btn", "auth_card_signin_btn"]
+                               "copy_output_btn"]
         for tag in _primary_persistent:
             if dpg.does_item_exist(tag):
                 dpg.bind_item_theme(tag, "primary_btn_theme")
         if dpg.does_item_exist("resize_handle"):
             dpg.bind_item_theme("resize_handle", "resize_handle_theme")
-        # Refresh auth card toggle styling after theme change
-        if hasattr(self, "_update_auth_card"):
-            self._update_auth_card()
         # Reschedule output update so format buttons get their themes rebound too
         if dpg.does_item_exist("fmt_discord"):
             self._schedule_update()

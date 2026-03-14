@@ -65,9 +65,6 @@ class UISetupMixin:
         self._setup_wheel_handler()
         self._apply_section_order()
 
-        # Position the auth avatar overlay after the first frame lays out
-        self._work_queue.put(self._position_auth_avatar)
-
         # Track base dimensions for proportional resize of right_tabs_content
         self._base_vp_height = dpg.get_viewport_height()
         self._base_tabs_height = 360
@@ -83,43 +80,19 @@ class UISetupMixin:
         self._account_drawer_open = False
 
         with dpg.child_window(tag="left_tabs_wrapper", border=False,
-                              autosize_x=True, height=-self._AUTH_BTN_HEIGHT,
+                              autosize_x=True, height=-1,
                               no_scrollbar=True, no_scroll_with_mouse=True):
             with dpg.tab_bar(tag="left_tabs"):
                 with dpg.tab(label="Event", tag="Event"):
                     self._build_event_tab()
-                with dpg.tab(label="Club", tag="Club"):
-                    self._build_club_tab()
                 with dpg.tab(label="Roster", tag="Roster"):
                     self._build_dj_roster_tab()
-                with dpg.tab(label="DJ", tag="DJ"):
-                    self._build_dj_profile_tab()
                 with dpg.tab(label="Settings", tag="Settings"):
                     with dpg.child_window(tag="settings_scroll", height=-1,
                                           border=False, autosize_x=True):
                         pass  # populated by _build_settings_tab()
 
-        # ── Avatar texture (must exist before drawer references it) ────────
-        with dpg.texture_registry():
-            dpg.add_static_texture(1, 1, [0, 0, 0, 0], tag="auth_avatar_tex")
-
-        # ── Account drawer (hidden by default, expands upward) ───────────
-        with dpg.child_window(tag="account_drawer", height=self._DRAWER_HEIGHT,
-                              border=True, autosize_x=True, no_scrollbar=True,
-                              show=False):
-            self._build_account_drawer()
-
-        # ── Auth card toggle button ───────────────────────────────────
-        _btn_h = self._AUTH_BTN_INNER
-        _av_sz = 24
-        _av_pad = _av_sz + 8          # left-padding for avatar inside button
-        dpg.add_button(tag="auth_card_btn", label="      Local", width=-1,
-                       height=_btn_h,
-                       callback=lambda: self._toggle_account_drawer())
-        # Avatar overlaid on the button (positioned after first frame)
-        dpg.add_image("auth_avatar_tex", tag="auth_card_avatar",
-                      width=_av_sz, height=_av_sz, show=False)
-
+        pass
     def _build_event_tab(self):
         with dpg.child_window(tag="event_tab_inner", border=False,
                               autosize_x=True, height=-1):
@@ -255,6 +228,19 @@ class UISetupMixin:
                                 user_data=label,
                                 callback=lambda s, a, u: self._on_social_link_changed(u),
                             )
+                    for label, hint in self._CLUB_LINK_FIELDS:
+                        tag_key = label.replace(' ', '_')
+                        p = self.persistent_links.get(label, {})
+                        with dpg.table_row():
+                            styled_text(f"   {label}", LABEL)
+                            dpg.add_input_text(
+                                tag=f"group_link_{tag_key}",
+                                default_value=(p.get("link", "")
+                                               if isinstance(p, dict) else ""),
+                                hint=hint, width=-1,
+                                callback=lambda s, a, u=label: (
+                                    self._on_club_link_changed(u)),
+                            )
 
         self.refresh_genre_tags()
 
@@ -269,507 +255,11 @@ class UISetupMixin:
         )
         self.dj_search_var._tag = "dj_search_input"
 
-        with section(self, "roster_local", "LOCAL"):
-            with dpg.child_window(tag="dj_roster_scroll", height=250,
-                                  border=False, autosize_x=True):
-                pass  # populated by refresh_dj_roster_ui()
-
-        with section(self, "roster_booked", "BOOKED"):
-            with dpg.child_window(tag="booked_roster_scroll", height=-1,
-                                  border=False, autosize_x=True):
-                pass  # populated by refresh_booked_roster_ui()
+        with dpg.child_window(tag="dj_roster_scroll", height=-1,
+                              border=False, autosize_x=True):
+            pass  # populated by refresh_dj_roster_ui()
 
         self.refresh_dj_roster_ui()
-        self.refresh_booked_roster_ui()
-
-    # ── DJ Profile tab ────────────────────────────────────────────────────
-
-    _DJ_LINK_FIELDS = [
-        ("Twitch",    "https://twitch.tv/"),
-        ("SoundCloud", "https://soundcloud.com/"),
-        ("X",         "https://x.com/"),
-        ("Instagram", "https://instagram.com/"),
-        ("YouTube",   "https://youtube.com/@"),
-        ("Website",   ""),
-    ]
-
-    def _build_dj_profile_tab(self):
-        with dpg.child_window(tag="dj_profile_inner", border=False,
-                              autosize_x=True, height=-1):
-            # ── Sign-in view (shown when not signed in) ───────────────
-            with dpg.group(tag="dj_signin_group"):
-                styled_text("   DJ PROFILE", HEADER)
-                dpg.add_spacer(height=8)
-                styled_text("   Link your Discord account to manage", MUTED)
-                styled_text("   your DJ profile, availability, and bookings.", MUTED)
-                dpg.add_spacer(height=12)
-                add_primary_button(
-                    "Link DJ Profile", tag="dj_link_btn", width=-1,
-                    callback=lambda: self._dj_discord_sign_in(),
-                )
-                dpg.add_spacer(height=4)
-                styled_text("", HINT, tag="dj_signin_error")
-
-            # ── Profile view (shown when signed in) ───────────────────
-            with dpg.group(tag="dj_profile_group", show=False):
-                _LABEL_W = 62
-
-                # ── Header with name (fixed, not a section) ───────
-                with dpg.group(horizontal=True):
-                    styled_text("   DJ PROFILE", HEADER)
-                dpg.add_spacer(height=2)
-                with dpg.group(horizontal=True):
-                    dpg.add_spacer(width=4)
-                    styled_text("", LABEL, tag="dj_signed_in_label")
-                dpg.add_separator()
-
-                # ── Links section ─────────────────────────────────────
-                with section(self, "dj_links", "LINKS"):
-                    dpg.add_spacer(height=4)
-                    with dpg.table(header_row=False, borders_innerH=False,
-                                   borders_innerV=False, borders_outerH=False,
-                                   borders_outerV=False, pad_outerX=False):
-                        dpg.add_table_column(init_width_or_weight=_LABEL_W,
-                                             width_fixed=True)
-                        dpg.add_table_column(width_stretch=True)
-                        for label, hint in self._DJ_LINK_FIELDS:
-                            tag_key = label.replace(' ', '_')
-                            with dpg.table_row():
-                                styled_text(f"   {label.upper()}", LABEL)
-                                dpg.add_input_text(
-                                    tag=f"dj_link_{tag_key}",
-                                    hint=hint or "https://...", width=-1,
-                                    callback=lambda s, a, u=label: (
-                                        self._on_dj_link_changed(u)),
-                                )
-
-                # ── Logo section ──────────────────────────────────────
-                with section(self, "dj_logo", "LOGO"):
-                    dpg.add_spacer(height=4)
-                    with dpg.table(header_row=False, borders_innerH=False,
-                                   borders_innerV=False, borders_outerH=False,
-                                   borders_outerV=False, pad_outerX=False):
-                        dpg.add_table_column(init_width_or_weight=_LABEL_W,
-                                             width_fixed=True)
-                        dpg.add_table_column(width_stretch=True)
-                        with dpg.table_row():
-                            styled_text("   URL", LABEL)
-                            dpg.add_input_text(
-                                tag="dj_profile_logo",
-                                hint="Image URL or local path...", width=-1,
-                                callback=lambda s, a: self._on_dj_profile_changed(
-                                    "logo",
-                                    dpg.get_value("dj_profile_logo").strip()),
-                            )
-
-                # ── Genres section ────────────────────────────────────
-                with section(self, "dj_genres", "GENRES"):
-                    dpg.add_spacer(height=4)
-                    with dpg.group(horizontal=True):
-                        dpg.add_input_text(
-                            tag="dj_genre_input", hint="Add genre...",
-                            width=-60, on_enter=True,
-                            callback=lambda s, a: self._dj_add_genre(),
-                        )
-                        dpg.add_button(
-                            label="+", width=40,
-                            callback=lambda: self._dj_add_genre(),
-                        )
-                    dpg.add_spacer(height=4)
-                    with dpg.group(tag="dj_genre_tags"):
-                        pass  # populated by _dj_refresh_genres()
-
-                # ── Availability section ──────────────────────────────
-                with section(self, "dj_avail", "AVAILABILITY"):
-                    dpg.add_spacer(height=4)
-                    add_primary_button(
-                        "+ Add Date", tag="dj_avail_add_btn", width=-1,
-                        callback=lambda: self._dj_add_availability(),
-                    )
-                    dpg.add_spacer(height=4)
-                    with dpg.child_window(tag="dj_avail_scroll", height=150,
-                                          border=False, autosize_x=True):
-                        pass  # populated by _dj_refresh_availability()
-
-                # ── My Bookings section ───────────────────────────────
-                with section(self, "dj_bookings", "MY BOOKINGS"):
-                    add_icon_button(
-                        Icon.REFRESH,
-                        callback=lambda: self._refresh_dj_bookings(),
-                    )
-                    dpg.add_spacer(height=4)
-                    with dpg.child_window(tag="dj_bookings_scroll", height=-1,
-                                          border=False, autosize_x=True):
-                        pass  # populated by _refresh_dj_bookings()
-
-        # If already signed in from a previous session, restore the view
-        if self.dj_profile.get("signed_in") and self.dj_profile.get("name"):
-            self._dj_restore_session()
-
-    def _dj_discord_sign_in(self):
-        """Link DJ profile using the current Discord OAuth identity."""
-        discord_id = ""
-        discord_name = ""
-        if self._oauth and self._oauth.is_signed_in and self._oauth.user_info:
-            discord_id = str(self._oauth.user_info.get("id", ""))
-            discord_name = self._oauth.user_info.get("username", "")
-
-        if not discord_id:
-            dpg.set_value("dj_signin_error", "   Sign in with Discord first.")
-            return
-
-        if not self.api.base_url:
-            dpg.set_value("dj_signin_error", "   Server URL not configured.")
-            return
-
-        dpg.set_value("dj_signin_error", "   Linking profile...")
-        dpg.configure_item("dj_link_btn", enabled=False)
-
-        def _do():
-            try:
-                from src.backend.services.api_client import APIError
-                result = self.api.dj_discord_auth(discord_id, discord_name)
-                name = result["name"]
-                profile = self.api.dj_get_profile(name)
-
-                def _on_ok():
-                    self.dj_profile["name"] = name
-                    self.dj_profile["discord_id"] = discord_id
-                    self.dj_profile["links"] = profile.get("links", {})
-                    self.dj_profile["logo"] = profile.get("logo", "")
-                    self.dj_profile["genres"] = profile.get("genres", [])
-                    self.dj_profile["availability"] = profile.get("availability", [])
-                    self.dj_profile["signed_in"] = True
-                    self.save_settings()
-                    dpg.set_value("dj_signin_error", "")
-                    dpg.configure_item("dj_link_btn", enabled=True)
-                    self._dj_show_profile()
-
-                self._work_queue.put(_on_ok)
-            except APIError as exc:
-                def _on_err():
-                    dpg.set_value("dj_signin_error", f"   {exc.detail}")
-                    dpg.configure_item("dj_link_btn", enabled=True)
-                self._work_queue.put(_on_err)
-            except Exception:
-                def _on_err():
-                    dpg.set_value("dj_signin_error", "   Connection failed.")
-                    dpg.configure_item("dj_link_btn", enabled=True)
-                self._work_queue.put(_on_err)
-
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _dj_restore_session(self):
-        """Restore profile view if already signed in from settings."""
-        dpg.configure_item("dj_signin_group", show=False)
-        self._dj_show_profile()
-
-        # Fetch latest profile from server in background
-        if self.api.base_url and self.dj_profile.get("name"):
-            name = self.dj_profile["name"]
-
-            def _do():
-                try:
-                    profile = self.api.dj_get_profile(name)
-
-                    def _on_ok():
-                        self.dj_profile["links"] = profile.get("links", {})
-                        self.dj_profile["logo"] = profile.get("logo", "")
-                        self.dj_profile["genres"] = profile.get("genres", [])
-                        self.dj_profile["availability"] = profile.get("availability", [])
-                        self.save_settings()
-                        self._dj_show_profile()
-
-                    self._work_queue.put(_on_ok)
-                except Exception:
-                    log.debug("Failed to refresh profile from server", exc_info=True)
-
-            threading.Thread(target=_do, daemon=True).start()
-
-    def _dj_show_profile(self):
-        """Switch to the profile editor and populate fields from saved data."""
-        profile = self.dj_profile
-        name = profile.get("name", "")
-
-        # Update header label
-        dpg.set_value("dj_signed_in_label", f"   Signed in as {name}")
-
-        # Populate links
-        links = profile.get("links", {})
-        for label, _ in self._DJ_LINK_FIELDS:
-            tag = f"dj_link_{label.replace(' ', '_')}"
-            if dpg.does_item_exist(tag):
-                dpg.set_value(tag, links.get(label, ""))
-
-        # Populate logo
-        if dpg.does_item_exist("dj_profile_logo"):
-            dpg.set_value("dj_profile_logo", profile.get("logo", ""))
-
-        # Populate genres
-        self._dj_refresh_genres()
-
-        # Populate availability
-        self._dj_refresh_availability()
-
-        # Refresh bookings from server
-        self._refresh_dj_bookings()
-
-        dpg.configure_item("dj_signin_group", show=False)
-        dpg.configure_item("dj_profile_group", show=True)
-
-    def _on_dj_profile_changed(self, key: str, value):
-        """Generic handler for scalar profile fields."""
-        self.dj_profile[key] = value
-        self.save_settings()
-        self._dj_sync_profile_to_server()
-
-    def _on_dj_link_changed(self, label: str):
-        """Called when a DJ profile link input changes."""
-        tag = f"dj_link_{label.replace(' ', '_')}"
-        value = dpg.get_value(tag).strip()
-        if "links" not in self.dj_profile:
-            self.dj_profile["links"] = {}
-        self.dj_profile["links"][label] = value
-        self.save_settings()
-        self._dj_sync_profile_to_server()
-
-    def _dj_sync_profile_to_server(self):
-        """Debounced sync of local DJ profile data to the server."""
-        if not self.api.base_url or not self.dj_profile.get("signed_in"):
-            return
-        name = self.dj_profile.get("name", "")
-        if not name:
-            return
-
-        def _do():
-            try:
-                self.api.dj_update_profile(
-                    name,
-                    links=self.dj_profile.get("links", {}),
-                    logo=self.dj_profile.get("logo", ""),
-                    genres=self.dj_profile.get("genres", []),
-                    availability=self.dj_profile.get("availability", []),
-                )
-            except Exception:
-                log.debug("Failed to sync profile to server", exc_info=True)
-
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _refresh_dj_bookings(self):
-        """Fetch and display bookings for the signed-in DJ."""
-        if not self.api.base_url or not self.dj_profile.get("signed_in"):
-            return
-        name = self.dj_profile.get("name", "")
-        if not name:
-            return
-
-        def _do():
-            try:
-                bookings = self.api.list_dj_bookings(name)
-
-                def _on_ok():
-                    self._render_dj_bookings(bookings)
-
-                self._work_queue.put(_on_ok)
-            except Exception:
-                log.debug("Failed to refresh DJ bookings", exc_info=True)
-
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _render_dj_bookings(self, bookings: list[dict]):
-        """Render booking cards with accept/decline buttons."""
-        container = "dj_bookings_scroll"
-        if not dpg.does_item_exist(container):
-            return
-        for child in dpg.get_item_children(container, 1) or []:
-            dpg.delete_item(child)
-
-        if not bookings:
-            styled_text("   No bookings yet.", MUTED, parent=container)
-            return
-
-        for b in bookings:
-            bid = b["id"]
-            status = b.get("status", "pending")
-            with dpg.group(parent=container):
-                with dpg.group(horizontal=True):
-                    styled_text(f"   #{bid}  ", LABEL)
-                    styled_text(b.get("group_name", ""), BODY)
-                    if status == "pending":
-                        styled_text("  [pending]", MUTED)
-                    elif status == "accepted":
-                        styled_text("  [accepted]", LABEL)
-                    else:
-                        styled_text("  [declined]", HINT)
-
-                if b.get("event_title"):
-                    styled_text(
-                        f"      {b['event_title']}  {b.get('event_date', '')}  "
-                        f"{b.get('start_time', '')}  ({b.get('duration', 60)} min)",
-                        MUTED,
-                    )
-                if b.get("message"):
-                    styled_text(f"      \"{b['message']}\"", MUTED)
-
-                if status == "pending":
-                    with dpg.group(horizontal=True):
-                        dpg.add_spacer(width=14)
-                        add_primary_button(
-                            "Accept", width=70,
-                            callback=lambda s=None, a=None, bk=bid: self._respond_booking(bk, "accepted"),
-                        )
-                        dpg.add_button(
-                            label="Decline", width=70,
-                            callback=lambda s=None, a=None, bk=bid: self._respond_booking(bk, "declined"),
-                        )
-                dpg.add_separator()
-
-    def _respond_booking(self, booking_id: int, status: str):
-        """Accept or decline a booking."""
-        if not self.api.base_url:
-            return
-
-        def _do():
-            try:
-                self.api.respond_to_booking(booking_id, status)
-
-                def _on_ok():
-                    self._refresh_dj_bookings()
-
-                self._work_queue.put(_on_ok)
-            except Exception:
-                log.debug("Failed to respond to booking %s", booking_id, exc_info=True)
-
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _dj_add_availability(self):
-        """Add a new blank availability entry."""
-        entries = self.dj_profile.get("availability", [])
-        if not isinstance(entries, list) or (entries and isinstance(entries[0], str)):
-            entries = []  # migrate from old day-of-week format
-        now = datetime.now()
-        entries.append({
-            "date": now.strftime("%Y-%m-%d"),
-            "start": "8:00 PM",
-            "end": "11:00 PM",
-        })
-        self.dj_profile["availability"] = entries
-        self.save_settings()
-        self._dj_sync_profile_to_server()
-        self._dj_refresh_availability()
-
-    def _dj_remove_availability(self, idx: int):
-        """Remove an availability entry by index."""
-        entries = self.dj_profile.get("availability", [])
-        if not isinstance(entries, list):
-            return
-        if 0 <= idx < len(entries):
-            entries.pop(idx)
-            self.save_settings()
-            self._dj_sync_profile_to_server()
-            self._dj_refresh_availability()
-
-    def _dj_update_availability(self, idx: int, key: str, value: str):
-        """Update a field on an availability entry."""
-        entries = self.dj_profile.get("availability", [])
-        if not isinstance(entries, list):
-            return
-        if 0 <= idx < len(entries):
-            entries[idx][key] = value
-            self.save_settings()
-            self._dj_sync_profile_to_server()
-
-    def _dj_refresh_availability(self):
-        """Rebuild the availability list UI inside the scroll container."""
-        container = "dj_avail_scroll"
-        if not dpg.does_item_exist(container):
-            return
-        for child in dpg.get_item_children(container, 1) or []:
-            dpg.delete_item(child)
-
-        entries = self.dj_profile.get("availability", [])
-        if not isinstance(entries, list):
-            return
-
-        for i, entry in enumerate(entries):
-            if not isinstance(entry, dict):
-                continue
-            date_tag = f"avail_date_{i}"
-            start_tag = f"avail_start_{i}"
-            end_tag = f"avail_end_{i}"
-            with dpg.group(parent=container):
-                with dpg.group(horizontal=True):
-                    add_date_row(
-                        date_tag, default=entry.get("date", ""), width=90,
-                        callback=lambda val, idx=i: self._dj_update_availability(
-                            idx, "date", val),
-                    )
-                    add_time_row(
-                        start_tag, default=entry.get("start", "8:00 PM"), width=80,
-                        callback=lambda val, idx=i: self._dj_update_availability(
-                            idx, "start", val),
-                    )
-                    styled_text("to", MUTED)
-                    add_time_row(
-                        end_tag, default=entry.get("end", "11:00 PM"), width=80,
-                        callback=lambda val, idx=i: self._dj_update_availability(
-                            idx, "end", val),
-                    )
-                    add_icon_button(
-                        Icon.DELETE,
-                        callback=lambda s=None, a=None, idx=i: self._dj_remove_availability(idx),
-                    )
-                dpg.add_separator()
-
-    # ── DJ genres ──────────────────────────────────────────────────────
-
-    def _dj_add_genre(self):
-        """Add a genre tag to the DJ profile."""
-        tag = "dj_genre_input"
-        if not dpg.does_item_exist(tag):
-            return
-        genre = dpg.get_value(tag).strip()
-        if not genre:
-            return
-        genres = self.dj_profile.get("genres", [])
-        if not isinstance(genres, list):
-            genres = []
-        if genre.lower() not in [g.lower() for g in genres]:
-            genres.append(genre)
-            self.dj_profile["genres"] = genres
-            self.save_settings()
-            self._dj_sync_profile_to_server()
-        dpg.set_value(tag, "")
-        self._dj_refresh_genres()
-
-    def _dj_remove_genre(self, genre: str):
-        """Remove a genre tag from the DJ profile."""
-        genres = self.dj_profile.get("genres", [])
-        if not isinstance(genres, list):
-            return
-        genres = [g for g in genres if g.lower() != genre.lower()]
-        self.dj_profile["genres"] = genres
-        self.save_settings()
-        self._dj_sync_profile_to_server()
-        self._dj_refresh_genres()
-
-    def _dj_refresh_genres(self):
-        """Rebuild the genre tags display."""
-        container = "dj_genre_tags"
-        if not dpg.does_item_exist(container):
-            return
-        for child in dpg.get_item_children(container, 1) or []:
-            dpg.delete_item(child)
-        genres = self.dj_profile.get("genres", [])
-        if not isinstance(genres, list) or not genres:
-            styled_text("   No genres added.", MUTED, parent=container)
-            return
-        row = dpg.add_group(horizontal=True, parent=container)
-        for genre in genres:
-            dpg.add_button(
-                label=f"{genre}  x", parent=row, height=20,
-                callback=lambda s, a, g=genre: self._dj_remove_genre(g),
-            )
 
     # ── Social link fields ─────────────────────────────────────────
 
@@ -782,7 +272,9 @@ class UISetupMixin:
 
     _CLUB_LINK_FIELDS = [
         ("DISCORD",    "https://discord.gg/"),
+        ("VRC GROUP",  "https://vrc.group/"),
     ]
+
 
     def _on_social_link_changed(self, label: str):
         """Called when any inline social-link input changes."""
@@ -798,489 +290,28 @@ class UISetupMixin:
         self.save_settings()
         self._schedule_update()
 
-    def _sync_social_link_inputs(self):
+    def _sync_social_link_inputs(self,):
         """Push self.social_links values into the inline DPG inputs."""
         for label, _ in self._SOCIAL_FIELDS:
             tag = f"social_input_{label.replace(' ', '_')}"
             if dpg.does_item_exist(tag):
                 dpg.set_value(tag, self.social_links.get(label, ""))
 
-    def _build_club_tab(self):
-        with dpg.child_window(tag="club_tab_inner", border=False,
-                              autosize_x=True, height=-1):
-            # ── CLUB LINKS section ────────────────────────────────
-            with section(self, "club_links", "CLUB LINKS"):
-                styled_text("   Shared across all events.", MUTED)
-                dpg.add_spacer(height=4)
-                _LABEL_W = 62
-                with dpg.table(header_row=False, borders_innerH=False,
-                               borders_innerV=False, borders_outerH=False,
-                               borders_outerV=False, pad_outerX=False):
-                    dpg.add_table_column(init_width_or_weight=_LABEL_W,
-                                         width_fixed=True)
-                    dpg.add_table_column(width_stretch=True)
-                    for label, hint in self._CLUB_LINK_FIELDS:
-                        tag_key = label.replace(' ', '_')
-                        p = self.persistent_links.get(label, {})
-                        with dpg.table_row():
-                            styled_text(f"   {label}", LABEL)
-                            dpg.add_input_text(
-                                tag=f"group_link_{tag_key}",
-                                default_value=(p.get("link", "")
-                                               if isinstance(p, dict) else ""),
-                                hint=hint, width=-1,
-                                callback=lambda s, a, u=label: (
-                                    self._on_club_link_changed(u)),
-                            )
-
-            # ── VRCHAT GROUP section ──────────────────────────────
-            with section(self, "club_vrchat", "VRCHAT GROUP"):
-                styled_text("   Verify ownership of your VRChat group.", MUTED)
-                dpg.add_spacer(height=4)
-                with dpg.group(tag="vrchat_linked_info", show=False):
-                    styled_text("   Linked group:", LABEL,
-                                tag="vrchat_linked_name")
-                    styled_text("   Members: —", MUTED,
-                                tag="vrchat_linked_members")
-                    styled_text("   URL: —", MUTED,
-                                tag="vrchat_linked_url")
-                    dpg.add_spacer(height=4)
-                add_primary_button(
-                    "Verify VRChat Group",
-                    tag="vrchat_verify_btn", width=-1,
-                    callback=lambda: self._open_vrchat_verify_popup(),
-                )
-                dpg.add_spacer(height=2)
-                styled_text("", HINT, tag="vrchat_verify_status")
-
-            # ── SENT BOOKINGS section ─────────────────────────────
-            with section(self, "club_sent", "SENT BOOKINGS"):
-                add_icon_button(
-                    Icon.REFRESH,
-                    callback=lambda: self._refresh_group_bookings(),
-                )
-                dpg.add_spacer(height=4)
-                with dpg.child_window(tag="group_bookings_scroll", height=-1,
-                                      border=False, autosize_x=True):
-                    pass
-
-    # ── Bookings tab ──────────────────────────────────────────────────────
-
-    # ── VRChat group logic ───────────────────────────────────────────────
-
-    def _open_vrchat_verify_popup(self):
-        """Open a popup to verify VRChat account ownership via bio code."""
-        win_tag = "vrchat_verify_win"
-        if dpg.does_item_exist(win_tag):
-            dpg.focus_item(win_tag)
-            return
-
-        discord_id = getattr(self, "_oauth", None)
-        if discord_id and hasattr(discord_id, "user_info"):
-            discord_id = (discord_id.user_info or {}).get("id", "")
-        if not discord_id:
-            dpg.set_value("vrchat_verify_status", "   Sign in with Discord first.")
-            return
-        if not self.api.base_url:
-            dpg.set_value("vrchat_verify_status", "   Server not configured.")
-            return
-
-        # Generate a unique verification code
-        code = f"LB-{secrets.token_hex(4).upper()}"
-
-        with dpg.window(
-            tag=win_tag, label="Verify VRChat Group",
-            modal=True, autosize=True, no_resize=True, no_scrollbar=True,
-            on_close=lambda: dpg.delete_item(win_tag),
-            min_size=(420, 0),
-            pos=popup_pos("vrchat_verify_btn", width=420, height=350),
-        ):
-            styled_text("  VRCHAT GROUP VERIFICATION", HEADER)
-            dpg.add_spacer(height=4)
-
-            styled_text("  Step 1:  Copy this code", LABEL)
-            dpg.add_input_text(
-                default_value=code, readonly=True, width=380,
-                tag="vrc_verify_code_display",
-            )
-            dpg.add_spacer(height=4)
-
-            styled_text("  Step 2:  Paste it anywhere in your VRChat bio", LABEL)
-            styled_text("  Open VRChat > Profile > Edit Bio > paste the code\n"
-                        "  anywhere, then save.", MUTED)
-            dpg.add_spacer(height=4)
-
-            styled_text("  Step 3:  Enter your VRChat display name and verify",
-                        LABEL)
-            dpg.add_input_text(
-                tag="vrc_verify_username",
-                hint="Your VRChat display name...",
-                width=380,
-            )
-            dpg.add_spacer(height=4)
-            add_primary_button(
-                "Verify Bio",
-                tag="vrc_verify_lookup_btn", width=380,
-                callback=lambda: self._vrchat_verify_bio(
-                    code, discord_id, win_tag),
-            )
-            dpg.add_spacer(height=4)
-            styled_text("", HINT, tag="vrc_verify_popup_status")
-
-            # Container for group list (populated after verification)
-            with dpg.group(tag="vrc_verify_groups_list"):
-                pass
-
-    def _vrchat_verify_bio(self, code: str, discord_id: str, win_tag: str):
-        """Verify the user's VRChat bio contains the code, then show groups."""
-        username = dpg.get_value("vrc_verify_username").strip()
-        if not username:
-            dpg.set_value("vrc_verify_popup_status",
-                          "  Enter your display name first.")
-            return
-
-        dpg.set_value("vrc_verify_popup_status",
-                      "  Checking your VRChat bio...")
-        dpg.configure_item("vrc_verify_lookup_btn", enabled=False)
-
-        def _do():
-            try:
-                from src.backend.services.api_client import APIError
-                data = self.api.verify_vrchat_bio(username, code)
-                owned = data.get("owned_groups", [])
-                display_name = data.get("vrchat_display_name", username)
-
-                def _show():
-                    # Clear previous group buttons
-                    if dpg.does_item_exist("vrc_verify_groups_list"):
-                        for child in dpg.get_item_children(
-                                "vrc_verify_groups_list", 1) or []:
-                            dpg.delete_item(child)
-
-                    if not owned:
-                        dpg.set_value(
-                            "vrc_verify_popup_status",
-                            f"  Verified! But no owned groups found "
-                            f"for '{display_name}'.")
-                        dpg.configure_item("vrc_verify_lookup_btn",
-                                           enabled=True)
-                        return
-
-                    dpg.set_value(
-                        "vrc_verify_popup_status",
-                        f"  Verified {display_name}! "
-                        f"Select a group to link:")
-
-                    with dpg.group(parent="vrc_verify_groups_list"):
-                        dpg.add_spacer(height=4)
-                        for g in owned:
-                            gid = g["group_id"]
-                            name = g["group_name"] or gid
-                            members = g.get("member_count", 0)
-                            label = f"  {name}  ({members} members)"
-
-                            def _make_cb(_gid=gid, _did=discord_id,
-                                         _wt=win_tag):
-                                return lambda: self._vrchat_select_group(
-                                    _gid, _did, _wt)
-
-                            add_primary_button(
-                                label, width=380,
-                                callback=_make_cb(),
-                            )
-                            dpg.add_spacer(height=2)
-
-                    dpg.configure_item("vrc_verify_lookup_btn", enabled=True)
-
-                self._work_queue.put(_show)
-
-            except APIError as exc:
-                def _err():
-                    dpg.set_value("vrc_verify_popup_status",
-                                  f"  {exc.detail}")
-                    dpg.configure_item("vrc_verify_lookup_btn", enabled=True)
-                self._work_queue.put(_err)
-            except Exception:
-                def _err():
-                    dpg.set_value("vrc_verify_popup_status",
-                                  "  Connection failed.")
-                    dpg.configure_item("vrc_verify_lookup_btn", enabled=True)
-                self._work_queue.put(_err)
-
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _vrchat_select_group(self, group_id: str, discord_id: str,
-                             win_tag: str):
-        """User selected an owned group — link it."""
-        dpg.set_value("vrc_verify_popup_status", "  Linking group...")
-
-        def _do():
-            try:
-                from src.backend.services.api_client import APIError
-                data = self.api.verify_vrchat_group(group_id, discord_id)
-                group_name = data.get("group_name", group_id)
-
-                def _ok():
-                    # Show success in the popup
-                    if dpg.does_item_exist("vrc_verify_groups_list"):
-                        for child in dpg.get_item_children(
-                                "vrc_verify_groups_list", 1) or []:
-                            dpg.delete_item(child)
-                    dpg.set_value(
-                        "vrc_verify_popup_status",
-                        f"  Successfully linked to {group_name}!")
-                    if dpg.does_item_exist("vrc_verify_lookup_btn"):
-                        dpg.configure_item("vrc_verify_lookup_btn",
-                                           show=False)
-
-                    # Update the main UI
-                    self._show_vrchat_group_info(data)
-                    dpg.set_value("vrchat_verify_status",
-                                  f"   Linked to {group_name}")
-
-                    # Auto-close after a moment
-                    def _close():
-                        import time
-                        time.sleep(1.5)
-                        def _del():
-                            if dpg.does_item_exist(win_tag):
-                                dpg.delete_item(win_tag)
-                        self._work_queue.put(_del)
-                    threading.Thread(target=_close, daemon=True).start()
-
-                self._work_queue.put(_ok)
-            except APIError as exc:
-                def _err():
-                    dpg.set_value("vrc_verify_popup_status",
-                                  f"  {exc.detail}")
-                self._work_queue.put(_err)
-            except Exception:
-                def _err():
-                    dpg.set_value("vrc_verify_popup_status",
-                                  "  Connection failed.")
-                self._work_queue.put(_err)
-
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _load_vrchat_group_info(self):
-        """Load existing VRChat group link from the server (if signed in)."""
-        discord_id = getattr(self, "_oauth", None)
-        if discord_id and hasattr(discord_id, "user_info"):
-            discord_id = (discord_id.user_info or {}).get("id", "")
-        if not discord_id or not self.api.base_url:
-            return
-
-        def _do():
-            try:
-                data = self.api.get_vrchat_group(discord_id)
-                if data and data.get("group_name"):
-                    self._work_queue.put(lambda: self._show_vrchat_group_info(data))
-            except Exception:
-                pass
-
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _show_vrchat_group_info(self, data: dict):
-        """Update the VRChat linked-group display and auto-set the VRC GROUP link."""
-        name = data.get("group_name", "Unknown")
-        members = data.get("member_count", "—")
-        short_code = data.get("short_code", "")
-
-        # Auto-set the VRC GROUP persistent link
-        if short_code:
-            url = f"https://vrc.group/{short_code}"
-            self.persistent_links["VRC GROUP"] = {"link": url, "enabled": True}
-            self.save_settings()
-            self._schedule_update()
-        elif not short_code and data.get("group_id"):
-            url = f"https://vrchat.com/home/group/{data['group_id']}"
-            self.persistent_links["VRC GROUP"] = {"link": url, "enabled": True}
-            self.save_settings()
-            self._schedule_update()
-        else:
-            url = ""
-
-        if dpg.does_item_exist("vrchat_linked_name"):
-            dpg.set_value("vrchat_linked_name", f"   {name}")
-        if dpg.does_item_exist("vrchat_linked_members"):
-            dpg.set_value("vrchat_linked_members", f"   Members: {members}")
-        if dpg.does_item_exist("vrchat_linked_url"):
-            dpg.set_value("vrchat_linked_url", f"   URL: {url}" if url else "   URL: —")
-        if dpg.does_item_exist("vrchat_linked_info"):
-            dpg.configure_item("vrchat_linked_info", show=True)
-
-    # ── Booking logic ─────────────────────────────────────────────────────
-
-    def _refresh_group_bookings(self):
-        """Fetch and display sent bookings for this group."""
-        if not self.api.base_url:
-            return
-
-        group_name = ""
-        for label in ("DISCORD", "VRC GROUP"):
-            p = self.persistent_links.get(label, {})
-            if isinstance(p, dict) and p.get("link"):
-                group_name = p["link"]
-                break
-        if not group_name:
-            return
-
-        def _do():
-            try:
-                bookings = self.api.list_group_bookings(group_name)
-
-                def _on_ok():
-                    self._render_group_bookings(bookings)
-
-                self._work_queue.put(_on_ok)
-            except Exception:
-                log.debug("Failed to refresh group bookings", exc_info=True)
-
-        threading.Thread(target=_do, daemon=True).start()
-
-    def _render_group_bookings(self, bookings: list[dict]):
-        """Render booking cards in the group bookings scroll."""
-        container = "group_bookings_scroll"
-        if not dpg.does_item_exist(container):
-            return
-        for child in dpg.get_item_children(container, 1) or []:
-            dpg.delete_item(child)
-
-        if not bookings:
-            styled_text("   No bookings sent yet.", MUTED, parent=container)
-            return
-
-        _STATUS_COLORS = {
-            "pending": MUTED,
-            "accepted": LABEL,
-            "declined": HINT,
-        }
-
-        for b in bookings:
-            with dpg.group(parent=container):
-                with dpg.group(horizontal=True):
-                    styled_text(f"   #{b['id']}  ", LABEL)
-                    styled_text(b.get("dj_name", ""), BODY)
-                    styled_text(
-                        f"  [{b.get('status', 'pending')}]",
-                        _STATUS_COLORS.get(b.get("status"), MUTED),
-                    )
-                if b.get("event_title"):
-                    styled_text(f"      {b['event_title']}  {b.get('event_date', '')}", MUTED)
-                dpg.add_separator()
-
     # ── Right panel ───────────────────────────────────────────────────────
 
     def _build_right_panel(self):
-        # ── Tab bar wrapped in a resizable container ──────────────────────
-        with dpg.child_window(tag="right_tabs_content", height=360,
+        # ── Timeslots (resizable container) ───────────────────────────────
+        styled_text("   TIMESLOTS  ", HEADER)
+        _saved_h = self.settings.get("divider_height", 500)
+        with dpg.child_window(tag="right_tabs_content", height=_saved_h,
                               border=False, autosize_x=True, no_scrollbar=True,
                               no_scroll_with_mouse=True):
-            with dpg.tab_bar(tag="right_tabs"):
-                with dpg.tab(label="Lineup"):
-                    styled_text("   TIMESLOTS  ", HEADER)
+            with dpg.child_window(tag="slots_scroll", height=-1,
+                                  border=True, autosize_x=True,
+                                  payload_type="DJ_CARD",
+                                  drop_callback=lambda s, a, u=None: self._drop_dj_on_lineup(s, a)):
+                pass  # populated by slot_manager
 
-                    # ── Slots scroll area ─────────────────────────────────
-                    with dpg.child_window(tag="slots_scroll", height=-1,
-                                          border=True, autosize_x=True,
-                                          payload_type="DJ_CARD",
-                                          drop_callback=lambda s, a, u=None: self._drop_dj_on_lineup(s, a)):
-                        pass  # populated by slot_manager
-
-                with dpg.tab(label="Discord", tag="DiscordTab"):
-                    dpg.add_spacer(height=4)
-                    with dpg.group(horizontal=True):
-                        styled_text("  DISCORD BOT", HEADER)
-                        add_icon_button(
-                            Icon.SETTINGS, tag="discord_settings_btn",
-                            callback=lambda: self._toggle_discord_settings_drawer(),
-                        )
-
-                    # ── Discord settings drawer (inline, hidden) ─────────
-                    with dpg.child_window(tag="discord_settings_drawer", height=260,
-                                          border=True, autosize_x=True, show=False):
-                        self._build_discord_settings_drawer()
-                    self._discord_settings_drawer_open = False
-
-                    with dpg.group(horizontal=True):
-                        add_primary_button(
-                            "Connect", tag="discord_connect_btn", width=120,
-                            callback=lambda: self._connect_discord_bot(),
-                        )
-                        dpg.add_button(
-                            tag="discord_disconnect_btn", label="Disconnect", width=120,
-                            callback=lambda: self._disconnect_discord_bot(),
-                        )
-                    styled_text("  Not connected", MUTED, tag="discord_status_text")
-                    dpg.add_spacer(height=4)
-
-                    styled_text("  EMBED IMAGE", LABEL)
-                    with dpg.group(horizontal=True):
-                        _img_path = getattr(self, "discord_embed_image", "")
-                        _img_label = _os.path.basename(_img_path) if _img_path else "Select Image..."
-                        if len(_img_label) > 32:
-                            _img_label = _img_label[:29] + "..."
-                        add_primary_button(
-                            _img_label, tag="embed_image_browse_btn",
-                            width=-40,
-                            callback=lambda: self._browse_embed_image(),
-                        )
-                        dpg.add_button(
-                            tag="embed_image_clear_btn", label="X",
-                            width=35,
-                            callback=lambda: self._clear_embed_image(),
-                        )
-                    dpg.add_spacer(height=4)
-
-                    styled_text("  POST OUTPUT", LABEL)
-                    with dpg.group(horizontal=True):
-                        add_primary_button(
-                            "Events", tag="discord_post_events_btn",
-                            callback=lambda: self._post_to_discord("events"),
-                        )
-                        add_primary_button(
-                            "Popup", tag="discord_post_popup_btn",
-                            callback=lambda: self._post_to_discord("popup"),
-                        )
-                        add_primary_button(
-                            "Signups", tag="discord_post_signups_btn",
-                            callback=lambda: self._post_to_discord("signups"),
-                        )
-                    dpg.add_spacer(height=4)
-
-                    styled_text("  SCHEDULE", LABEL)
-                    with dpg.group(horizontal=True):
-                        dpg.add_input_text(
-                            tag="discord_schedule_datetime",
-                            default_value="",
-                            hint="YYYY-MM-DD HH:MM",
-                            width=-80,
-                        )
-                        btn = dpg.add_button(
-                            label=Icon.SCHEDULE, width=32, height=20,
-                            callback=lambda: self._open_schedule_picker(),
-                        )
-                        bind_icon_font(btn)
-                        dpg.add_combo(
-                            tag="discord_schedule_channel",
-                            items=["events", "popup", "signups"],
-                            default_value="events",
-                            width=70,
-                        )
-                    with dpg.group(horizontal=True):
-                        add_primary_button(
-                            "Schedule", tag="discord_schedule_btn", width=-60,
-                            callback=lambda: self._schedule_discord_post(),
-                        )
-                        dpg.add_button(
-                            label="Pending...", tag="discord_pending_btn",
-                            width=55,
-                            callback=lambda: self._open_pending_popup(),
-                        )
-
-
-
-        # ── Draggable resize handle (shared across all tabs) ──────────────
         dpg.add_button(tag="resize_handle", label="", width=-1, height=4)
         dpg.bind_item_theme("resize_handle", "resize_handle_theme")
         with dpg.item_handler_registry(tag="resize_handle_hr"):
@@ -1293,11 +324,11 @@ class UISetupMixin:
             dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Left,
                                           callback=self._resize_handle_release)
 
-        # ── Output preview (always visible, below tabs) ───────────────────
+        # ── Output preview ────────────────────────────────────────────────
         styled_text("   OUTPUT", HEADER)
         with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
                        borders_outerH=False, borders_outerV=False, pad_outerX=False):
-            for _ in range(4):
+            for _ in range(5):
                 dpg.add_table_column()
             with dpg.table_row():
                 dpg.add_button(tag="fmt_discord", label="Discord", width=-1,
@@ -1308,15 +339,17 @@ class UISetupMixin:
                                callback=lambda: self._toggle_stream_links("quest"))
                 dpg.add_button(tag="fmt_pc",      label="PC",      width=-1,
                                callback=lambda: self._toggle_stream_links("pc"))
-        dpg.add_button(tag="fmt_times", label="Times on", width=-1,
-                       callback=lambda: self._toggle_times())
+                dpg.add_button(tag="fmt_times",   label="Times",   width=-1,
+                               callback=lambda: self._toggle_times())
 
-        with dpg.child_window(tag="output_text_scroll", height=-30,
+        with dpg.child_window(tag="output_text_scroll", height=-135,
                               autosize_x=True):
-            dpg.add_text(
+            dpg.add_input_text(
                 tag="output_text",
                 default_value="",
-                wrap=0,
+                multiline=True,
+                width=-1,
+                height=-1,
             )
 
         with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
@@ -1328,169 +361,71 @@ class UISetupMixin:
                                callback=lambda: self.update_output())
                 add_icon_button(Icon.COPY, tag="copy_output_btn", width=-1, height=20, is_primary=True, callback=lambda: self._copy_output())
 
-    # ── Helpers ───────────────────────────────────────────────────────────
-
-    def _apply_local_mode_visibility(self):
-        """Hide server-dependent tabs/sections when running in local mode."""
-        is_local = getattr(self, "_local_mode", False)
-        for tag in ("DJ", "DiscordTab", "sect_club_vrchat", "sect_roster_booked"):
-            if dpg.does_item_exist(tag):
-                dpg.configure_item(tag, show=not is_local)
-        self._update_auth_card()
-
-    def _update_auth_card(self):
-        """Refresh the auth card button label to reflect sign-in state."""
-        if not dpg.does_item_exist("auth_card_btn"):
-            return
-        _pad = "      "  # space for avatar overlay
-        if self._oauth.is_signed_in:
-            user = self._oauth.user_info or {}
-            name = user.get("username", "Unknown")
-            dpg.configure_item("auth_card_btn", label=f"{_pad}{name}")
-        else:
-            dpg.configure_item("auth_card_btn", label=f"{_pad}Local")
-        self._position_auth_avatar()
-
-    def _position_auth_avatar(self):
-        """Place the avatar image on top of the auth card button."""
-        if not dpg.does_item_exist("auth_card_btn") or not dpg.does_item_exist("auth_card_avatar"):
-            return
-        btn_pos = dpg.get_item_pos("auth_card_btn")
-        btn_h = dpg.get_item_height("auth_card_btn")
-        av_sz = 24
-        x = btn_pos[0] + 8
-        y = btn_pos[1] + max(0, (btn_h - av_sz) // 2)
-        dpg.configure_item("auth_card_avatar", pos=[x, y], show=True)
-
-    def _load_discord_avatar(self, user: dict):
-        """Download and display the user's Discord avatar in the auth card."""
-        user_id = user.get("id", "")
-        avatar_hash = user.get("avatar", "")
-        if not user_id or not avatar_hash:
-            return
-
-        url = f"https://cdn.discordapp.com/avatars/{user_id}/{avatar_hash}.png?size=32"
-
-        def _fetch():
-            try:
-                import urllib.request
-                from PIL import Image
-
-                req = urllib.request.Request(url, headers={"User-Agent": "LineupBuilder/1.2"})
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    data = resp.read()
-                img = Image.open(io.BytesIO(data)).convert("RGBA").resize((32, 32))
-                # Normalise to 0–1 floats for DPG
-                pixels = [v / 255.0 for v in img.tobytes()]
-
-                def _apply():
-                    if dpg.does_item_exist("auth_avatar_tex"):
-                        dpg.delete_item("auth_avatar_tex")
-                    if dpg.does_alias_exist("auth_avatar_tex"):
-                        dpg.remove_alias("auth_avatar_tex")
-                    with dpg.texture_registry():
-                        dpg.add_static_texture(32, 32, pixels, tag="auth_avatar_tex")
-                    if dpg.does_item_exist("auth_avatar_img"):
-                        dpg.configure_item("auth_avatar_img", texture_tag="auth_avatar_tex", show=True)
-                    if dpg.does_item_exist("auth_card_avatar"):
-                        dpg.configure_item("auth_card_avatar", texture_tag="auth_avatar_tex")
-                self._work_queue.put(_apply)
-            except Exception as exc:
-                log.debug("Failed to load Discord avatar: %s", exc)
-
-        threading.Thread(target=_fetch, daemon=True).start()
-
-    def _build_account_drawer(self):
-        """Build the account drawer contents (created once, shown/hidden)."""
-        dpg.add_spacer(height=4)
-
-        # Avatar + status row
+        # ── Compact Discord panel (always visible, below output) ────────────
+        dpg.add_separator()
         with dpg.group(horizontal=True):
-            dpg.add_image(
-                "auth_avatar_tex", tag="account_avatar_img",
-                width=32, height=32, show=False,
+            styled_text("  DISCORD BOT", HEADER)
+            dpg.add_spacer(width=4)
+            styled_text("  Not connected", MUTED, tag="discord_status_text")
+            dpg.add_spacer(width=-1)
+            add_icon_button(
+                Icon.SETTINGS, tag="discord_settings_btn", width=22, height=20,
+                callback=lambda: self._toggle_discord_settings_drawer(),
             )
-            styled_text("  Not signed in", MUTED, tag="account_status_text")
-        dpg.add_spacer(height=6)
 
-        # Sign-in button
-        add_primary_button(
-            "Sign in with Discord",
-            tag="account_signin_btn",
-            width=-1,
-            callback=lambda: self._sign_in_from_app(),
-        )
+        # Settings popup (created once, shown on demand)
+        with dpg.window(tag="discord_settings_popup", label="Discord Settings",
+                        width=380, height=340, show=False, no_collapse=True,
+                        no_resize=False, on_close=lambda: dpg.configure_item("discord_settings_popup", show=False)):
+            self._build_discord_settings_drawer()
 
-        # Sign-out button (hidden when not signed in)
-        add_danger_button(
-            "Sign Out",
-            tag="account_signout_btn",
-            width=-1,
-            callback=lambda: self._sign_out_from_drawer(),
-        )
+        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
+                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
+            for _ in range(2):
+                dpg.add_table_column()
+            with dpg.table_row():
+                add_primary_button(
+                    "Connect", tag="discord_connect_btn", width=-1,
+                    callback=lambda: self._connect_discord_bot(),
+                )
+                dpg.add_button(
+                    tag="discord_disconnect_btn", label="Disconnect", width=-1,
+                    callback=lambda: self._disconnect_discord_bot(),
+                )
 
-        # Local-mode toggle
-        dpg.add_checkbox(
-            tag="account_local_mode_cb",
-            label="Local Mode",
-            default_value=getattr(self, "_local_mode", False),
-            callback=lambda s, a: self._toggle_local_mode_from_drawer(a),
-        )
-        dpg.add_spacer(height=2)
-        styled_text("", ERROR, tag="account_error_label")
+        with dpg.group(horizontal=True):
+            _img_path = getattr(self, "discord_embed_image", "")
+            _img_label = _os.path.basename(_img_path) if _img_path else "Select Image..."
+            if len(_img_label) > 28:
+                _img_label = _img_label[:25] + "..."
+            add_primary_button(
+                _img_label, tag="embed_image_browse_btn", width=-40,
+                callback=lambda: self._browse_embed_image(),
+            )
+            dpg.add_button(
+                tag="embed_image_clear_btn", label="X", width=35,
+                callback=lambda: self._clear_embed_image(),
+            )
 
-    def _toggle_account_drawer(self):
-        """Toggle the account drawer open/closed."""
-        self._account_drawer_open = not self._account_drawer_open
-        show = self._account_drawer_open
-        dpg.configure_item("account_drawer", show=show)
-        # Shrink tabs wrapper to make room for the drawer
-        offset = self._AUTH_BTN_HEIGHT + (self._DRAWER_HEIGHT if show else 0)
-        dpg.configure_item("left_tabs_wrapper", height=-offset)
-        if show:
-            self._refresh_account_drawer()
-        # Reposition avatar overlay after layout shift
-        self._work_queue.put(self._position_auth_avatar)
+        with dpg.table(header_row=False, borders_innerH=False, borders_innerV=False,
+                       borders_outerH=False, borders_outerV=False, pad_outerX=False):
+            for _ in range(3):
+                dpg.add_table_column()
+            with dpg.table_row():
+                add_primary_button(
+                    "Events", tag="discord_post_events_btn", width=-1,
+                    callback=lambda: self._post_to_discord("events"),
+                )
+                add_primary_button(
+                    "Popup", tag="discord_post_popup_btn", width=-1,
+                    callback=lambda: self._post_to_discord("popup"),
+                )
+                add_primary_button(
+                    "Signups", tag="discord_post_signups_btn", width=-1,
+                    callback=lambda: self._post_to_discord("signups"),
+                )
 
-    def _sign_out_from_drawer(self):
-        """Sign out and update the drawer + auth card."""
-        self._local_mode = True
-        self._oauth = type(self._oauth)()
-        self.discord_oauth = {}
-        self.save_settings()
-        self._apply_local_mode_visibility()
-        self._refresh_account_drawer()
-
-    def _toggle_local_mode_from_drawer(self, value):
-        """Toggle local mode from the drawer checkbox."""
-        self._local_mode = bool(value)
-        self._apply_local_mode_visibility()
-        self._refresh_account_drawer()
-
-    def _refresh_account_drawer(self):
-        """Update the account drawer to reflect current sign-in status."""
-        if not dpg.does_item_exist("account_status_text"):
-            return
-        signed_in = self._oauth.is_signed_in
-        if signed_in:
-            user = self._oauth.user_info or {}
-            name = user.get("username", "Unknown")
-            dpg.set_value("account_status_text", f"  Signed in as {name}")
-            dpg.configure_item("account_signin_btn", show=False)
-            dpg.configure_item("account_signout_btn", show=True)
-            dpg.configure_item("account_local_mode_cb", show=False)
-            dpg.set_value("account_error_label", "")
-            if dpg.does_item_exist("account_avatar_img"):
-                dpg.configure_item("account_avatar_img", show=True)
-            self._load_discord_avatar(user)
-        else:
-            dpg.set_value("account_status_text", "  Not signed in")
-            dpg.configure_item("account_signin_btn", show=True)
-            dpg.configure_item("account_signout_btn", show=False)
-            dpg.configure_item("account_local_mode_cb", show=True)
-            if dpg.does_item_exist("account_avatar_img"):
-                dpg.configure_item("account_avatar_img", show=False)
-        self._update_auth_card()
+    # ── Helpers ───────────────────────────────────────────────────────────
 
     def _save_discord_credentials(self):
         """Persist client ID from the input field."""
@@ -1610,11 +545,20 @@ class UISetupMixin:
         )
 
     def _toggle_discord_settings_drawer(self):
-        """Toggle the Discord settings drawer open/closed."""
-        self._discord_settings_drawer_open = not self._discord_settings_drawer_open
-        show = self._discord_settings_drawer_open
-        dpg.configure_item("discord_settings_drawer", show=show)
-        if show and self._discord_service.is_running:
+        """Toggle the Discord settings popup open/closed."""
+        tag = "discord_settings_popup"
+        if not dpg.does_item_exist(tag):
+            return
+        currently_shown = dpg.is_item_shown(tag)
+        if not currently_shown:
+            # Center in viewport
+            vp_w = dpg.get_viewport_width()
+            vp_h = dpg.get_viewport_height()
+            win_w = dpg.get_item_width(tag) or 380
+            win_h = dpg.get_item_height(tag) or 340
+            dpg.set_item_pos(tag, [(vp_w - win_w) // 2, (vp_h - win_h) // 2])
+        dpg.configure_item(tag, show=not currently_shown)
+        if not currently_shown and self._discord_service.is_running:
             self._fetch_discord_channels()
 
     def _save_discord_channels(self):
@@ -1734,92 +678,28 @@ class UISetupMixin:
             self._set_discord_status("Lineup is empty — nothing to post.")
             return
 
-        # ── Build embed ───────────────────────────────────────────────
-        start = snap.start_datetime
-        unix = int(start.timestamp())
+        body_text = dpg.get_value("output_text") if dpg.does_item_exist("output_text") else ""
+        if not body_text.strip():
+            self._set_discord_status("Output is empty.")
+            return
 
-        embed = discord.Embed(
-            title=snap.full_title or "Lineup",
-            description=f"<t:{unix}:F> (<t:{unix}:R>)",
-            color=0x5865F2,  # Discord blurple
-            timestamp=_dt.datetime.fromtimestamp(unix, tz=_dt.timezone.utc),
-        )
-
-        if snap.genres:
-            embed.add_field(
-                name="Genres",
-                value=" // ".join(snap.genres),
-                inline=False,
-            )
-
-        # Build lineup field(s) — split at 1024 chars (embed field limit)
-        ptr = start
-        lineup_lines: list[str] = []
-        for slot in snap.slots:
-            name = slot.name or "TBA"
-            if snap.names_only:
-                lineup_lines.append(f"**{name}**")
-            else:
-                ts = int(ptr.timestamp())
-                genre_str = f"  •  {slot.genre}" if slot.genre else ""
-                lineup_lines.append(f"<t:{ts}:t>  **{name}**{genre_str}")
-            ptr += _dt.timedelta(minutes=slot.duration)
-
-        lineup_text = "\n".join(lineup_lines)
-        # Discord embed fields max 1024 chars; split into pages
-        chunks = [lineup_text[i : i + 1024] for i in range(0, len(lineup_text), 1024)]
-        for i, chunk in enumerate(chunks):
-            embed.add_field(
-                name="Lineup" if i == 0 else "\u200b",
-                value=chunk,
-                inline=False,
-            )
-
-        # Social links footer
-        link_order = ["TIMELINE", "VRCPOP", "X", "IG", "DISCORD", "VRC GROUP"]
-        if snap.social_links:
-            parts = [
-                f"[{label}]({snap.social_links[label]})"
-                for label in link_order
-                if snap.social_links.get(label, "").strip()
-            ]
-            if parts:
-                embed.add_field(name="Links", value=" | ".join(parts), inline=False)
-
-        # Additional user-appended text (typed after auto-generated output)
-        from ...backend.output.output_generator import OutputGenerator
-        generated = OutputGenerator.generate(snap)
-        actual = dpg.get_value("output_text") if dpg.does_item_exist("output_text") else ""
-        if actual.startswith(generated):
-            extra = actual[len(generated):].strip()
-        else:
-            extra = ""
-        if extra:
-            extra_chunks = [extra[i : i + 1024] for i in range(0, len(extra), 1024)]
-            for i, chunk in enumerate(extra_chunks):
-                embed.add_field(
-                    name="Notes" if i == 0 else "\u200b",
-                    value=chunk,
-                    inline=False,
-                )
-
-        # Embed image — URL or local file
         import os
         image_path = getattr(self, "discord_embed_image", "").strip()
-        embed.set_footer(text="GitHub | Baebu/lineup_builder")
 
         attach_file = None
+        custom_content = body_text
         if image_path:
             if image_path.startswith(("http://", "https://")):
-                embed.set_image(url=image_path)
+                custom_content += f"\n{image_path}"
             elif os.path.isfile(image_path):
                 filename = os.path.basename(image_path)
                 attach_file = discord.File(image_path, filename=filename)
-                embed.set_image(url=f"attachment://{filename}")
 
         self._set_discord_status(f"Posting to {channel_key}...")
         self._discord_service.send_embed(
-            channel_id, embed,
+            channel_id, 
+            embed=None,
+            content=custom_content,
             file=attach_file,
             on_success=lambda: self._set_discord_status(
                 f"Posted to {channel_key} channel."),
@@ -1866,9 +746,12 @@ class UISetupMixin:
         if not hasattr(self, "_discord_scheduled_posts"):
             self._discord_scheduled_posts = []
 
+        body_text = dpg.get_value("output_text") if dpg.does_item_exist("output_text") else ""
+
         entry = {
             "datetime": raw_dt,
             "channel": channel_key,
+            "content": body_text,
             "snapshot": snap,
             "image": getattr(self, "discord_embed_image", ""),
         }
@@ -2061,6 +944,7 @@ class UISetupMixin:
             serializable.append({
                 "datetime": entry.get("datetime", ""),
                 "channel": entry.get("channel", ""),
+                "content": entry.get("content", ""),
                 "image": entry.get("image", ""),
                 "snapshot": self._snapshot_to_dict(entry.get("snapshot"))
                             if entry.get("snapshot") else None,
@@ -2122,6 +1006,7 @@ class UISetupMixin:
                 self._discord_scheduled_posts.append({
                     "datetime": entry["datetime"],
                     "channel": entry.get("channel", "events"),
+                    "content": entry.get("content", ""),
                     "image": entry.get("image", ""),
                     "snapshot": snap,
                 })
@@ -2275,6 +1160,9 @@ class UISetupMixin:
         if dpg.does_item_exist("right_tabs_content"):
             self._base_tabs_height = dpg.get_item_height("right_tabs_content")
             self._base_vp_height = dpg.get_viewport_height()
+            # Persist divider position
+            self.settings["divider_height"] = self._base_tabs_height
+            self.save_settings()
 
     def _on_viewport_resize(self, sender=None, app_data=None):
         """Scale right panel contents when the viewport is resized."""
@@ -2288,4 +1176,3 @@ class UISetupMixin:
         max_h = vp_h - 200
         new_h = min(new_h, max_h)
         dpg.configure_item("right_tabs_content", height=new_h)
-        self._position_auth_avatar()

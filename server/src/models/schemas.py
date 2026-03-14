@@ -20,6 +20,7 @@ class DJInfo(BaseModel):
 class EmbedRequest(BaseModel):
     """Mirrors EventSnapshot — everything needed to build the Discord embed."""
     channel_id: str
+    content: str = ""
     title: str = ""
     vol: str = ""
     timestamp: str = ""  # "YYYY-MM-DD HH:MM"
@@ -34,6 +35,7 @@ class ScheduleRequest(BaseModel):
     """Schedule a post for a future time."""
     post_at_utc: str  # ISO 8601 datetime string
     channel_id: str
+    content: str = ""
     title: str = ""
     vol: str = ""
     timestamp: str = ""
@@ -53,6 +55,7 @@ class UpdateScheduleRequest(BaseModel):
     """Partial update for a scheduled post — only supplied fields are changed."""
     post_at_utc: str | None = None
     channel_id: str | None = None
+    content: str | None = None
     title: str | None = None
     vol: str | None = None
     timestamp: str | None = None

@@ -1,0 +1,19 @@
+=== update_output call ===
+caller stack:
+  File "C:\Users\tyler\Desktop\lineup_builder\desktop\main.py", line 15, in main
+    app.run()
+  File "C:\Users\tyler\Desktop\lineup_builder\desktop\src\frontend\app.py", line 149, in run
+    self.process_queue()
+  File "C:\Users\tyler\Desktop\lineup_builder\desktop\src\backend\debounce.py", line 24, in process_queue
+    self._work_queue.get_nowait()()
+  File "C:\Users\tyler\Desktop\lineup_builder\desktop\src\backend\debounce.py", line 50, in _run_scheduled_update
+    self.update_output()
+
+_SOCIAL_FIELDS widget state:
+  TIMELINE: exists=True, val=''
+  VRCPOP: exists=True, val=''
+  X: exists=True, val=''
+  IG: exists=True, val=''
+social_links dict: {}
+merged_social in snapshot: {}
+output_format: discord
