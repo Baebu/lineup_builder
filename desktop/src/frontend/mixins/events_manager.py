@@ -37,6 +37,7 @@ class EventsMixin:
             "genres": self.active_genres.copy(),
             "names_only": self.names_only.get(),
             "social_links": dict(getattr(self, "social_links", {})),
+            "discord_embed_image": getattr(self, "discord_embed_image", ""),
             "slots": []
         }
 
@@ -104,6 +105,9 @@ class EventsMixin:
             self.names_only.set(False)
             self.social_links = {}
             self._sync_social_link_inputs()
+            self.discord_embed_image = ""
+            if dpg.does_item_exist("embed_image_browse_btn"):
+                dpg.set_item_label("embed_image_browse_btn", "Select Image...")
             for slot in self.slots:
                 slot.destroy()
             self.slots.clear()
@@ -115,19 +119,14 @@ class EventsMixin:
                 dpg.delete_item(_wt)
 
         if has_content:
-            wt = "new_event_confirm"
-            if dpg.does_item_exist(wt):
-                dpg.delete_item(wt)
-            with dpg.window(tag=wt, label="New Event", modal=True,
-                            autosize=True, no_resize=True, no_scrollbar=True,
-                            pos=popup_pos()):
-                dpg.add_text("Clear the current lineup and start fresh?")
-                with dpg.group(horizontal=True):
-                    yes_btn = dpg.add_button(label="Yes", width=140, user_data=wt,
-                                   callback=lambda s, a, u: _do_new(u))
-                    dpg.bind_item_theme(yes_btn, "primary_btn_theme")
-                    dpg.add_button(label="No", width=140, user_data=wt,
-                                   callback=lambda s, a, u: dpg.delete_item(u))
+            from ..ui.confirm_dialog import confirm
+            confirm(
+                "Clear the current lineup and start fresh?",
+                on_confirm=_do_new,
+                title="New Event",
+                confirm_label="Clear",
+                danger=True
+            )
         else:
             _do_new()
 
@@ -163,6 +162,15 @@ class EventsMixin:
         self.names_only.set(event_data.get("names_only", False))
         self.social_links = event_data.get("social_links", {}).copy()
         self._sync_social_link_inputs()
+
+        img_path = event_data.get("discord_embed_image", "")
+        self.discord_embed_image = img_path
+        if dpg.does_item_exist("embed_image_browse_btn"):
+            if img_path:
+                import os
+                dpg.set_item_label("embed_image_browse_btn", os.path.basename(img_path))
+            else:
+                dpg.set_item_label("embed_image_browse_btn", "Select Image...")
 
         for slot in self.slots:
             slot.destroy()
@@ -221,6 +229,7 @@ class EventsMixin:
             "genres": self.active_genres.copy(),
             "names_only": self.names_only.get(),
             "social_links": dict(getattr(self, "social_links", {})),
+            "discord_embed_image": getattr(self, "discord_embed_image", ""),
             "slots": [
                 {"name": s.name_var.get().strip(), "genre": s.genre_var.get().strip(), "duration": s.duration_var.get()}
                 for s in self.slots

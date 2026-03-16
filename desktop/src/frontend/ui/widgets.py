@@ -36,7 +36,6 @@ def add_icon_button(icon: str, is_danger: bool = False, is_primary: bool = False
     """Create a standardized icon button, automatically binding the icon font and applying the proper theme."""
     if "width" not in kwargs and "width=-1" not in str(kwargs):
         kwargs["width"] = T.ICON_BTN_W
-    kwargs.setdefault("height", 20)
 
     btn = dpg.add_button(label=icon, **kwargs)
     bind_icon_font(btn)
@@ -50,27 +49,38 @@ def add_icon_button(icon: str, is_danger: bool = False, is_primary: bool = False
 
 def add_primary_button(label: str, **kwargs) -> int:
     """Create a standard primary button with the primary theme applied."""
-    kwargs.setdefault("height", 20)
     btn = dpg.add_button(label=label, **kwargs)
     dpg.bind_item_theme(btn, "primary_btn_theme")
     return btn
 
 def add_danger_button(label: str, **kwargs) -> int:
     """Create a standard danger button with the danger theme applied."""
-    kwargs.setdefault("height", 20)
     btn = dpg.add_button(label=label, **kwargs)
     dpg.bind_item_theme(btn, "danger_btn_theme")
     return btn
 
+def add_context_menu(item_tag: int | str):
+    """Adds a standard Copy/Paste right click menu to a text input."""
+    with dpg.popup(item_tag, mousebutton=dpg.mvMouseButton_Right):
+        def _copy(s, a, u):
+            val = dpg.get_value(item_tag)
+            if val:
+                dpg.set_clipboard_text(str(val))
+        def _paste(s, a, u):
+            clip = dpg.get_clipboard_text()
+            if clip:
+                dpg.set_value(item_tag, clip)
+        dpg.add_menu_item(label="Copy", callback=_copy)
+        dpg.add_menu_item(label="Paste", callback=_paste)
+
 def add_styled_input(**kwargs) -> int:
-    """Create a stylized text input widget, applying appropriate defaults."""
-    if not kwargs.get("multiline"):
-        kwargs.setdefault("height", 20)
-    return dpg.add_input_text(**kwargs)
+    """Create a stylized text input widget, applying appropriate defaults and context menu."""
+    item = dpg.add_input_text(**kwargs)
+    add_context_menu(item)
+    return item
 
 def add_styled_combo(**kwargs) -> int:
     """Create a dropdown combo box."""
-    kwargs.setdefault("height", 20)
     return dpg.add_combo(**kwargs)
 
 
@@ -89,11 +99,12 @@ def section(app, section_id: str, label: str, default_open: bool = True):
 
     # Header toggle button
     collapsed = app._section_collapsed.get(section_id, not default_open)
+    icon = "\u25ba" if collapsed else "\u25bc"
     btn = dpg.add_button(
-        label=f"  {label}",
+        label=f" {icon}  {label}",
         tag=f"sect_btn_{section_id}",
         callback=lambda: app._toggle_section(section_id),
-        width=-1, height=20,
+        width=-1,
     )
     dpg.bind_item_theme(btn, "section_btn_theme")
 

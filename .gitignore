@@ -32,3 +32,6 @@
 /web/node_modules/
 /web/dist/
 /server/uploads
+/log.txt
+/debug_social.txt
+/show.txt

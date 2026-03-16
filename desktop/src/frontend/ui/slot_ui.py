@@ -123,6 +123,13 @@ def build_add_slot_row(app, parent_tag: str):
         dpg.delete_item(ADD_SLOT_ROW_TAG)
 
     with dpg.group(tag=ADD_SLOT_ROW_TAG, parent=parent_tag):
+        if not app.slots:
+            dpg.add_spacer(height=20)
+            styled_text("  Your lineup is empty.", LABEL)
+            styled_text("  Drag a DJ from the roster or", MUTED)
+            styled_text("  click below to add a slot.", MUTED)
+            dpg.add_spacer(height=10)
+
         with dpg.group(horizontal=True):
             add_primary_button(
                 "+ Add DJ Slot",

@@ -8,16 +8,18 @@
     "copyToClipboard": false
   },
   "include": [
-    "main.py",
-    "dev.py",
-    "src/__init__.py",
-    "src/backend/**/*.py",
-    "src/frontend/**/*.py",
-    "tests/**/*.py",
-    ".github/copilot-instructions.md",
-    "README.md",
-    "requirements.txt",
-    "pyproject.toml"
+    "desktop/main.py",
+    "desktop/dev.py",
+    "desktop/src/__init__.py",
+    "desktop/src/backend/**/*.py",
+    "desktop/src/frontend/**/*.py",
+    "desktop/README.md",
+    "desktop/requirements.txt",
+    "desktop/pyproject.toml",
+    "desktop/desktop_pack_with_root.txt",
+    "desktop/desktop_pack.txt",
+    "desktop/lineup_builder.spec",
+    ".github/copilot-instructions.md"
   ],
   "ignore": {
     "useGitignore": true,

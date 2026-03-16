@@ -138,6 +138,9 @@ class OutputMixin:
 
         if dpg.does_item_exist("output_text"):
             dpg.set_value("output_text", body)
+            
+        if hasattr(self, "_update_visual_preview"):
+            self._update_visual_preview()
 
     # ── Copy helpers ──────────────────────────────────────────────────────
 

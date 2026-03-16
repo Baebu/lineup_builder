@@ -47,6 +47,7 @@ class EventSnapshot:
     stream_link_format: str = ""    # "" | "quest" | "pc"
     saved_djs: list[DJInfo] = field(default_factory=list)
     social_links: dict[str, str] = field(default_factory=dict)
+    discord_embed_image: str = ""
 
     @property
     def start_datetime(self) -> datetime.datetime:

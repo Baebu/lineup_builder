@@ -9,12 +9,13 @@ import queue
 
 import dearpygui.dearpygui as dpg
 
-from src.backend.services.discord_service import DiscordService
-from src.backend.models.event_bus import EventBus
-from src.backend.models.lineup_model import LineupModel
-from src.backend.output.output_builder import OutputMixin
-from src.backend.data_manager import DataMixin
-from src.backend.debounce import DebounceMixin
+from ..backend.services.discord_service import DiscordService
+from ..backend.services.discord_oauth import DiscordOAuth
+from ..backend.models.event_bus import EventBus
+from ..backend.models.lineup_model import LineupModel
+from ..backend.output.output_builder import OutputMixin
+from ..backend.data_manager import DataMixin
+from ..backend.debounce import DebounceMixin
 
 from .mixins.drag_drop import DragDropMixin
 from .mixins.events_manager import EventsMixin
@@ -26,9 +27,10 @@ from .mixins.sections import SectionsMixin
 from .mixins.settings_manager import SettingsMixin
 from .mixins.slot_manager import SlotMixin
 from .ui.slot_ui import DPGBoolVar, DPGVar
-from .ui.ui_builder import UISetupMixin
+from .ui.init import UISetupMixin
 from .utils import get_data_dir, get_icon_path
 from .ui.widgets import add_primary_button
+from .ui.toast import tick_toasts
 
 log = logging.getLogger("app")
 
@@ -69,9 +71,17 @@ class App(
         self.bus   = EventBus()
         self.model = LineupModel(self.bus)
         self._discord_service = DiscordService()
+        self._oauth = DiscordOAuth()
         self._local_mode = True
 
         self.load_settings()
+
+        # Try to restore a previous Discord OAuth session
+        saved_oauth = getattr(self, "discord_oauth", {})
+        if saved_oauth.get("access_token"):
+            self._oauth.restore(saved_oauth)
+            if self._oauth.is_signed_in:
+                self._local_mode = False
 
         _icon = get_icon_path() or ""
         dpg.create_viewport(
@@ -89,11 +99,45 @@ class App(
 
         self._init_main_app()
 
-    # ── Login window ──────────────────────────────────────────────────────
+    def _sign_in_from_app(self):
+        """Sign in with Discord from the Account tab."""
+        import threading
 
+        client_id = getattr(self, "discord_client_id", "")
+        client_secret = getattr(self, "discord_client_secret", "")
 
+        if not client_id:
+            if dpg.does_item_exist("account_error_label"):
+                dpg.set_value("account_error_label", "  Discord Client ID not configured.")
+            return
 
-    # ── Main app init ─────────────────────────────────────────────────────
+        if dpg.does_item_exist("account_error_label"):
+            dpg.set_value("account_error_label", "  Opening browser...")
+        if dpg.does_item_exist("account_signin_btn"):
+            dpg.configure_item("account_signin_btn", enabled=False)
+
+        def _on_success(user_info):
+            # Push result to work queue so it runs on the main thread
+            def _finish():
+                self._local_mode = False
+                self.discord_oauth = self._oauth.to_dict()
+                self.save_settings()
+                self._refresh_account_drawer()
+            self._work_queue.put(_finish)
+
+        def _on_error(msg):
+            def _show_err():
+                if dpg.does_item_exist("account_error_label"):
+                    dpg.set_value("account_error_label", f"  {msg}")
+                if dpg.does_item_exist("account_signin_btn"):
+                    dpg.configure_item("account_signin_btn", enabled=True)
+            self._work_queue.put(_show_err)
+
+        self._oauth.start_sign_in(
+            client_id, client_secret,
+            on_success=_on_success,
+            on_error=_on_error,
+        )
 
     def _init_main_app(self):
         """Initialize the full application (state + UI) inside the existing viewport."""
@@ -105,7 +149,7 @@ class App(
         self.collab_var      = DPGBoolVar(default=False)
         self.collab_with_var = DPGVar(default="")
         self.event_timestamp = DPGVar(default=now.strftime("%Y-%m-%d") + " 20:00")
-        self.active_genres   = []
+        self.active_genres   =[]
         self.names_only      = DPGBoolVar(default=False)
         self.output_format   = DPGVar(default="discord")
         self.stream_link_format = DPGVar(default="")
@@ -138,15 +182,14 @@ class App(
         # Give DPG a few frames to calculate real widget sizes before packing genres
         dpg.set_frame_callback(3, lambda: self._schedule_genre_refresh())
 
-
-
-
-
+        # Update the auth card to reflect current sign-in status
+        dpg.set_frame_callback(5, lambda: self._update_auth_card())
 
     def run(self):
         """Main entry point — load minimal app."""
         while dpg.is_dearpygui_running():
             self.process_queue()
+            tick_toasts()
             dpg.render_dearpygui_frame()
         self._on_close()
         dpg.destroy_context()

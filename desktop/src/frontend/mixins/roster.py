@@ -243,25 +243,32 @@ class RosterMixin:
                 tag=f"{win_tag}_exact", label="Use exact link (skip Quest/PC conversion)")
             err_text = styled_text("", ERROR, show=False)
             with dpg.group(horizontal=True):
-                def _save(s, a, _ni=name_input, _si=stream_input, _ec=exact_check,
-                          _er=err_text, _wt=win_tag):
-                    name = (dpg.get_value(_ni) or "").strip()
+                save_data = {
+                    "name_input": name_input,
+                    "stream_input": stream_input,
+                    "exact_check": exact_check,
+                    "err_text": err_text,
+                    "win_tag": win_tag
+                }
+                def _save(sender, app_data, user_data):
+                    d = user_data
+                    name = (dpg.get_value(d["name_input"]) or "").strip()
                     if not name:
-                        dpg.show_item(_er); dpg.set_value(_er, "Name is required."); return
-                    if name.lower() in [d.get("name", "").lower() for d in self.saved_djs]:
-                        dpg.show_item(_er); dpg.set_value(_er, "Name already exists."); return
+                        dpg.show_item(d["err_text"]); dpg.set_value(d["err_text"], "Name is required."); return
+                    if name.lower() in [dj.get("name", "").lower() for dj in self.saved_djs]:
+                        dpg.show_item(d["err_text"]); dpg.set_value(d["err_text"], "Name already exists."); return
                     self.saved_djs.append({
                         "name": name,
-                        "stream": (dpg.get_value(_si) or "").strip(),
-                        "exact_link": dpg.get_value(_ec),
+                        "stream": (dpg.get_value(d["stream_input"]) or "").strip(),
+                        "exact_link": dpg.get_value(d["exact_check"]),
                     })
                     self._save_library()
                     self.refresh_dj_roster_ui()
                     self._work_queue.put(self._refresh_slot_combos)
                     self._refresh_all_slot_info()
                     self._schedule_update()
-                    dpg.delete_item(_wt)
-                save_btn = dpg.add_button(label="Save", width=140, callback=_save)
+                    dpg.delete_item(d["win_tag"])
+                save_btn = dpg.add_button(label="Save", width=140, user_data=save_data, callback=_save)
                 dpg.bind_item_theme(save_btn, "primary_btn_theme")
 
 

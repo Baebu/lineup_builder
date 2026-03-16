@@ -55,7 +55,7 @@ FONT_SIZE_DEFAULT = 16    # base UI font size
 # Each style is a dict of kwargs forwarded to dpg.add_text().
 # To change how any text category looks app-wide, edit its dict here.
 
-HEADER  = {"color": T.DPG_ACCENT}           # section headers: "EVENT CONFIGURATION", "DJ ROSTER", etc.
+HEADER  = {"color": T.DPG_ACCENT}            # section headers: "EVENT CONFIGURATION", "DJ ROSTER", etc.
 LABEL   = {"color": T.DPG_TEXT_SECONDARY}    # field labels: "EVENT TITLE", "GENRES", etc.
 BODY    = {"color": T.DPG_TEXT_PRIMARY}      # primary body text: event titles, DJ names
 MUTED   = {"color": T.DPG_TEXT_MUTED}        # hints, disabled text, secondary info
@@ -85,11 +85,11 @@ def styled_text(label: str, style: dict = None, **kwargs) -> int:
 def _find_system_font() -> str | None:
     """Return path to a suitable system sans-serif TTF."""
     if sys.platform == "win32":
-        candidates = ["C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/arial.ttf"]
+        candidates =["C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/arial.ttf"]
     elif sys.platform == "darwin":
-        candidates = ["/System/Library/Fonts/SFNS.ttf", "/Library/Fonts/Arial.ttf"]
+        candidates =["/System/Library/Fonts/SFNS.ttf", "/Library/Fonts/Arial.ttf"]
     else:
-        candidates = [
+        candidates =[
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         ]
@@ -111,19 +111,42 @@ def _find_icon_font() -> str | None:
     return path if os.path.exists(path) else None
 
 
-# Module-level reference to the icon font (set by setup_fonts)
+# Module-level references to the loaded fonts
 icon_font = None
+h1_font = None
+h2_font = None
+h3_font = None
 
 
 def setup_fonts(size: int = FONT_SIZE_DEFAULT) -> int | None:
-    """Load a system sans-serif font and a Material Symbols icon font.
+    """Load a system sans-serif font, bold variants for headers, and a Material Symbols icon font.
 
     Call once after dpg.create_context() and before any widget creation.
     """
-    global icon_font
+    global icon_font, h1_font, h2_font, h3_font
     font_path = _find_system_font()
     if not font_path:
         return None
+
+    # Attempt to locate the bold variant of the system font
+    bold_path = font_path
+    dir_name = os.path.dirname(font_path)
+    base_name = os.path.basename(font_path).lower()
+    
+    if base_name == "segoeui.ttf":
+        bold_path = os.path.join(dir_name, "segoeuib.ttf")
+    elif base_name == "arial.ttf":
+        if os.path.exists(os.path.join(dir_name, "arialbd.ttf")):
+            bold_path = os.path.join(dir_name, "arialbd.ttf")
+        elif os.path.exists(os.path.join(dir_name, "Arial Bold.ttf")):
+            bold_path = os.path.join(dir_name, "Arial Bold.ttf")
+    elif base_name == "dejavusans.ttf":
+        bold_path = os.path.join(dir_name, "DejaVuSans-Bold.ttf")
+    elif base_name == "liberationsans-regular.ttf":
+        bold_path = os.path.join(dir_name, "LiberationSans-Bold.ttf")
+    
+    if not os.path.exists(bold_path):
+        bold_path = font_path
 
     icon_path = _find_icon_font()
 
@@ -132,6 +155,20 @@ def setup_fonts(size: int = FONT_SIZE_DEFAULT) -> int | None:
         with dpg.font(font_path, size) as main_font:
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Default)
             dpg.add_font_range(0x00A0, 0x02FF)   # Latin Extended
+            dpg.add_font_chars([0x25BC, 0x25BA]) # ▼ and ► for collapsible headers
+            
+        with dpg.font(bold_path, int(size * 1.5)) as h1_font:
+            dpg.add_font_range_hint(dpg.mvFontRangeHint_Default)
+            dpg.add_font_range(0x00A0, 0x02FF)
+            
+        with dpg.font(bold_path, int(size * 1.25)) as h2_font:
+            dpg.add_font_range_hint(dpg.mvFontRangeHint_Default)
+            dpg.add_font_range(0x00A0, 0x02FF)
+            
+        with dpg.font(bold_path, int(size * 1.1)) as h3_font:
+            dpg.add_font_range_hint(dpg.mvFontRangeHint_Default)
+            dpg.add_font_range(0x00A0, 0x02FF)
+
         if icon_path:
             with dpg.font(icon_path, size) as icon_font:
                 dpg.add_font_range(0xE000, 0xF8FF)  # PUA icon range

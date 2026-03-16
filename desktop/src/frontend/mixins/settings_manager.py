@@ -36,7 +36,7 @@ def _load_dotenv() -> dict[str, str]:
 DEFAULT_SETTINGS = {
     # Layout
     "left_panel_width": 325,
-    "ui_scale": 1.0,
+    "ui_scale": 1.25,
 
     # Fixed Button Colors (Theme independent)
     "primary_color":   "#4F46E5",
@@ -59,7 +59,7 @@ DEFAULT_SETTINGS = {
     "text_secondary":  "#94A3B8",
 }
 
-BUILTIN_PRESETS = [
+BUILTIN_PRESETS =[
     # ── Cool / Neutral ────────────────────────────────────────────────────
     {
         "name": "Slate (Default)",
@@ -203,7 +203,7 @@ class SettingsMixin:
     def load_settings(self):
         """Load settings from JSON, falling back to defaults. Must be called before setup_ui."""
         self.settings = dict(DEFAULT_SETTINGS)
-        self.user_presets: list = []
+        self.user_presets: list =[]
         self.sync_data_dir: str = ""
         self.persistent_links: dict = {
             "DISCORD":   {"link": "", "enabled": False},
@@ -213,7 +213,7 @@ class SettingsMixin:
             "name": "",
             "links": {},
             "logo": "",
-            "availability": [],
+            "availability":[],
         }
         self.discord_channels: dict = {
             "events": "",
@@ -223,6 +223,9 @@ class SettingsMixin:
         self.discord_bot_token: str = ""
         self.discord_client_id: str = ""
         self.discord_embed_image: str = ""
+        self.discord_ping_server: str = ""
+        self.discord_ping_roles: str = ""
+        self.discord_channel_id: str = ""
 
         # Section layout state (collapsible drawers)
         self._section_collapsed: dict[str, bool] = {}
@@ -242,7 +245,7 @@ class SettingsMixin:
                 self.settings.update(
                     {k: v for k, v in data.items() if k in DEFAULT_SETTINGS}
                 )
-                self.user_presets = data.get("user_presets", [])
+                self.user_presets = data.get("user_presets",[])
                 self.sync_data_dir = data.get("sync_data_dir", "")
                 for key in self.persistent_links:
                     saved = data.get("persistent_links", {}).get(key)
@@ -256,7 +259,9 @@ class SettingsMixin:
                     self.discord_channels.update(saved_channels)
                 self.discord_bot_token = data.get("discord_bot_token", "")
                 self.discord_client_id = data.get("discord_client_id", "")
-                self.discord_embed_image = data.get("discord_embed_image", "")
+                self.discord_ping_server = data.get("discord_ping_server", "")
+                self.discord_ping_roles = data.get("discord_ping_roles", "")
+                self.discord_channel_id = data.get("discord_channel_id", "")
                 # Section layout persistence
                 saved_collapsed = data.get("section_collapsed", {})
                 if isinstance(saved_collapsed, dict):
@@ -282,7 +287,9 @@ class SettingsMixin:
                      "discord_channels": getattr(self, "discord_channels", {}),
                      "discord_bot_token": getattr(self, "discord_bot_token", ""),
                      "discord_client_id": getattr(self, "discord_client_id", ""),
-                     "discord_embed_image": getattr(self, "discord_embed_image", ""),
+                     "discord_ping_server": getattr(self, "discord_ping_server", ""),
+                     "discord_ping_roles": getattr(self, "discord_ping_roles", ""),
+                     "discord_channel_id": getattr(self, "discord_channel_id", ""),
                      "section_collapsed": getattr(self, "_section_collapsed", {})},
                     f, indent=2,
                 )
@@ -348,7 +355,7 @@ class SettingsMixin:
                 dpg.add_theme_style(dpg.mvStyleVar_WindowBorderSize, S.WINDOW_BORDER)
                 dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize,  S.FRAME_BORDER)
         # ── Explicit Button Themes ──────────────────────────────────────
-        _btn_tags = ["primary_btn_theme", "secondary_btn_theme",
+        _btn_tags =["primary_btn_theme", "secondary_btn_theme",
                      "success_btn_theme", "danger_btn_theme",
                      "resize_handle_theme", "local_toggle_active_theme",
                      "section_btn_theme"]
@@ -420,7 +427,7 @@ class SettingsMixin:
         dpg.bind_theme(global_theme)
 
         # Rebind persistent buttons whose item-theme binding was invalidated
-        _primary_persistent = ["save_event_btn", "new_dj_btn", "add_dj_slot_btn",
+        _primary_persistent =["save_event_btn", "new_dj_btn", "add_dj_slot_btn",
                                "copy_output_btn"]
         for tag in _primary_persistent:
             if dpg.does_item_exist(tag):
@@ -432,7 +439,7 @@ class SettingsMixin:
             self._schedule_update()
 
         self._applied_settings = dict(self.settings)
-        dpg.set_global_font_scale(float(s.get("ui_scale", 0.75)))
+        dpg.set_global_font_scale(s.get("ui_scale", 1.25))
         self._set_titlebar_color(
             bg=s.get("card_bg",       "#0F172A"),
             text=s.get("text_primary", "#CBD5E1"),
@@ -457,7 +464,7 @@ class SettingsMixin:
         try:
             hwnd = ctypes.windll.user32.FindWindowW(None, "Lineup Builder")
             if hwnd:
-                for attr, val in [
+                for attr, val in[
                     (DWMWA_BORDER_COLOR,  _colorref(border)),
                     (DWMWA_CAPTION_COLOR, _colorref(bg)),
                     (DWMWA_TEXT_COLOR,    _colorref(text)),
@@ -472,10 +479,12 @@ class SettingsMixin:
 
     def apply_preset(self, preset_settings: dict):
         """Load a preset's color/font values and rebuild the settings tab."""
+        current_scale = self.settings.get("ui_scale", 1.25)
         self._applied_settings = dict(self.settings)
         self.settings.update(
             {k: v for k, v in preset_settings.items() if k in DEFAULT_SETTINGS}
         )
+        self.settings["ui_scale"] = current_scale
         self.save_settings()
         self.apply_theme()
         self._build_settings_tab()
@@ -490,7 +499,7 @@ class SettingsMixin:
         self.save_settings()
 
     def delete_preset(self, name: str):
-        self.user_presets = [p for p in self.user_presets if p["name"] != name]
+        self.user_presets =[p for p in self.user_presets if p["name"] != name]
         self.save_settings()
 
     # ── Settings tab builder ──────────────────────────────────────────────
@@ -516,10 +525,7 @@ class SettingsMixin:
             preset = next((p for p in BUILTIN_PRESETS if p["name"] == choice), None)
             if not preset:
                 return
-            self.settings.update(preset["settings"])
-            self.save_settings()
-            self.apply_theme()
-            self._build_settings_tab()
+            self.apply_preset(preset["settings"])
 
         _theme_combo = dpg.add_combo(items=preset_names, default_value=current_selection,
                       parent=container, width=-1, callback=_on_theme_change)
@@ -530,27 +536,21 @@ class SettingsMixin:
         dpg.add_separator(parent=container)
 
         # ── UI Scale ──────────────────────────────────────────────────────
-        styled_text("   UI SCALE", HEADER, parent=container)
-        current_scale = float(self.settings.get("ui_scale", 1.0))
-        styled_text(f"{current_scale:.2f}\u00d7", LABEL, parent=container,
-                     tag="ui_scale_label")
-
-        def _on_scale(s, a):
-            # slider gives int steps 75..200 representing 0.75..2.00
-            raw = dpg.get_value(s)
-            scale = round(raw / 100, 2)
-            self.settings["ui_scale"] = scale
+        styled_text("   INTERFACE", HEADER, parent=container)
+        def _on_scale_change(s, a):
+            self.settings["ui_scale"] = a
             self.save_settings()
-            self.apply_theme()
-            if dpg.does_item_exist("ui_scale_label"):
-                dpg.set_value("ui_scale_label", f"Scale: {scale:.2f}×")
+            dpg.set_global_font_scale(a)
 
-        dpg.add_slider_int(
-            min_value=75, max_value=125,
-            default_value=int(current_scale * 100),
-            parent=container, width=-1, callback=_on_scale,
-            format="",
-        )
+        with dpg.group(horizontal=True, parent=container):
+            styled_text("   UI Scale", LABEL)
+            dpg.add_slider_float(
+                default_value=self.settings.get("ui_scale", 1.25),
+                min_value=0.75, max_value=2.0, format="%.2f",
+                callback=_on_scale_change, width=-1
+            )
+        dpg.add_separator(parent=container)
+
         dpg.add_button(
             label="Reset to Defaults", parent=container, width=-1,
             callback=lambda: self._reset_to_defaults(),
@@ -563,4 +563,3 @@ class SettingsMixin:
         self.save_settings()
         self.apply_theme()
         self._build_settings_tab()
-

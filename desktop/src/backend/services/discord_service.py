@@ -92,6 +92,58 @@ class DiscordService:
 
         asyncio.run_coroutine_threadsafe(_fetch(), self._loop)
 
+    def get_guilds(
+        self,
+        *,
+        on_result: Callable[[list[tuple[str, int]]], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
+    ):
+        """Fetch all visible guilds."""
+        if not self.is_running:
+            if on_error:
+                on_error("Bot is not connected.")
+            return
+
+        async def _fetch():
+            try:
+                results = [(g.name, g.id) for g in self._client.guilds]
+                results.sort(key=lambda t: t[0].lower())
+                if on_result:
+                    on_result(results)
+            except Exception as exc:
+                if on_error:
+                    on_error(str(exc))
+
+        asyncio.run_coroutine_threadsafe(_fetch(), self._loop)
+
+    def get_roles(
+        self,
+        guild_id: int,
+        *,
+        on_result: Callable[[list[tuple[str, int]]], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
+    ):
+        """Fetch all roles for a guild."""
+        if not self.is_running:
+            if on_error:
+                on_error("Bot is not connected.")
+            return
+
+        async def _fetch():
+            try:
+                guild = self._client.get_guild(guild_id)
+                if not guild:
+                    raise ValueError(f"Guild {guild_id} not found.")
+                results = [(r.name, r.id) for r in guild.roles if not r.is_default()]
+                results.sort(key=lambda t: t[0].lower())
+                if on_result:
+                    on_result(results)
+            except Exception as exc:
+                if on_error:
+                    on_error(str(exc))
+
+        asyncio.run_coroutine_threadsafe(_fetch(), self._loop)
+
     def send_message(
         self,
         channel_id: int,

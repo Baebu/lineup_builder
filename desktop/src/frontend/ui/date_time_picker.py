@@ -73,50 +73,49 @@ def open_datetime_picker(var, callback=None):
     months = ["January", "February", "March", "April", "May", "June",
               "July", "August", "September", "October", "November", "December"]
 
+    state["cal_btns"] = []
+    
     def _rebuild_calendar():
-        if not dpg.does_item_exist("cal_grid_group"):
-            return
-        dpg.delete_item("cal_grid_group", children_only=True)
-
         header_text = f"{months[state['view_month']-1]} {state['view_year']}"
-        dpg.set_value("cal_month_year_text", header_text.center(22))
+        if dpg.does_item_exist("cal_month_year_text"):
+            dpg.set_value("cal_month_year_text", header_text.center(22))
 
         cal = calendar.Calendar(firstweekday=calendar.SUNDAY)
         month_days = cal.monthdatescalendar(state["view_year"], state["view_month"])
+        
+        days = []
+        for week in month_days:
+            days.extend(week)
 
-        with dpg.table(header_row=True, parent="cal_grid_group",
-                       borders_innerH=False, borders_innerV=False):
-            for day_name in ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]:
-                dpg.add_table_column(label=day_name, width_fixed=True,
-                                     init_width_or_weight=32)
+        def _select_date(s, a, u):
+            state["sel_year"] = u.year
+            state["sel_month"] = u.month
+            state["sel_day"] = u.day
+            state["view_year"] = u.year
+            state["view_month"] = u.month
+            _rebuild_calendar()
 
-            for week in month_days:
-                with dpg.table_row():
-                    for dt in week:
-                        is_current_month = (dt.month == state["view_month"])
-                        is_selected = (
-                            dt.year == state["sel_year"]
-                            and dt.month == state["sel_month"]
-                            and dt.day == state["sel_day"]
-                        )
-
-                        btn = dpg.add_button(label=str(dt.day), width=32, height=20)
-
-                        def _select_date(s, a, u):
-                            state["sel_year"] = u.year
-                            state["sel_month"] = u.month
-                            state["sel_day"] = u.day
-                            state["view_year"] = u.year
-                            state["view_month"] = u.month
-                            _rebuild_calendar()
-
-                        dpg.set_item_callback(btn, _select_date)
-                        dpg.set_item_user_data(btn, dt)
-
-                        if is_selected:
-                            dpg.bind_item_theme(btn, "primary_btn_theme")
-                        elif not is_current_month:
-                            dpg.bind_item_theme(btn, "cal_muted_theme")
+        for i, btn in enumerate(state["cal_btns"]):
+            if i < len(days):
+                dt = days[i]
+                dpg.configure_item(btn, label=str(dt.day), show=True)
+                dpg.set_item_user_data(btn, dt)
+                dpg.set_item_callback(btn, _select_date)
+                
+                is_current_month = (dt.month == state["view_month"])
+                is_selected = (
+                    dt.year == state["sel_year"]
+                    and dt.month == state["sel_month"]
+                    and dt.day == state["sel_day"]
+                )
+                
+                dpg.bind_item_theme(btn, 0)
+                if is_selected:
+                    dpg.bind_item_theme(btn, "primary_btn_theme")
+                elif not is_current_month:
+                    dpg.bind_item_theme(btn, "cal_muted_theme")
+            else:
+                dpg.configure_item(btn, show=False)
 
     if not dpg.does_item_exist("cal_muted_theme"):
         with dpg.theme(tag="cal_muted_theme"):
@@ -150,7 +149,16 @@ def open_datetime_picker(var, callback=None):
             dpg.add_button(label=">", width=25, callback=_next)
 
         dpg.add_separator()
-        dpg.add_group(tag="cal_grid_group")
+        dpg.add_separator()
+        with dpg.group(tag="cal_grid_group"):
+            with dpg.table(header_row=True, borders_innerH=False, borders_innerV=False):
+                for day_name in ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]:
+                    dpg.add_table_column(label=day_name, width_fixed=True, init_width_or_weight=32)
+                for r in range(6):
+                    with dpg.table_row():
+                        for c in range(7):
+                            btn = dpg.add_button(label="", width=32, height=20, show=False)
+                            state["cal_btns"].append(btn)
         dpg.add_separator()
 
         # ── Time Picker ──
@@ -342,49 +350,55 @@ def open_date_picker(input_tag: str, callback=None):
         "July", "August", "September", "October", "November", "December",
     ]
 
+    state["cal_btns"] = []
+
     def _rebuild():
-        if not dpg.does_item_exist("dpk_cal_grid"):
-            return
-        dpg.delete_item("dpk_cal_grid", children_only=True)
         header = f"{months[state['view_month']-1]} {state['view_year']}"
-        dpg.set_value("dpk_month_year", header.center(22))
+        if dpg.does_item_exist("dpk_month_year"):
+            dpg.set_value("dpk_month_year", header.center(22))
+            
         cal = calendar.Calendar(firstweekday=calendar.SUNDAY)
-        weeks = cal.monthdatescalendar(state["view_year"], state["view_month"])
-        with dpg.table(header_row=True, parent="dpk_cal_grid",
-                       borders_innerH=False, borders_innerV=False):
-            for d in ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]:
-                dpg.add_table_column(label=d, width_fixed=True, init_width_or_weight=32)
-            for week in weeks:
-                with dpg.table_row():
-                    for dt in week:
-                        is_cur = dt.month == state["view_month"]
-                        is_sel = (dt.year == state["sel_year"]
-                                  and dt.month == state["sel_month"]
-                                  and dt.day == state["sel_day"])
-                        btn = dpg.add_button(label=str(dt.day), width=32, height=20)
+        month_days = cal.monthdatescalendar(state["view_year"], state["view_month"])
+        
+        days = []
+        for week in month_days:
+            days.extend(week)
 
-                        def _sel(s, a, u):
-                            state["sel_year"] = u.year
-                            state["sel_month"] = u.month
-                            state["sel_day"] = u.day
-                            state["view_year"] = u.year
-                            state["view_month"] = u.month
-                            _rebuild()
+        def _select_date(s, a, u):
+            state["sel_year"] = u.year
+            state["sel_month"] = u.month
+            state["sel_day"] = u.day
+            state["view_year"] = u.year
+            state["view_month"] = u.month
+            _rebuild()
 
-                        dpg.set_item_callback(btn, _sel)
-                        dpg.set_item_user_data(btn, dt)
-                        if is_sel:
-                            dpg.bind_item_theme(btn, "primary_btn_theme")
-                        elif not is_cur:
-                            if not dpg.does_item_exist("cal_muted_theme"):
-                                with dpg.theme(tag="cal_muted_theme"):
-                                    with dpg.theme_component(dpg.mvButton):
-                                        dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 0, 0, 0))
-                                        dpg.add_theme_color(
-                                            dpg.mvThemeCol_ButtonHovered, (255, 255, 255, 20))
-                                        dpg.add_theme_color(
-                                            dpg.mvThemeCol_Text, (100, 100, 100, 255))
-                            dpg.bind_item_theme(btn, "cal_muted_theme")
+        for i, btn in enumerate(state["cal_btns"]):
+            if i < len(days):
+                dt = days[i]
+                dpg.configure_item(btn, label=str(dt.day), show=True)
+                dpg.set_item_user_data(btn, dt)
+                dpg.set_item_callback(btn, _select_date)
+                
+                is_current_month = (dt.month == state["view_month"])
+                is_selected = (
+                    dt.year == state["sel_year"]
+                    and dt.month == state["sel_month"]
+                    and dt.day == state["sel_day"]
+                )
+                
+                dpg.bind_item_theme(btn, 0)
+                if is_selected:
+                    dpg.bind_item_theme(btn, "primary_btn_theme")
+                elif not is_current_month:
+                    if not dpg.does_item_exist("cal_muted_theme"):
+                        with dpg.theme(tag="cal_muted_theme"):
+                            with dpg.theme_component(dpg.mvButton):
+                                dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 0, 0, 0))
+                                dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (255, 255, 255, 20))
+                                dpg.add_theme_color(dpg.mvThemeCol_Text, (100, 100, 100, 255))
+                    dpg.bind_item_theme(btn, "cal_muted_theme")
+            else:
+                dpg.configure_item(btn, show=False)
 
     with dpg.window(tag=win_tag, label="Select Date", modal=True,
                     no_resize=True, autosize=True, no_scrollbar=True,
@@ -409,7 +423,16 @@ def open_date_picker(input_tag: str, callback=None):
             dpg.add_button(label=">", width=25, callback=_next)
 
         dpg.add_separator()
-        dpg.add_group(tag="dpk_cal_grid")
+        dpg.add_separator()
+        with dpg.group(tag="dpk_cal_grid"):
+            with dpg.table(header_row=True, borders_innerH=False, borders_innerV=False):
+                for day_name in ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]:
+                    dpg.add_table_column(label=day_name, width_fixed=True, init_width_or_weight=32)
+                for r in range(6):
+                    with dpg.table_row():
+                        for c in range(7):
+                            btn = dpg.add_button(label="", width=32, height=20, show=False)
+                            state["cal_btns"].append(btn)
         dpg.add_separator()
 
         def _confirm():
