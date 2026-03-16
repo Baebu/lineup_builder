@@ -1,7 +1,7 @@
 @echo off
 REM Development batch script that activates server venv and runs with auto-reload
 
-cd /d "%~dp0\server\src"
+cd /d "%~dp0\src"
 
 REM Create virtual environment if it doesn't exist
 if not exist .venv (

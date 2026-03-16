@@ -1,13 +1,11 @@
 @echo off
 REM Development batch script that activates venv and runs the auto-restart dev script
 
-cd /d "%~dp0"
-
 REM Activate virtual environment
-call desktop\.venv\Scripts\activate.bat
+call .venv\Scripts\activate.bat
 
 REM Install/update dependencies if needed
-pip install -r desktop\requirements.txt
+pip install -r requirements.txt
 
 REM Run the development script
 python dev.py

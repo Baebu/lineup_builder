@@ -32,14 +32,14 @@ class RestartHandler(FileSystemEventHandler):
 
 
 def main():
-    desktop_dir = Path(__file__).parent / "desktop"
-    script_path = desktop_dir / "main.py"
+    # Since we're now in desktop/, main.py is in the same directory
+    script_path = Path(__file__).parent / "main.py"
     if not script_path.exists():
         print(f"Error: {script_path} not found")
         sys.exit(1)
 
-    # Monitor the desktop/src directory
-    watch_path = desktop_dir / "src"
+    # Monitor the src directory
+    watch_path = Path(__file__).parent / "src"
     if not watch_path.exists():
         print(f"Error: {watch_path} not found")
         sys.exit(1)
@@ -49,17 +49,11 @@ def main():
     observer.schedule(event_handler, str(watch_path), recursive=True)
     observer.start()
 
-    print(f"Watching {watch_path} for changes...")
-
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("Stopping...")
         observer.stop()
-        if event_handler.process:
-            event_handler.process.terminate()
-            event_handler.process.wait()
     observer.join()
 
 

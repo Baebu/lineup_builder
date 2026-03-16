@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 def main():
-    server_dir = Path(__file__).parent / "server" / "src"
+    server_dir = Path(__file__).parent / "src"
     server_py = server_dir / "server.py"
 
     if not server_py.exists():

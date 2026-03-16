@@ -117,23 +117,6 @@ class OutputMixin:
                 dpg.bind_item_theme("fmt_times", "success_btn_theme" if times_on else "secondary_btn_theme")
 
         # Delegate the heavy lifting to the pure-Python generator
-        import pathlib as _pl
-        _dbg_lines = []
-        for _lbl, _ in getattr(self, "_SOCIAL_FIELDS", []):
-            _tag = f"social_input_{_lbl.replace(' ', '_')}"
-            _exists = dpg.does_item_exist(_tag)
-            _val = dpg.get_value(_tag) if _exists else "N/A"
-            _dbg_lines.append(f"  {_lbl}: exists={_exists}, val={_val!r}")
-        import traceback as _tb
-        _stack = "".join(_tb.format_stack()[-5:-1])
-        _pl.Path("debug_social.txt").write_text(
-            f"=== update_output call ===\n"
-            f"caller stack:\n{_stack}\n"
-            f"_SOCIAL_FIELDS widget state:\n" + "\n".join(_dbg_lines) + "\n"
-            f"social_links dict: {getattr(self, 'social_links', 'MISSING')}\n"
-            f"merged_social in snapshot: {snap.social_links!r}\n"
-            f"output_format: {snap.output_format}\n"
-        )
         body = OutputGenerator.generate(snap)
 
         if dpg.does_item_exist("output_text"):
