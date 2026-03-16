@@ -198,10 +198,37 @@ def build_slot_row(slot: SlotState, app, parent_tag: str):
             )
             slot.name_var._tag = f"slot_name_{sid}"
             styled_text("LINK", ERROR, tag=f"slot_info_{sid}")
+            
+            # Edit DJ button with inline callback
+            def _make_edit_callback(slot_obj, app_obj):
+                def _on_edit_click(sender, app_data, user_data):
+                    try:
+                        name = slot_obj.name_var.get().strip() if slot_obj.name_var else ""
+                        if not name:
+                            print("[slot_ui] Edit DJ: no name entered")
+                            return
+                        # Find DJ in roster
+                        found_idx = None
+                        for idx, dj in enumerate(app_obj.saved_djs):
+                            if dj.get("name", "").lower() == name.lower():
+                                found_idx = idx
+                                break
+                        if found_idx is not None:
+                            app_obj._open_dj_edit_window(app_obj.saved_djs[found_idx], found_idx)
+                        else:
+                            # Create new DJ
+                            app_obj.saved_djs.append({"name": name, "stream": "", "exact_link": False})
+                            app_obj._save_library()
+                            app_obj.refresh_dj_roster_ui()
+                            app_obj._open_dj_edit_window(app_obj.saved_djs[-1], len(app_obj.saved_djs) - 1)
+                    except Exception as e:
+                        print(f"[slot_ui] Error editing DJ: {e}")
+                return _on_edit_click
+            
             _edit_btn = add_icon_button(
                 Icon.EDIT,
                 user_data=slot,
-                callback=lambda s, a, u: _edit_dj_from_slot(u, app),
+                callback=_make_edit_callback(slot, app),
             )
 
             add_icon_button(
